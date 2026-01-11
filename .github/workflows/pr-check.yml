@@ -9,24 +9,13 @@ env:
   XBPS_ALLOW_RESTRICTED: yes
   XBPS_ALLOW_CHROOT_BREAKOUT: yes
 
-jobs:
-  labeler:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - uses: actions/labeler@v5
-        with:
-          repo-token: "${{ secrets.GITHUB_TOKEN }}"
-          configuration-path: vup/.github/labeler.yml
+permissions:
+  contents: read
+  packages: read
 
+jobs:
   verify-build:
     runs-on: ubuntu-latest
-    needs: labeler
-    permissions:
-      contents: read
-      packages: read
     container:
       image: ghcr.io/vup-linux/vup-builder:latest
       options: --privileged
@@ -35,11 +24,6 @@ jobs:
         category: [core, utilities, editors, chat]
       fail-fast: false
     
-    # Conditional execution: Only run if the PR has the corresponding label OR if we detect changes in that dir.
-    # Since matrix jobs are static, we check inside the step or use an `if` at job level.
-    # A cleaner logic for large scale is dynamic matrix, but here we can check if any files changed in that category using git.
-    
-    # Prevent wasted builds on PR updates
     concurrency:
       group: pr-vup-${{ matrix.category }}-${{ github.head_ref }}
       cancel-in-progress: true
@@ -49,17 +33,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: vup
-          fetch-depth: 0 # Need history to diff
+          fetch-depth: 0
 
-      - name: Check for modified packages in ${{ matrix.category }}
+      - name: Check for modified packages
         id: check_changes
         run: |
-          # Check if any file in vup/srcpkgs/${{ matrix.category }} matches the diff
-          # We compare against origin/main. In a PR, headers usually set GITHUB_BASE_REF
-          
-          # Mark safe dir
           git config --global --add safe.directory "$PWD/vup"
-          
           cd vup
           CHANGED=$(git diff --name-only origin/main HEAD | grep "srcpkgs/${{ matrix.category }}" || true)
           
@@ -100,13 +79,6 @@ jobs:
           
           # Authorize restricted packages
           echo "XBPS_ALLOW_RESTRICTED=yes" >> etc/conf
-          
-          # Link VUP srcpkgs
-          # Ensure target structure exists
-          # In the container/runner, vup is at ../vup
-          # srcpkgs is at ../vup/vup/srcpkgs
-          mkdir -p srcpkgs/vup
-          ln -s ../../vup/vup/srcpkgs srcpkgs/vup/srcpkgs
 
       - name: Binary Bootstrap
         if: steps.check_changes.outputs.skip != 'true' && steps.cache-bootstrap.outputs.cache-hit != 'true'
@@ -118,30 +90,56 @@ jobs:
         if: steps.check_changes.outputs.skip != 'true'
         run: |
           cd void-packages
-          CATEGORY_PATH="../vup/vup/srcpkgs/${{ matrix.category }}"
+          cat_path="../vup/vup/srcpkgs/${{ matrix.category }}"
           
-          # Re-detect changed packages to iterate specifically over them
-          # Or just build everything in the category that is present? 
-          # Better: Extract pkgnames from git diff to only build modified ones.
-          
-          cd ../vup
           # Get list of modified template dirs
+          cd ../vup
           MODIFIED_PKGS=$(git diff --name-only origin/main HEAD | grep "srcpkgs/${{ matrix.category }}" | cut -d/ -f4 | sort -u)
           cd ../void-packages
-
+          
+          mkdir -p ../reports
+          REPORT_FILE="../reports/report-${{ matrix.category }}.json"
+          
+          results="[]"
+          
           for pkgname in $MODIFIED_PKGS; do
-             pkgpath="$CATEGORY_PATH/$pkgname"
+             pkgpath="$cat_path/$pkgname"
              if [ -d "$pkgpath" ]; then
-                 echo "Verifying build for $pkgname..."
+                 echo "Using template from $pkgpath"
                  
-                 # Copy template for isolation
+                 # Prepare reporting entry
+                 status="pending"
+                 log=""
+                 
                  rm -rf "srcpkgs/$pkgname"
                  cp -r "$pkgpath" "srcpkgs/"
                  
-                 # Build
-                 ./xbps-src -Q pkg "$pkgname"
+                 echo "Building $pkgname..."
+                 if ./xbps-src -Q pkg "$pkgname" > build.log 2>&1; then
+                     echo "Build SUCCESS: $pkgname"
+                     status="success"
+                 else
+                     echo "Build FAILED: $pkgname"
+                     status="failure"
+                     # Capture last 50 lines of log
+                     log=$(tail -n 50 build.log)
+                     cat build.log
+                 fi
                  
-                 # Cleanup
+                 # Append to JSON results (using python for safe json handling)
+                 encoded_log=$(python3 -c "import json, sys; print(json.dumps(sys.argv[1]))" "$log")
+                 results=$(python3 -c "import json, sys; res=json.loads(sys.argv[1]); res.append({'package': '$pkgname', 'status': '$status', 'log': $encoded_log}); print(json.dumps(res))" "$results")
+                 
                  rm -rf "srcpkgs/$pkgname"
              fi
           done
+          
+          # Write report
+          echo "$results" > "$REPORT_FILE"
+
+      - name: Upload Build Artifacts
+        if: steps.check_changes.outputs.skip != 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-report-${{ matrix.category }}
+          path: reports/*.json
