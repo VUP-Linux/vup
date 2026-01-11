@@ -184,8 +184,11 @@ jobs:
                 xbps-rindex --sign-pkg --privkey ../privkey.pem "$pkg"
              done
              
+             echo "Adding packages to index..."
+             xbps-rindex -a *.xbps
+             
              echo "Signing repository index..."
-             xbps-rindex --sign --privkey ../privkey.pem --signedby "VUP Builder" -a *.xbps
+             xbps-rindex --sign --privkey ../privkey.pem --signedby "VUP Builder" .
              
              rm -f ../privkey.pem
           else
