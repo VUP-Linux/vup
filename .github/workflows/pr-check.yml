@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: labeler
     container:
-      image: ghcr.io/void-linux/void-linux:latest
+      image: ghcr.io/void-linux/void-glibc:latest
       options: --privileged
     strategy:
       matrix:
