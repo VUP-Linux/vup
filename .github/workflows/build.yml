@@ -30,6 +30,11 @@ jobs:
       cancel-in-progress: true
 
     steps:
+      - name: Pre-install Node Deps
+        run: |
+          # actions/checkout needs libstdc++ for its node runtime
+          xbps-install -Sy libstdc++ git
+          
       - name: Checkout VUP
         uses: actions/checkout@v4
         with:
