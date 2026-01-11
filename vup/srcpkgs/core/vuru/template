@@ -11,3 +11,12 @@ license="MIT"
 homepage="https://github.com/VUP-Linux/vup"
 distfiles="https://github.com/VUP-Linux/vup/releases/download/v${version}/vuru-${version}.tar.gz"
 checksum="b71801f112b851c1020990cd6d81d833edeb82ab4efb2122d43cc62c51d831f5"
+
+post_install() {
+	# Generate and install completions
+
+	for shell in bash zsh fish; do
+		vtargetrun ${DESTDIR}/usr/bin/vuru completion ${shell} > vuru.${shell}
+		vcompletion vuru.${shell} ${shell}
+	done
+}

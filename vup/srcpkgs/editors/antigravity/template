@@ -56,15 +56,41 @@ do_install() {
 	vmkdir opt
 	mv ${DESTDIR}/usr/share/antigravity ${DESTDIR}/opt/Antigravity
 
-	# Fix desktop file paths
-	sed -i 's|/usr/share/antigravity|/opt/Antigravity|g' ${DESTDIR}/usr/share/applications/*.desktop
+	# Desktop file
+	# We need to find where the desktop file is. Usually usr/share/applications/antigravity.desktop
+	for f in usr/share/applications/*.desktop; do
+		local fname=$(basename "$f")
+		sed -e 's|/usr/share/antigravity|/opt/Antigravity|g' \
+		    -e 's|Exec=/opt/Antigravity/antigravity|Exec=/usr/bin/antigravity|g' \
+		    "$f" > "$fname"
+		vinstall "$fname" 644 usr/share/applications
+	done
 
-	# Create binary symlink
-	vmkdir usr/bin
-	ln -sf /opt/Antigravity/bin/antigravity ${DESTDIR}/usr/bin/antigravity
+	# Icons
+	# Copy all icons preserving structure if possible, or flattened if standard
+	if [ -d usr/share/icons ]; then
+		vmkdir usr/share/icons
+		vcopy usr/share/icons/* usr/share/icons
+	fi
+	# Pixmaps
+	if [ -d usr/share/pixmaps ]; then
+		vmkdir usr/share/pixmaps
+		vcopy usr/share/pixmaps/* usr/share/pixmaps
+	fi
 
-	# Install license files
-	vmkdir usr/share/licenses/${pkgname}
-	ln -sf /opt/Antigravity/resources/app/LICENSE.txt ${DESTDIR}/usr/share/licenses/${pkgname}/LICENSE.txt
-	ln -sf /opt/Antigravity/LICENSES.chromium.html ${DESTDIR}/usr/share/licenses/${pkgname}/LICENSES.chromium.html
+	# Completions
+	if [ -d usr/share/zsh/vendor-completions ]; then
+		for f in usr/share/zsh/vendor-completions/*; do
+			vcompletion "$f" zsh
+		done
+	fi
+	if [ -d usr/share/bash-completion/completions ]; then
+		for f in usr/share/bash-completion/completions/*; do
+			vcompletion "$f" bash
+		done
+	fi
+
+	# License
+	vlicense usr/share/antigravity/resources/app/LICENSE.txt
+	vlicense usr/share/antigravity/LICENSES.chromium.html
 }

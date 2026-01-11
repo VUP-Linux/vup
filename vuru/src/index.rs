@@ -12,7 +12,7 @@ pub struct PackageInfo {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct Index(HashMap<String, PackageInfo>);
+pub struct Index(pub HashMap<String, PackageInfo>);
 
 impl Index {
     pub fn fetch(url: &str, etag: Option<String>) -> Result<(Self, Option<String>, bool)> {

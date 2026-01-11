@@ -39,6 +39,14 @@ pub enum Commands {
         #[command(subcommand)]
         command: RepoCommands,
     },
+    /// Generate shell completion scripts
+    Completion {
+        /// Shell to generate completion for
+        shell: clap_complete::Shell,
+    },
+    /// List all available packages (hidden, used for completion)
+    #[command(hide = true)]
+    ListPackages,
 }
 
 #[derive(Subcommand)]
