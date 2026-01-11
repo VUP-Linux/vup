@@ -24,8 +24,6 @@ jobs:
       matrix:
         category: [core, utilities, editors, chat]
       fail-fast: false
-    # Only run if the category was modified, or if it's a dispatch event
-    if: github.event_name == 'workflow_dispatch' || contains(toJSON(github.event.head_commit.modified), matrix.category)
     # Prevent race conditions
     concurrency:
       group: vup-${{ matrix.category }}
@@ -36,18 +34,49 @@ jobs:
         run: |
           xbps-install -Sy git curl bash python3 github-cli
 
+      - name: Check Gate
+        id: gate
+        run: |
+          # Default skip to true
+          SKIP="true"
+          
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+             echo "Manual trigger, running..."
+             SKIP="false"
+          else
+             # Check modified files for srcpkgs/<category>/
+             MODIFIED='${{ toJSON(github.event.head_commit.modified) }}'
+             CATEGORY="srcpkgs/${{ matrix.category }}/"
+             
+             if echo "$MODIFIED" | grep -q "$CATEGORY"; then
+                echo "Changes detected in $CATEGORY"
+                SKIP="false"
+             elif echo "$MODIFIED" | grep -q "common/"; then
+                echo "Changes in common/, running all."
+                SKIP="false"
+             else
+                echo "No changes in $CATEGORY"
+             fi
+          fi
+          
+          echo "skip=$SKIP" >> $GITHUB_OUTPUT
+
+
       - name: Checkout VUP
+        if: steps.gate.outputs.skip != 'true'
         uses: actions/checkout@v4
         with:
           path: vup
           
       - name: Checkout void-packages
+        if: steps.gate.outputs.skip != 'true'
         uses: actions/checkout@v4
         with:
           repository: void-linux/void-packages
           path: void-packages
 
       - name: Bootstrap xbps-src
+        if: steps.gate.outputs.skip != 'true'
         run: |
           cd void-packages
           # Override xbps-src with our custom version
@@ -56,6 +85,7 @@ jobs:
           ./xbps-src binary-bootstrap
 
       - name: Sync Existing Release
+        if: steps.gate.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -67,6 +97,7 @@ jobs:
           rm -f repodata
 
       - name: Build Packages
+        if: steps.gate.outputs.skip != 'true'
         run: |
           cd void-packages
           CATEGORY_PATH="../vup/vup/srcpkgs/${{ matrix.category }}"
@@ -96,12 +127,14 @@ jobs:
           done
 
       - name: Prune and Index
+        if: steps.gate.outputs.skip != 'true'
         run: |
           cd void-packages/dist
           python3 ../../vup/vup/scripts/manage_release.py prune
           xbps-rindex -a *.xbps
 
       - name: Clean Remote Assets
+        if: steps.gate.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -112,6 +145,7 @@ jobs:
           python3 ../../vup/vup/scripts/manage_release.py clean_remote
 
       - name: Upload New Assets
+        if: steps.gate.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         uses: softprops/action-gh-release@v1
