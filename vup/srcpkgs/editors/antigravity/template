@@ -43,6 +43,7 @@ checksum=d9920f9e0788245b1dab0f73a607b4eea00605bfb70e16795da1c1ac89eabd4b
 
 do_install() {
 	# deb contents are already extracted to $wrksrc by xbps-src
+	find . -maxdepth 4
 	cp -r usr ${DESTDIR}/
 
 	# Move /usr/share/antigravity to /opt/Antigravity
