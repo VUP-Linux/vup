@@ -95,7 +95,7 @@ jobs:
         run: |
           cd void-packages
           # Override xbps-src with our custom version
-          cp ../vup/vup/xbps-src .
+          cp ../vup/xbps-src .
           chmod +x xbps-src
           
           # Authorize restricted packages
@@ -111,7 +111,7 @@ jobs:
         if: steps.check_changes.outputs.skip != 'true'
         run: |
           cd void-packages
-          CATEGORY_PATH="../vup/vup/srcpkgs/${{ matrix.category }}"
+          CATEGORY_PATH="../vup/srcpkgs/${{ matrix.category }}"
           
           # Re-detect changed packages to iterate specifically over them
           # Or just build everything in the category that is present? 

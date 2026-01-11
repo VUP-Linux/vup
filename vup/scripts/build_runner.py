@@ -42,7 +42,7 @@ def main():
 
     # Assumes we are running from 'void-packages' directory
     # and vup checkout is at '../vup'
-    vup_src_path = f"../vup/vup/srcpkgs/{category}"
+    vup_src_path = f"../vup/srcpkgs/{category}"
     
     if not os.path.exists(vup_src_path):
         print(f"Category path {vup_src_path} does not exist.")

@@ -133,9 +133,8 @@ jobs:
 
       - name: Setup xbps-src
         run: |
-          ls -R ../vup
           cd void-packages
-          cp ../vup/vup/xbps-src .
+          cp ../vup/xbps-src .
           chmod +x xbps-src
           echo "XBPS_ALLOW_RESTRICTED=yes" >> etc/conf
 
@@ -153,7 +152,7 @@ jobs:
         run: |
           mkdir -p void-packages/dist
           cd void-packages/dist
-          python3 ../../vup/vup/scripts/manage_release.py download
+          python3 ../vup/scripts/manage_release.py download
           rm -f repodata
 
       - name: Build Packages (Buffered)
@@ -162,14 +161,14 @@ jobs:
         run: |
           cd void-packages
           # category is passed via env
-          python3 ../vup/vup/scripts/build_runner.py
+          python3 ../vup/scripts/build_runner.py
 
       - name: Prune and Index
         env:
           XBPS_PRIVATE_KEY: ${{ secrets.XBPS_PRIVATE_KEY }}
         run: |
           cd void-packages/dist
-          python3 ../../vup/vup/scripts/manage_release.py prune
+          python3 ../vup/scripts/manage_release.py prune
           
           if [ ! -z "$XBPS_PRIVATE_KEY" ]; then
              echo "$XBPS_PRIVATE_KEY" > ../privkey.pem
@@ -197,7 +196,7 @@ jobs:
           CATEGORY: ${{ matrix.category }}
         run: |
           cd void-packages/dist
-          python3 ../../vup/vup/scripts/manage_release.py clean_remote
+          python3 ../vup/scripts/manage_release.py clean_remote
 
       - name: Upload New Assets
         env:
