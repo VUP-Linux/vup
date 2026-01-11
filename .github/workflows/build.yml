@@ -13,6 +13,7 @@ permissions:
 
 env:
   XBPS_ALLOW_RESTRICTED: yes
+  XBPS_ALLOW_CHROOT_BREAKOUT: yes
 
 jobs:
   build-and-release:
@@ -100,9 +101,6 @@ jobs:
           # Override xbps-src with our custom version
           cp ../vup/vup/xbps-src .
           chmod +x xbps-src
-          
-          # Allow running as root via env var logic in xbps-src
-          export XBPS_ALLOW_CHROOT_BREAKOUT=yes
           
           ./xbps-src binary-bootstrap
 
