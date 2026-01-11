@@ -101,10 +101,8 @@ jobs:
           cp ../vup/vup/xbps-src .
           chmod +x xbps-src
           
-          # Allow running as root
-          sed -i 's/if \[ -z "$IN_CHROOT" -a "$UID" -eq 0 -a -z "$XBPS_ALLOW_CHROOT_BREAKOUT" \]; then/if [ -z "$IN_CHROOT" -a "$UID" -eq 0 -a -z "$XBPS_ALLOW_CHROOT_BREAKOUT" ]; then\n    cat >&2 <<EOF\nWARNING: xbps-src running as root is not supported.\nEOF/' xbps-src
-          sed -i 's/echo "ERROR: xbps-src cannot be used as root." 1>&2/ /' xbps-src
-          sed -i 's/exit 1/ /' xbps-src
+          # Allow running as root via env var logic in xbps-src
+          export XBPS_ALLOW_CHROOT_BREAKOUT=yes
           
           ./xbps-src binary-bootstrap
 
