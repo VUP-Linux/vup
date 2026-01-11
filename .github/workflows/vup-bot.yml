@@ -60,22 +60,26 @@ jobs:
               md += f"### ❌ {failures} VUP Builds Failed\n\n"
               md += f"[View Full Logs]({run_url})\n\n"
           
+
           if len(summary) > 0:
-              md += "| Package | Status | Log |\n"
-              md += "|---------|--------|-----|\n"
+              md += "| Package | Status |\n"
+              md += "|---------|--------|\n"
               for res in summary:
                   icon = "✅" if res["status"] == "success" else "❌"
-                  log_cell = ""
-                  if res["status"] == "failure":
-                      log_content = res.get("log", "No log available")
-                      # Escape HTML in log content?
-                      # Simple escaping for < pre tag
-                      log_content = log_content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                      log_cell = f"<details><summary>Log</summary><pre>{log_content}</pre></details>"
-                  
                   pkg_name = res.get("package", "unknown")
                   status = res.get("status", "unknown")
-                  md += f"| {pkg_name} | {icon} {status} | {log_cell} |\n"
+                  md += f"| {pkg_name} | {icon} {status} |\n"
+              
+              # Add failure logs below
+              failures_list = [r for r in summary if r["status"] == "failure"]
+              if failures_list:
+                  md += "\n<br>\n\n### 🔍 Failure Details\n"
+                  for res in failures_list:
+                       pkg = res.get("package")
+                       log = res.get("log", "No log available")
+                       # Escape HTML
+                       log = log.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                       md += f"\n<details><summary><strong>{pkg}</strong> Build Log</summary>\n\n<pre>{log}</pre>\n</details>\n"
           else:
               md += "No packages were modified or built in this run."
 
