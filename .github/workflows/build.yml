@@ -167,11 +167,31 @@ jobs:
 
       - name: Prune and Index
         if: steps.gate.outputs.skip != 'true'
+        env:
+          XBPS_PRIVATE_KEY: ${{ secrets.XBPS_PRIVATE_KEY }}
         run: |
           cd void-packages/dist
           python3 ../../vup/vup/scripts/manage_release.py prune
-          xbps-rindex -a *.xbps
-
+          
+          # Setup private key if available
+          if [ ! -z "$XBPS_PRIVATE_KEY" ]; then
+             echo "$XBPS_PRIVATE_KEY" > ../privkey.pem
+             echo "Signing packages..."
+             # Sign all new/existing packages in dist
+             # Note: xbps-rindex --sign-pkg signs the PKG, creating a .sig file
+             # We should run this for all *.xbps in dist
+             for pkg in *.xbps; do
+                xbps-rindex --sign-pkg --privkey ../privkey.pem "$pkg"
+             done
+             
+             echo "Signing repository index..."
+             xbps-rindex --sign --privkey ../privkey.pem --signed-by "VUP Builder" -a *.xbps
+             
+             rm -f ../privkey.pem
+          else
+             echo "No private key found, skipping signing."
+             xbps-rindex -a *.xbps
+          fi
       - name: Clean Remote Assets
         if: steps.gate.outputs.skip != 'true'
         env:

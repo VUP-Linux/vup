@@ -21,3 +21,5 @@ dist/
 # Misc
 index.json
 *.log
+
+/keys/privkey.pem

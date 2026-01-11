@@ -8,7 +8,7 @@ To install the VURU client from the rolling release:
 
 ```bash
 # Install VURU
-sudo xbps-install -R https://github.com/void-linux/vup/releases/download/vuru-current -S vuru
+sudo xbps-install -R https://github.com/VUP-Linux/vup/releases/download/core-current -S vuru
 ```
 
 ## 2. Source Layout
