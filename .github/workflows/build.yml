@@ -25,7 +25,7 @@ jobs:
         category: [core, utilities, editors, chat]
       fail-fast: false
     # Only run if the category was modified, or if it's a dispatch event
-    if:github.event_name == 'workflow_dispatch' || contains(toJSON(github.event.head_commit.modified), matrix.category)
+    if: github.event_name == 'workflow_dispatch' || contains(toJSON(github.event.head_commit.modified), matrix.category)
     # Prevent race conditions
     concurrency:
       group: vup-${{ matrix.category }}
