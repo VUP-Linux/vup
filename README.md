@@ -9,6 +9,7 @@ VUP extends your Void Linux experience by providing a community-driven repositor
 ## Why VUP?
 
 *   **⚡ Native Speed**: Uses your existing `xbps-install`. No slow wrappers.
+*   **📦 Prebuilt Binaries**: Think of it like Fedora's COPR. All packages are prebuilt by CI as `.xbps` files, saving you from compiling on your local machine.
 *   **📦 Community Power**: Anyone can submit a package template.
 *   **🛡️ Infrastructure Free**: Powered entirely by GitHub. No servers to go down.
 *   **🔍 Easy Discovery**: The `vuru` tool makes finding packages instant.

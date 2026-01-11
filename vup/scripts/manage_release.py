@@ -85,23 +85,51 @@ def prune_local():
     """Keep only the latest version of each package in DIST_DIR."""
     print("Pruning local old versions...")
     files = glob.glob(os.path.join(DIST_DIR, "*.xbps"))
-    if not files: return
-
+    
+    # 1. Prune duplicate/old versions
     pkgs = {}
-    for f in files:
-        name = get_pkg_name(f)
-        if name:
-            pkgs.setdefault(name, []).append(f)
+    if files:
+        for f in files:
+            name = get_pkg_name(f)
+            if name:
+                pkgs.setdefault(name, []).append(f)
+            else:
+                print(f"Warning: Could not determine package name for {os.path.basename(f)}")
 
     for name, fpaths in pkgs.items():
         if len(fpaths) > 1:
             fpaths.sort(key=cmp_to_key(xbps_ver_cmp), reverse=True)
+            print(f"Versions for {name}: {[os.path.basename(fv) for fv in fpaths]}")
             
             for old in fpaths[1:]:
                 print(f"Removing old version: {os.path.basename(old)}")
                 os.remove(old)
                 if os.path.exists(old + ".sig"): os.remove(old + ".sig")
                 if os.path.exists(old + ".sig2"): os.remove(old + ".sig2")
+
+    # 2. Clean orphaned signatures and other artifacts
+    print("Cleaning orphaned files...")
+    all_files = glob.glob(os.path.join(DIST_DIR, "*"))
+    for f in all_files:
+        if os.path.isdir(f): continue
+        if f.endswith(".xbps"): continue
+        
+        # Skip repodata files
+        basename = os.path.basename(f)
+        if basename == "repodata" or basename.startswith("repodata."):
+            continue
+            
+        # Check if it is a signature for a missing package
+        parent = None
+        if f.endswith(".sig"):
+            parent = f[:-4]
+        elif f.endswith(".sig2"):
+            parent = f[:-5]
+            
+        if parent:
+            if not os.path.exists(parent):
+                print(f"Removing orphaned signature: {basename}")
+                os.remove(f)
 
 def clean_remote_assets():
     """Delete remote assets that are NOT present in local DIST_DIR."""
