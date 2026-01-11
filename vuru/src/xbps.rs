@@ -1,6 +1,6 @@
 use std::process::Command;
 use anyhow::{Context, Result};
-use crate::index::{Index, PackageInfo};
+use crate::index::Index;
 
 pub fn install(package: &str, index: &Index) -> Result<()> {
     // 1. Look up package in index

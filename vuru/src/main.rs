@@ -3,7 +3,7 @@ mod index; // Renamed/Added
 mod xbps;
 
 use clap::Parser;
-use cli::{Cli, Commands, RepoCommands};
+use cli::{Cli, Commands};
 use index::Index;
 use anyhow::Result;
 
