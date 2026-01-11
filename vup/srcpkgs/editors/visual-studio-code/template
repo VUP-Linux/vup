@@ -1,0 +1,104 @@
+# Template file for 'visual-studio-code'
+pkgname=visual-studio-code
+version=1.108.0
+revision=1
+archs="x86_64 aarch64 armv7l"
+depends="alsa-lib at-spi2-core cairo cups dbus expat glib gtk+3 libX11 libXcomposite libXdamage libXext libXfixes libXrandr libXScrnSaver libdrm libxcb libxkbcommon libxkbfile libxshmfence mesa nspr nss pango xdg-utils libsecret lsof gnupg shared-mime-info"
+short_desc="Visual Studio Code (vscode): Editor for building and debugging modern web and cloud applications"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="custom:commercial"
+homepage="https://code.visualstudio.com/"
+restricted=yes
+nopie=yes
+nostrip=yes
+noshlibprovides=yes
+create_wrksrc=yes
+
+_baseurl="https://raw.githubusercontent.com/microsoft/vscode/${version}/resources/linux"
+distfiles="${_baseurl}/code.desktop>code.desktop.in
+ ${_baseurl}/code-url-handler.desktop>code-url-handler.desktop.in
+ ${_baseurl}/code-workspace.xml>code-workspace.xml.in"
+ checksum="2f1782b30c4e040efff655fd9cf477930c5a0c81ddae27749b0cbb922c1d248e
+ c361efa7e02fcad759ed80d2fbab67877f33219b981578af6fffaf18aeb12d9b
+ 3af748dd6578a1775e8eb7248ba397b7e11840df2ea6ee234ff76fee3dc306cf"
+
+skip_extraction="code.desktop.in code-url-handler.desktop.in code-workspace.xml.in"
+
+case "$XBPS_TARGET_MACHINE" in
+	x86_64)
+		distfiles+=" https://update.code.visualstudio.com/${version}/linux-x64/stable>code_x64_${version}.tar.gz"
+		checksum+=" db4c9d0df1c5872dc13710bd6c71b52538326c563dcf1c5cf35100a4e561df09"
+		_app_dir="VSCode-linux-x64"
+		;;
+	aarch64)
+		distfiles+=" https://update.code.visualstudio.com/${version}/linux-arm64/stable>code_arm64_${version}.tar.gz"
+		checksum+=" de66b49beb81b909464e275115b23401cc0672f5bc79b9c99e7ae102e4ba7447"
+		_app_dir="VSCode-linux-arm64"
+		;;
+	armv7l)
+		distfiles+=" https://update.code.visualstudio.com/${version}/linux-armhf/stable>code_armhf_${version}.tar.gz"
+		checksum+=" 2a2027ae96f44a139a948078faf2843dee401ebdeb538b206de651513119699b"
+		_app_dir="VSCode-linux-armhf"
+		;;
+esac
+
+do_install() {
+	# Extract and install app
+	vmkdir opt/${pkgname}
+	vcopy "${_app_dir}/*" opt/${pkgname}
+
+	# Helper script
+	# We create it dynamically to handle strict paths
+	cat > code.sh <<EOF
+#!/bin/bash
+XDG_CONFIG_HOME=\${XDG_CONFIG_HOME:-~/.config}
+
+# Allow users to override command-line options
+if [[ -f \$XDG_CONFIG_HOME/code-flags.conf ]]; then
+   CODE_USER_FLAGS="\$(sed 's/#.*//' \$XDG_CONFIG_HOME/code-flags.conf | tr '\n' ' ')"
+fi
+
+# Launch
+exec /opt/${pkgname}/bin/code "\$@" \$CODE_USER_FLAGS
+EOF
+	vbin code.sh code
+
+	# Desktop files and icons
+	# Process desktop files
+	sed -e "s/@@NAME_LONG@@/Visual Studio Code/g" \
+		-e "s/@@NAME_SHORT@@/Code/g" \
+		-e "s/@@NAME@@/code/g" \
+		-e "s#@@EXEC@@#/usr/bin/code#g" \
+		-e "s/@@ICON@@/visual-studio-code/g" \
+		-e "s/@@URLPROTOCOL@@/vscode/g" \
+		"${XBPS_SRCDISTDIR}/${pkgname}-${version}/code.desktop.in" > code.desktop
+
+	sed -e "s/@@NAME_LONG@@/Visual Studio Code/g" \
+		-e "s/@@NAME_SHORT@@/Code/g" \
+		-e "s/@@NAME@@/code/g" \
+		-e "s#@@EXEC@@#/usr/bin/code#g" \
+		-e "s/@@ICON@@/visual-studio-code/g" \
+		-e "s/@@URLPROTOCOL@@/vscode/g" \
+		"${XBPS_SRCDISTDIR}/${pkgname}-${version}/code-url-handler.desktop.in" > code-url-handler.desktop
+
+	sed -e "s/@@NAME_LONG@@/Visual Studio Code/g" \
+		-e "s/@@NAME_SHORT@@/Code/g" \
+		-e "s/@@NAME@@/code/g" \
+		-e "s#@@EXEC@@#/usr/bin/code#g" \
+		-e "s/@@ICON@@/visual-studio-code/g" \
+		-e "s/@@URLPROTOCOL@@/vscode/g" \
+		"${XBPS_SRCDISTDIR}/${pkgname}-${version}/code-workspace.xml.in" > ${pkgname}-workspace.xml
+
+	vinstall code.desktop 644 usr/share/applications
+	vinstall code-url-handler.desktop 644 usr/share/applications
+	vinstall ${pkgname}-workspace.xml 644 usr/share/mime/packages
+
+	vinstall "${_app_dir}/resources/app/resources/linux/code.png" 644 usr/share/pixmaps ${pkgname}.png
+	
+	# License
+	vlicense "${_app_dir}/resources/app/LICENSE.rtf"
+	
+	# Shell completions
+	vcompletion "${_app_dir}/resources/completions/bash/code" bash
+	vcompletion "${_app_dir}/resources/completions/zsh/_code" zsh
+}
