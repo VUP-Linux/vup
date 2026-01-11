@@ -1,18 +1,10 @@
-# Template file for 'antigravity' 
+# Template file for 'antigravity'
 pkgname=antigravity
 version=1.13.3
 revision=1
 archs="x86_64"
-restricted=yes
-wrksrc="Antigravity"
-short_desc="Agentic development platform from Google"
-maintainer="AmarBego <begovicamar@proton.me>"
-license="custom:Google-Antigravity"
-homepage="https://antigravity.google/"
-
-distfiles="https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/stable/${version}-4533425205018624/linux-x64/Antigravity.tar.gz"
-checksum=084dfbedf1049b363aa3ad7ba679eec8b80feaf29585accb90b5910ebb270048
-
+create_wrksrc=yes
+hostmakedepends="tar"
 depends="
  alsa-lib
  at-spi2-core
@@ -38,20 +30,34 @@ depends="
  pango
  cups
 "
-
+short_desc="An agentic development platform from Google"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="custom:Google-Antigravity"
+homepage="https://antigravity.google/"
+restricted=yes
 nopie=yes
 nostrip=yes
 
+distfiles="https://us-central1-apt.pkg.dev/projects/antigravity-auto-updater-dev/pool/antigravity-debian/antigravity_${version}-1766182170_amd64_365061c50063f9bd47a9ff88432261b8.deb"
+checksum=d9920f9e0788245b1dab0f73a607b4eea00605bfb70e16795da1c1ac89eabd4b
+
 do_install() {
-	# Install under /opt
+	# deb contents are already extracted to $wrksrc by xbps-src
+	cp -r usr ${DESTDIR}/
+
+	# Move /usr/share/antigravity to /opt/Antigravity
 	vmkdir opt
-	cp -r . ${DESTDIR}/opt/Antigravity
+	mv ${DESTDIR}/usr/share/antigravity ${DESTDIR}/opt/Antigravity
 
-	# Binary symlink
+	# Fix desktop file paths
+	sed -i 's|/usr/share/antigravity|/opt/Antigravity|g' ${DESTDIR}/usr/share/applications/*.desktop
+
+	# Create binary symlink
 	vmkdir usr/bin
-	ln -s /opt/Antigravity/antigravity ${DESTDIR}/usr/bin/antigravity
+	ln -sf /opt/Antigravity/bin/antigravity ${DESTDIR}/usr/bin/antigravity
 
-	# License files (if present)
+	# Install license files
 	vmkdir usr/share/licenses/${pkgname}
-	cp LICENSE* ${DESTDIR}/usr/share/licenses/${pkgname}/ 2>/dev/null || true
+	ln -sf /opt/Antigravity/resources/app/LICENSE.txt ${DESTDIR}/usr/share/licenses/${pkgname}/LICENSE.txt
+	ln -sf /opt/Antigravity/LICENSES.chromium.html ${DESTDIR}/usr/share/licenses/${pkgname}/LICENSES.chromium.html
 }
