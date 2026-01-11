@@ -103,7 +103,7 @@ jobs:
     if: needs.check-changes.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/VUP-Linux/vup-builder:latest
+      image: ghcr.io/vup-linux/vup-builder:latest
       options: --privileged
     strategy:
       matrix: ${{ fromJson(needs.check-changes.outputs.matrix) }}

@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: labeler
     container:
-      image: ghcr.io/VUP-Linux/vup-builder:latest
+      image: ghcr.io/vup-linux/vup-builder:latest
       options: --privileged
     strategy:
       matrix:
