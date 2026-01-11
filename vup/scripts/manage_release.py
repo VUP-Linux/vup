@@ -16,7 +16,7 @@ DIST_DIR = "dist"
 def run_command(cmd, capture_output=False):
     try:
         if capture_output:
-            return subprocess.check_output(cmd).decode().strip()
+            return subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
         subprocess.check_call(cmd)
         return True
     except subprocess.CalledProcessError as e:
@@ -28,7 +28,9 @@ def get_pkg_name(filename):
     # Use xbps-uhelper if available for accurate parsing
     # xbps-uhelper getpkgname <binpkg>
     # If file doesn't exist (remote listing), fallback to regex
-    if os.path.exists(filename):
+    # If file doesn't exist (remote listing), fallback to regex
+    # Also skip xbps-uhelper for .xbps files as it expects pkgver string
+    if os.path.exists(filename) and not filename.endswith(".xbps"):
         res = run_command(["xbps-uhelper", "getpkgname", filename], capture_output=True)
         if res: return res
     
