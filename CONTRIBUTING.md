@@ -46,6 +46,7 @@ VUP is similar to the AUR (Arch User Repository). Packages are submitted by comm
 
 *   Follow standard [Void Linux packaging conventions](https://github.com/void-linux/void-packages/blob/master/Manual.md).
 *   Ensure `license`, `homepage`, and `maintainer` are accurate.
+*   **Electron/Prebuilt Binaries**: When packaging prebuilt binaries (especially Electron apps), you MUST set `noshlibprovides=yes`. This prevents the package from "providing" its internal bundled libraries (like `libffmpeg.so`) to the system, which would break dependency resolution for other packages.
 
 ## Architecture Overview
 
