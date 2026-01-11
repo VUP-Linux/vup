@@ -4,6 +4,7 @@ version=1.13.3
 revision=1
 archs="x86_64"
 create_wrksrc=yes
+hostmakedepends="tar"
 depends="
  alsa-lib
  at-spi2-core
