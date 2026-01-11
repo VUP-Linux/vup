@@ -50,14 +50,19 @@ jobs:
                   cmd = ["git", "diff", "--name-only", before, sha]
                   
               try:
+                  print(f"Running diff command: {cmd}")
                   output = subprocess.check_output(cmd).decode()
-              except subprocess.CalledProcessError:
+                  print("Diff output:")
+                  print(output)
+              except subprocess.CalledProcessError as e:
+                  print(f"Git diff failed: {e}")
                   return "ALL"
                   
               return output.splitlines()
 
           def main():
               changes = get_changes()
+              print(f"Changes detected: {changes}")
               # Dynamically find categories in vup/srcpkgs
               if not os.path.exists("vup/srcpkgs"):
                   print("vup/srcpkgs not found")
@@ -258,7 +263,8 @@ jobs:
           
           for r in results:
               icon = "✅" if r["status"] == "success" else "❌"
-              dur = f"{r.get(\"duration\", 0):.1f}s"
+              duration = r.get("duration", 0)
+              dur = f"{duration:.1f}s"
               print(f"| {r[\"name\"]} | {icon} {r[\"status\"]} | {dur} |")
               
               if r["status"] == "failure":
