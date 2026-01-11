@@ -67,9 +67,12 @@ jobs:
                   icon = "✅" if res["status"] == "success" else "❌"
                   log_cell = ""
                   if res["status"] == "failure":
-                      log_cell = f"<details><summary>Log</summary><pre>{res[\"log\"]}</pre></details>"
+                      log_content = res.get("log", "No log available")
+                      log_cell = f"<details><summary>Log</summary><pre>{log_content}</pre></details>"
                   
-                  md += f"| {res[\"package\"]} | {icon} {res[\"status\"]} | {log_cell} |\n"
+                  pkg_name = res.get("package", "unknown")
+                  status = res.get("status", "unknown")
+                  md += f"| {pkg_name} | {icon} {status} | {log_cell} |\n"
           else:
               md += "No packages were modified or built in this run."
 
@@ -78,9 +81,11 @@ jobs:
           
           # Set outcome for step
           if failures > 0:
-              print("::set-output name=result::failure")
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+                  print("result=failure", file=fh)
           else:
-              print("::set-output name=result::success")
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+                  print("result=success", file=fh)
           '
           
       - name: Comment on PR

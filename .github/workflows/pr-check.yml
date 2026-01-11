@@ -14,14 +14,98 @@ permissions:
   packages: read
 
 jobs:
-  verify-build:
+  check-changes:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      should_run: ${{ steps.set-matrix.outputs.should_run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine Systems to Build
+        id: set-matrix
+        run: |
+          git config --global --add safe.directory "$PWD"
+          # Fetch main to ensure we have the reference for diff
+          git fetch origin main
+
+          # Actual Script
+          python3 -c '
+          import os, subprocess, json, sys
+
+          def main():
+              # We need to list all categories first
+              # Assuming checkout at vup/
+              base_path = "vup/vup/srcpkgs"
+              if not os.path.exists(base_path):
+                  # Fallback to root (if paths differ)
+                  base_path = "vup/srcpkgs"
+              
+              if not os.path.exists(base_path):
+                   print(f"Could not find srcpkgs at {base_path}")
+                   # Return empty
+                   with open(os.environ["GITHUB_OUTPUT"], "a") as gh:
+                       gh.write("should_run=false\n")
+                       gh.write("matrix={\"category\":[]}\n")
+                   return
+
+              all_cats = [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d))]
+              
+              cmd = ["git", "diff", "--name-only", "origin/main", "HEAD"]
+              try:
+                  changes = subprocess.check_output(cmd).decode().splitlines()
+              except:
+                  changes = []
+              
+              target_cats = set()
+              for f in changes:
+                  # Path: vup/srcpkgs/<cat>/<pkg>...
+                  # Since we checked out to "vup", git diff runs inside that repo?
+                  # If file path matches srcpkgs/<cat>
+                  parts = f.split("/")
+                  # Expected: vup/srcpkgs/category/pkg (if repo has vup/srcpkgs)
+                  # In this repo, struct is vup/srcpkgs.
+                  
+                  # Robust detection
+                  if "srcpkgs/" in f:
+                      # find index
+                      idx = parts.index("srcpkgs")
+                      if idx + 1 < len(parts):
+                          cat = parts[idx+1]
+                          if cat in all_cats:
+                              target_cats.add(cat)
+              
+              target_list = sorted(list(target_cats))
+              
+              if not target_list:
+                  print("No relevant changes.")
+                  with open(os.environ["GITHUB_OUTPUT"], "a") as gh:
+                       gh.write("should_run=false\n")
+                       gh.write("matrix={\"category\":[]}\n")
+              else:
+                  print(f"Building categories: {target_list}")
+                  matrix_json = json.dumps({"category": target_list})
+                  with open(os.environ["GITHUB_OUTPUT"], "a") as gh:
+                       gh.write("should_run=true\n")
+                       gh.write(f"matrix={matrix_json}\n")
+          main()
+          '
+
+  verify-build:
+    needs: check-changes
+    if: needs.check-changes.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     container:
       image: ghcr.io/vup-linux/vup-builder:latest
       options: --privileged
     strategy:
-      matrix:
-        category: [core, utilities, editors, chat]
+      matrix: ${{ fromJson(needs.check-changes.outputs.matrix) }}
       fail-fast: false
     
     concurrency:
@@ -35,30 +119,14 @@ jobs:
           path: vup
           fetch-depth: 0
 
-      - name: Check for modified packages
-        id: check_changes
-        run: |
-          git config --global --add safe.directory "$PWD/vup"
-          cd vup
-          CHANGED=$(git diff --name-only origin/main HEAD | grep "srcpkgs/${{ matrix.category }}" || true)
-          
-          if [ -z "$CHANGED" ]; then
-             echo "No changes in ${{ matrix.category }}, skipping."
-             echo "skip=true" >> $GITHUB_OUTPUT
-          else
-             echo "Changes detected in ${{ matrix.category }}."
-             echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Checkout void-packages (Build System)
-        if: steps.check_changes.outputs.skip != 'true'
         uses: actions/checkout@v4
         with:
           repository: void-linux/void-packages
           path: void-packages
 
       - name: Cache xbps-src bootstrap
-        if: steps.check_changes.outputs.skip != 'true'
+
         id: cache-bootstrap
         uses: actions/cache@v3
         with:
@@ -70,7 +138,7 @@ jobs:
             xbps-bootstrap-${{ runner.os }}-
 
       - name: Setup xbps-src
-        if: steps.check_changes.outputs.skip != 'true'
+
         run: |
           cd void-packages
           # Override xbps-src with our custom version
@@ -81,13 +149,13 @@ jobs:
           echo "XBPS_ALLOW_RESTRICTED=yes" >> etc/conf
 
       - name: Binary Bootstrap
-        if: steps.check_changes.outputs.skip != 'true' && steps.cache-bootstrap.outputs.cache-hit != 'true'
+        if: steps.cache-bootstrap.outputs.cache-hit != 'true'
         run: |
           cd void-packages
           ./xbps-src binary-bootstrap
 
       - name: Build Modified Packages
-        if: steps.check_changes.outputs.skip != 'true'
+
         run: |
           cd void-packages
           cat_path="../vup/vup/srcpkgs/${{ matrix.category }}"
@@ -138,7 +206,7 @@ jobs:
           echo "$results" > "$REPORT_FILE"
 
       - name: Upload Build Artifacts
-        if: steps.check_changes.outputs.skip != 'true' && always()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pr-report-${{ matrix.category }}
