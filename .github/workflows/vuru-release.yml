@@ -27,9 +27,14 @@ jobs:
           mkdir -p dist/vuru-$VERSION
           cp -r vup/vuru/* dist/vuru-$VERSION/
           
-          # Create tarball
+          # Create deterministic tarball
+          # Ensures checksum remains constant across retries if source is unchanged
           cd dist
-          tar -czf vuru-$VERSION.tar.gz vuru-$VERSION
+          tar --sort=name \
+              --mtime="2025-01-01 00:00Z" \
+              --owner=0 --group=0 --numeric-owner \
+              --format=gnu \
+              -cf - vuru-$VERSION | gzip -n > vuru-$VERSION.tar.gz
           
       - name: Release Source
         uses: softprops/action-gh-release@v1
