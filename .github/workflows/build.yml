@@ -58,12 +58,12 @@ jobs:
 
           def main():
               changes = get_changes()
-              # Dynamically find categories in vup/vup/srcpkgs
-              if not os.path.exists("vup/vup/srcpkgs"):
-                  print("vup/vup/srcpkgs not found")
+              # Dynamically find categories in vup/srcpkgs
+              if not os.path.exists("vup/srcpkgs"):
+                  print("vup/srcpkgs not found")
                   sys.exit(0)
                   
-              all_cats = [d for d in os.listdir("vup/vup/srcpkgs") if os.path.isdir(os.path.join("vup/vup/srcpkgs", d))]
+              all_cats = [d for d in os.listdir("vup/srcpkgs") if os.path.isdir(os.path.join("vup/srcpkgs", d))]
               
               target_cats = set()
               if changes == "ALL":
@@ -76,11 +76,11 @@ jobs:
                          break
                          
                       # Check for category changes
-                      # Expected path: vup/vup/srcpkgs/<category>/<pkg>/...
-                      if f.startswith("vup/vup/srcpkgs/"):
+                      # Expected path: vup/srcpkgs/<category>/<pkg>/...
+                      if f.startswith("vup/srcpkgs/"):
                           parts = f.split("/")
-                          if len(parts) > 3 and parts[3] in all_cats:
-                              target_cats.add(parts[3])
+                          if len(parts) > 2 and parts[2] in all_cats:
+                              target_cats.add(parts[2])
               
               target_list = sorted(list(target_cats))
               
