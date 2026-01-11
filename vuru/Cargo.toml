@@ -22,3 +22,12 @@ serde = { version = "1.0.228", default-features = false, features = ["derive"] }
 serde_json = { version = "1.0.149", default-features = false, features = [
     "std",
 ] }
+
+[build-dependencies]
+clap = { version = "4.5.54", default-features = false, features = [
+    "derive",
+    "std",
+    "help",
+    "usage",
+] }
+clap_complete = "4.5.1"
