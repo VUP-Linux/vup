@@ -103,7 +103,7 @@ jobs:
     if: needs.check-changes.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/void-linux/void-glibc:latest
+      image: ghcr.io/VUP-Linux/vup-builder:latest
       options: --privileged
     strategy:
       matrix: ${{ fromJson(needs.check-changes.outputs.matrix) }}
@@ -113,21 +113,7 @@ jobs:
       cancel-in-progress: true
 
     steps:
-      - name: Pre-install Node Deps
-        run: |
-          xbps-install -Sy libstdc++ git
-
       - name: Checkout VUP
-        uses: actions/checkout@v4
-        with:
-          path: vup
-          fetch-depth: 0
-
-      - name: Install Dependencies
-        run: |
-          xbps-install -Sy git curl bash python3 github-cli util-linux shadow findutils tar gzip
-
-      - name: Checkout void-packages
         uses: actions/checkout@v4
         with:
           repository: void-linux/void-packages
@@ -169,6 +155,8 @@ jobs:
           rm -f repodata
 
       - name: Build Packages (Buffered)
+        env:
+          CATEGORY: ${{ matrix.category }}
         run: |
           cd void-packages
           # category is passed via env
@@ -206,7 +194,6 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           CATEGORY: ${{ matrix.category }}
         run: |
-          xbps-install -y ca-certificates
           cd void-packages/dist
           python3 ../../vup/vup/scripts/manage_release.py clean_remote
 
