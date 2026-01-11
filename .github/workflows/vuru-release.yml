@@ -70,6 +70,9 @@ jobs:
           git config user.name "VUP Bot"
           git config user.email "bot@vup.linux"
           
+          # Make workflow idempotent
+          git push origin --delete "$BRANCH" || true
+          
           git checkout -b "$BRANCH"
           git add vup/srcpkgs/core/vuru/template
           git commit -m "auto: update vuru to $VERSION"
