@@ -7,7 +7,7 @@ import re
 REPO_OWNER = "VUP-Linux"
 REPO_NAME = "vup"
 BASE_URL = f"https://github.com/{REPO_OWNER}/{REPO_NAME}/releases/download"
-SRCPKGS_DIR = "vup/srcpkgs"
+SRCPKGS_DIR = "vup/srcpkgs" # Path relative to repo root
 
 def parse_template(template_path):
     """

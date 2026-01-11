@@ -11,58 +11,117 @@ env:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/void-linux/void-glibc:latest
+      options: --privileged  # Required for xbps-src chroot
     strategy:
       matrix:
         category: [utilities, editors, chat]
-        # In a real dynamic setup, we'd determine modified categories dynamically.
-        # For this prototype, we just define them statically.
+      fail-fast: false
 
     steps:
+      - name: Install Dependencies
+        run: |
+          # Ensure git and curl are present in the void container
+          xbps-install -Syu xbps
+          xbps-install -y git curl bash
+
       - name: Checkout VUP
         uses: actions/checkout@v4
+        with:
+          path: vup
 
-      - name: Prepare Void Environment
-        # In reality, this would use a docker container or install xbps-src
-        # For this mock, we assume valid environment or mock it
-        run: echo "Setting up xbps-src environment..."
+      - name: Checkout void-packages (Build System)
+        uses: actions/checkout@v4
+        with:
+          repository: void-linux/void-packages
+          path: void-packages
 
-      - name: Build Packages in ${{ matrix.category }}
+      - name: Prepare Build Environment
         run: |
-          echo "Building packages for category: ${{ matrix.category }}"
-          # Mock build loop
-          # for pkg in vup/srcpkgs/${{ matrix.category }}/*; do
-          #   ./xbps-src pkg $(basename $pkg)
-          # done
-      
-      - name: Generate Repodata
+          cd void-packages
+          # Binary bootstrap sets up the masterdir
+          ./xbps-src binary-bootstrap
+
+      - name: Detect and Build Packages
         run: |
-          echo "Generating repodata for ${{ matrix.category }}..."
-          # xbps-rindex -a vup/binpkgs/${{ matrix.category }}/*.xbps
+          cd void-packages
           
-          # Create dummy artifact for demo
-          mkdir -p dist/${{ matrix.category }}
-          touch dist/${{ matrix.category }}/repodata
-          touch dist/${{ matrix.category }}/mock-package.xbps
+          # Iterate over packages in the current matrix category
+          # Logic: Check all dirs in vup/srcpkgs/<category>
+          CATEGORY_PATH="../vup/vup/srcpkgs/${{ matrix.category }}"
+          
+          if [ ! -d "$CATEGORY_PATH" ]; then
+             echo "Category $CATEGORY_PATH does not exist, skipping."
+             exit 0
+          fi
+
+          mkdir -p dist
+          
+          for pkgpath in $CATEGORY_PATH/*; do
+             if [ -d "$pkgpath" ]; then
+                 pkgname=$(basename "$pkgpath")
+                 echo "Processing $pkgname..."
+                 
+                 # Symlink template into void-packages/srcpkgs if not present
+                 if [ ! -d "srcpkgs/$pkgname" ]; then
+                     ln -s "$(pwd)/$pkgpath" "srcpkgs/$pkgname"
+                 fi
+                 
+                 # Build the package
+                 ./xbps-src pkg "$pkgname"
+                 
+                 # Find the built binary
+                 # xbps-src puts binaries in hostdir/binpkgs
+                 # We need to find the specific .xbps file for this package version
+                 # For simplicity in this script, we just copy matching files
+                 # In prod, we'd parse exact version.
+                 find hostdir/binpkgs -name "${pkgname}-*.xbps" -exec cp {} dist/ \;
+             fi
+          done
+
+      - name: Generate Repository Index (Repodata)
+        run: |
+          cd void-packages/dist
+          if [ -n "$(ls -A .)" ]; then
+             xbps-rindex -a *.xbps
+          else
+             echo "No packages built."
+          fi
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v1
+        if: hashFiles('void-packages/dist/*') != ''
         with:
           tag_name: ${{ matrix.category }}-current
-          files: dist/${{ matrix.category }}/*
+          files: void-packages/dist/*
           overwrite: true
-          project: ${{ matrix.category }} # Custom logic might be needed here to handle multiple releases in one repo contextually
+          # Note: We need a mechanism to keep the release "rolling". 
+          # softprops/action-gh-release handles 'overwrite' of assets.
+          # To ensure the tag moves or stays current, we might need to pre-create it or allow updates.
 
-  update-index:
+  deploy-index:
     needs: build-and-release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout VUP
         uses: actions/checkout@v4
       
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
       - name: Generate Global Index
         run: |
           python3 vup/scripts/gen_index.py
           
-      - name: Deploy Index to Pages/Release
-        # This would deploy index.json to a public URL
-        run: echo "Deploying index.json..."
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          publish_branch: gh-pages
+          destination_dir: vup
+          keep_files: true # Keep other files if any
+          # This puts index.json at https://vup-linux.github.io/vup/index.json
