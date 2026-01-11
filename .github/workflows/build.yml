@@ -168,31 +168,11 @@ jobs:
           python3 ../../vup/vup/scripts/manage_release.py download
           rm -f repodata
 
-      - name: Build Packages
+      - name: Build Packages (Buffered)
         run: |
           cd void-packages
-          CATEGORY_PATH="../vup/vup/srcpkgs/${{ matrix.category }}"
-          
-          if [ ! -d "$CATEGORY_PATH" ]; then
-             echo "Category missing"
-             exit 0
-          fi
-
-          for pkgpath in $CATEGORY_PATH/*; do
-             if [ -d "$pkgpath" ]; then
-                 pkgname=$(basename "$pkgpath")
-                 
-                 echo "Building $pkgname..."
-                 rm -rf "srcpkgs/$pkgname"
-                 cp -r "$pkgpath" "srcpkgs/"
-                 
-                 ./xbps-src pkg "$pkgname"
-                 
-                 rm -rf "srcpkgs/$pkgname"
-                 
-                 find hostdir/binpkgs -name "${pkgname}-*.xbps" -exec cp -f {} dist/ \;
-             fi
-          done
+          # category is passed via env
+          python3 ../vup/vup/scripts/build_runner.py
 
       - name: Prune and Index
         env:
@@ -238,6 +218,64 @@ jobs:
           tag_name: ${{ matrix.category }}-current
           files: void-packages/dist/*
           fail_on_unmatched_files: true
+
+      - name: Upload Build Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-report-${{ matrix.category }}
+          path: |
+            void-packages/report-${{ matrix.category }}.json
+            void-packages/build-logs/*.log
+
+  report-status:
+    needs: build-and-release
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Build Reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: build-report-*
+          path: reports
+          merge-multiple: true
+      
+      - name: Generate Summary
+        id: summary
+        run: |
+          echo "# Build Summary" >> $GITHUB_STEP_SUMMARY
+          
+          has_failures=false
+          
+          for report_file in reports/*.json; do
+             # Skip if glob failed
+             [ -e "$report_file" ] || continue
+             
+             cat "$report_file" | python3 -c '
+          import sys, json, os
+
+          data = json.load(sys.stdin)
+          cat = data["category"]
+          results = data["results"]
+          
+          print(f"## Category: {cat}")
+          print("| Package | Status | Duration |")
+          print("|---------|--------|----------|")
+          
+          for r in results:
+              icon = "✅" if r["status"] == "success" else "❌"
+              dur = f"{r.get(\"duration\", 0):.1f}s"
+              print(f"| {r[\"name\"]} | {icon} {r[\"status\"]} | {dur} |")
+              
+              if r["status"] == "failure":
+                  print("<details>")
+                  print(f"<summary>Error Log: {r[\"name\"]}</summary>")
+                  print("\n```")
+                  print(r.get("error_log", "No log captured"))
+                  print("```\n")
+                  print("</details>")
+          ' >> $GITHUB_STEP_SUMMARY
+          done
 
   deploy-index:
     needs: [check-changes, build-and-release]
