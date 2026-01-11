@@ -78,28 +78,32 @@ jobs:
           VERSION=${GITHUB_REF_NAME#v}
           echo "Building Vuru version $VERSION"
 
-          cd void-packages
+          # Define absolute paths
+          VUP_DIR="$GITHUB_WORKSPACE/vup"
+          VOID_DIR="$GITHUB_WORKSPACE/void-packages"
+          DIST_TMP="$GITHUB_WORKSPACE/dist-tmp"
+
+          cd "$VOID_DIR"
           # Copy template
           mkdir -p srcpkgs/vuru
-          cp ../vup/vup/srcpkgs/core/vuru/template srcpkgs/vuru/
+          cp "$VUP_DIR/vup/srcpkgs/core/vuru/template" srcpkgs/vuru/
           
-          # HACK: The template expects a tarball, but we have source here.
-          # Create a local distfile so xbps-src finds it.
+          # HACK: Create local distfile so xbps-src finds it
+          mkdir -p "hostdir/sources/vuru-$VERSION"
           
-          mkdir -p hostdir/sources/vuru-$VERSION
-          cd ../vup
-          # Create expected dir structure vup-vVERSION/vuru
-          mkdir -p /tmp/dist/vup-v$VERSION
-          cp -r vuru /tmp/dist/vup-v$VERSION/
-          cd /tmp/dist
-          tar -czf ../source.tar.gz vup-v$VERSION
+          # Create source tarball
+          mkdir -p "$DIST_TMP/vup-v$VERSION"
+          cp -r "$VUP_DIR/vuru" "$DIST_TMP/vup-v$VERSION/"
+          
+          cd "$DIST_TMP"
+          tar -czf "source.tar.gz" "vup-v$VERSION"
           
           # Move to void-packages distfiles
-          mv ../source.tar.gz ../../void-packages/hostdir/sources/vuru-$VERSION/v$VERSION.tar.gz
+          mv "source.tar.gz" "$VOID_DIR/hostdir/sources/vuru-$VERSION/v$VERSION.tar.gz"
           
-          cd ../../void-packages
+          cd "$VOID_DIR"
           # Update checksum
-          SHA=$(sha256sum hostdir/sources/vuru-$VERSION/v$VERSION.tar.gz | cut -d' ' -f1)
+          SHA=$(sha256sum "hostdir/sources/vuru-$VERSION/v$VERSION.tar.gz" | cut -d' ' -f1)
           sed -i "s/checksum=\".*\"/checksum=\"$SHA\"/" srcpkgs/vuru/template
           
           # Build
