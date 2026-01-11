@@ -42,7 +42,7 @@ def get_pkg_name(filename):
 
 def get_pkg_ver(filename):
     if os.path.exists(filename):
-        res = run_command(["xbps-uhelper", "getpkgver", filename], capture_output=True)
+        res = run_command(["xbps-uhelper", "binpkgver", filename], capture_output=True)
         if res: return res
     return None
 
@@ -73,7 +73,7 @@ def prune_local():
         if len(fpaths) > 1:
             # Sort using xbps-uhelper cmpver logic conceptually
             # We assume xbps-uhelper is available in the container
-            fpaths.sort(key=lambda x: run_command(["xbps-uhelper", "getpkgver", x], capture_output=True), reverse=True)
+            fpaths.sort(key=lambda x: run_command(["xbps-uhelper", "binpkgver", x], capture_output=True), reverse=True)
             
             # Keep index 0 (newest), delete others
             for old in fpaths[1:]:
