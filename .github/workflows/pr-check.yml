@@ -168,7 +168,8 @@ jobs:
           mkdir -p ../reports
           REPORT_FILE="../reports/report-${{ matrix.category }}.json"
           
-          results="[]"
+          # Initialize report file
+          echo "[]" > "$REPORT_FILE"
           
           for pkgname in $MODIFIED_PKGS; do
              pkgpath="$cat_path/$pkgname"
@@ -177,7 +178,6 @@ jobs:
                  
                  # Prepare reporting entry
                  status="pending"
-                 log=""
                  
                  rm -rf "srcpkgs/$pkgname"
                  cp -r "$pkgpath" "srcpkgs/"
@@ -189,20 +189,41 @@ jobs:
                  else
                      echo "Build FAILED: $pkgname"
                      status="failure"
-                     # Capture last 50 lines of log
-                     log=$(tail -n 50 build.log)
                      cat build.log
                  fi
                  
-                 # Append to JSON results (using python for safe json handling)
-                 results=$(python3 -c "import json, sys; res=json.loads(sys.argv[1]); res.append({'package': sys.argv[2], 'status': sys.argv[3], 'log': sys.argv[4]}); print(json.dumps(res))" "$results" "$pkgname" "$status" "$log")
+                 # Update JSON report
+                 # We let python read the log file directly to avoid shell encoding issues
+                 python3 -c "
+          import json, sys, os
+          report_file = sys.argv[1]
+          pkg = sys.argv[2]
+          status = sys.argv[3]
+          log_file = sys.argv[4]
+
+          log_content = ''
+          if os.path.exists(log_file):
+              try:
+                  with open(log_file, 'r', errors='replace') as f:
+                      lines = f.readlines()
+                      log_content = ''.join(lines[-50:]) # Last 50 lines
+              except Exception as e:
+                  log_content = f'Error reading log: {e}'
+          
+          if status == 'success':
+              log_content = '' # Don't store logs for success to save space
+
+          with open(report_file, 'r+') as f:
+              data = json.load(f)
+              data.append({'package': pkg, 'status': status, 'log': log_content})
+              f.seek(0)
+              json.dump(data, f)
+              f.truncate()
+          " "$REPORT_FILE" "$pkgname" "$status" "build.log"
                  
                  rm -rf "srcpkgs/$pkgname"
              fi
           done
-          
-          # Write report
-          echo "$results" > "$REPORT_FILE"
 
       - name: Upload Build Artifacts
         if: always()

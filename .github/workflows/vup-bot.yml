@@ -29,7 +29,7 @@ jobs:
         id: analyze
         run: |
           # Consolidate reports
-          python3 -c '
+          cat <<'EOF' > analyze.py
           import os, json, glob
 
           reports = glob.glob("reports/*.json")
@@ -68,6 +68,9 @@ jobs:
                   log_cell = ""
                   if res["status"] == "failure":
                       log_content = res.get("log", "No log available")
+                      # Escape HTML in log content?
+                      # Simple escaping for < pre tag
+                      log_content = log_content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                       log_cell = f"<details><summary>Log</summary><pre>{log_content}</pre></details>"
                   
                   pkg_name = res.get("package", "unknown")
@@ -86,7 +89,9 @@ jobs:
           else:
               with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
                   print("result=success", file=fh)
-          '
+          EOF
+          
+          python3 analyze.py
           
       - name: Comment on PR
         uses: actions/github-script@v6
