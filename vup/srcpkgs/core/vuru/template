@@ -1,6 +1,6 @@
 # Template file for 'vuru' 
 pkgname=vuru
-version=0.2.8
+version=0.2.9
 revision=1
 build_style=cargo
 hostmakedepends="cargo pkg-config"
@@ -10,4 +10,4 @@ maintainer="AmarBego <begovicamar@proton.me>"
 license="MIT"
 homepage="https://github.com/VUP-Linux/vup"
 distfiles="https://github.com/VUP-Linux/vup/releases/download/v${version}/vuru-${version}.tar.gz"
-checksum="347a213cc9e1f90db4b34c46b0b2f072250df34c062705748186ee73cbc1f68b"
+checksum="39ad4f2e68872e62b198123f522bb4938dea49953657d04824c954df55cdd7cb"
