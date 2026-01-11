@@ -195,8 +195,7 @@ jobs:
                  fi
                  
                  # Append to JSON results (using python for safe json handling)
-                 encoded_log=$(python3 -c "import json, sys; print(json.dumps(sys.argv[1]))" "$log")
-                 results=$(python3 -c "import json, sys; res=json.loads(sys.argv[1]); res.append({'package': '$pkgname', 'status': '$status', 'log': $encoded_log}); print(json.dumps(res))" "$results")
+                 results=$(python3 -c "import json, sys; res=json.loads(sys.argv[1]); res.append({'package': sys.argv[2], 'status': sys.argv[3], 'log': sys.argv[4]}); print(json.dumps(res))" "$results" "$pkgname" "$status" "$log")
                  
                  rm -rf "srcpkgs/$pkgname"
              fi
