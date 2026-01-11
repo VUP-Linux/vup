@@ -1,4 +1,4 @@
-# VUP – Void User Protocols
+# VUP – Void User Packages
 
 **The easiest way to discover and install community packages on Void Linux.**
 
@@ -20,6 +20,7 @@ VUP extends your Void Linux experience by providing a community-driven repositor
 You might wonder why we use a separate tool (`vuru`) instead of just adding a repository to `xbps-install`.
 
 *   **Safety**: We want to avoid polluting your core system commands with packages of unknown quality.
+*   **Auditability**: `vuru` automatically shows you the package template (and diffs) before installation, ensuring you know exactly what you're running.
 *   **Clarity**: `vuru` makes it explicit when you are venturing into community territory.
 *   **Stability**: Official Void repositories remain untouched and pristine. `vuru` manages the "wild west" separately.
 
@@ -59,6 +60,10 @@ Once installed, use `vuru` to manage community packages. It feels just like home
     vuru remove vscode
     ```
 
+*   **list all available commands**:
+    ```bash
+    vuru -h
+    ```
 > [!WARNING]
 > **Community Maintained Content**
 > Packages in VUP are submitted by users. While we verify they compile, we **do not** audit them for safety or security. Use them at your own risk, just like the AUR.
