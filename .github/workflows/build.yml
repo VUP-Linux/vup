@@ -30,6 +30,12 @@ jobs:
       cancel-in-progress: true
 
     steps:
+      - name: Checkout VUP
+        uses: actions/checkout@v4
+        with:
+          path: vup
+          fetch-depth: 0
+
       - name: Install Dependencies
         run: |
           xbps-install -Sy git curl bash python3 github-cli
@@ -40,18 +46,31 @@ jobs:
           # Default skip to true
           SKIP="true"
           
+          cd vup
+          
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
              echo "Manual trigger, running..."
              SKIP="false"
           else
-             # Check modified files for srcpkgs/<category>/
-             MODIFIED='${{ toJSON(github.event.head_commit.modified) }}'
-             CATEGORY="srcpkgs/${{ matrix.category }}/"
+             # Use git diff to find modified files
+             # For push events, compare against the before SHA or HEAD~1
+             BEFORE="${{ github.event.before }}"
+             SHA="${{ github.sha }}"
              
-             if echo "$MODIFIED" | grep -q "$CATEGORY"; then
+             if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+                # New branch or forced push, check HEAD~1
+                RANGE="HEAD~1 HEAD"
+             else
+                RANGE="$BEFORE $SHA"
+             fi
+             
+             CATEGORY="srcpkgs/${{ matrix.category }}/"
+             echo "Checking changes in $CATEGORY for range $RANGE"
+             
+             if git diff --name-only $RANGE | grep -q "$CATEGORY"; then
                 echo "Changes detected in $CATEGORY"
                 SKIP="false"
-             elif echo "$MODIFIED" | grep -q "common/"; then
+             elif git diff --name-only $RANGE | grep -q "common/"; then
                 echo "Changes in common/, running all."
                 SKIP="false"
              else
@@ -60,13 +79,6 @@ jobs:
           fi
           
           echo "skip=$SKIP" >> $GITHUB_OUTPUT
-
-
-      - name: Checkout VUP
-        if: steps.gate.outputs.skip != 'true'
-        uses: actions/checkout@v4
-        with:
-          path: vup
           
       - name: Checkout void-packages
         if: steps.gate.outputs.skip != 'true'
