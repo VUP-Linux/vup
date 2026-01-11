@@ -41,9 +41,13 @@ jobs:
       cancel-in-progress: true
     
     steps:
+      - name: Pre-install Node Deps
+        run: |
+          xbps-install -Sy libstdc++ git
+
       - name: Install Dependencies
         run: |
-          xbps-install -Sy git curl bash
+          xbps-install -Sy git curl bash util-linux
 
       - name: Checkout VUP
         uses: actions/checkout@v4
