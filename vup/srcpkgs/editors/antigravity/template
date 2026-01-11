@@ -1,7 +1,7 @@
 # Template file for 'antigravity' 
 pkgname=antigravity
 version=1.13.3
-revision=2
+revision=3
 archs="x86_64"
 create_wrksrc=yes
 hostmakedepends="tar"
@@ -37,34 +37,56 @@ homepage="https://antigravity.google/"
 restricted=yes
 nopie=yes
 nostrip=yes
+noshlibprovides=yes
 
 distfiles="https://us-central1-apt.pkg.dev/projects/antigravity-auto-updater-dev/pool/antigravity-debian/antigravity_${version}-1766182170_amd64_365061c50063f9bd47a9ff88432261b8.deb"
 checksum=d9920f9e0788245b1dab0f73a607b4eea00605bfb70e16795da1c1ac89eabd4b
 
 do_install() {
-	# deb contents are already extracted to $wrksrc by xbps-src
-	cp -r usr ${DESTDIR}/
+	# Install app to /opt/Antigravity
+	vmkdir opt/Antigravity
+	vcopy usr/share/antigravity/* opt/Antigravity
 
-	# Fix zsh completions
-	if [ -d ${DESTDIR}/usr/share/zsh/vendor-completions ]; then
-		vmkdir usr/share/zsh/site-functions
-		mv ${DESTDIR}/usr/share/zsh/vendor-completions/* ${DESTDIR}/usr/share/zsh/site-functions/
-		rm -rf ${DESTDIR}/usr/share/zsh/vendor-completions
+	# Wrapper script
+	cat > antigravity.sh <<EOF
+#!/bin/bash
+exec /opt/Antigravity/bin/antigravity "\$@"
+EOF
+	vbin antigravity.sh antigravity
+
+	# Desktop file
+	# We need to find where the desktop file is. Usually usr/share/applications/antigravity.desktop
+	for f in usr/share/applications/*.desktop; do
+		local fname=$(basename "$f")
+		sed -e 's|/usr/share/antigravity|/opt/Antigravity|g' \
+		    -e 's|Exec=/opt/Antigravity/antigravity|Exec=/usr/bin/antigravity|g' \
+		    "$f" > "$fname"
+		vinstall "$fname" 644 usr/share/applications
+	done
+
+	# Icons
+	# Copy all icons preserving structure if possible, or flattened if standard
+	if [ -d usr/share/icons ]; then
+		vcopy usr/share/icons/* usr/share/icons
+	fi
+	# Pixmaps
+	if [ -d usr/share/pixmaps ]; then
+		vcopy usr/share/pixmaps/* usr/share/pixmaps
 	fi
 
-	# Move /usr/share/antigravity to /opt/Antigravity
-	vmkdir opt
-	mv ${DESTDIR}/usr/share/antigravity ${DESTDIR}/opt/Antigravity
+	# Completions
+	if [ -d usr/share/zsh/vendor-completions ]; then
+		for f in usr/share/zsh/vendor-completions/*; do
+			vcompletion "$f" zsh
+		done
+	fi
+	if [ -d usr/share/bash-completion/completions ]; then
+		for f in usr/share/bash-completion/completions/*; do
+			vcompletion "$f" bash
+		done
+	fi
 
-	# Fix desktop file paths
-	sed -i 's|/usr/share/antigravity|/opt/Antigravity|g' ${DESTDIR}/usr/share/applications/*.desktop
-
-	# Create binary symlink
-	vmkdir usr/bin
-	ln -sf /opt/Antigravity/bin/antigravity ${DESTDIR}/usr/bin/antigravity
-
-	# Install license files
-	vmkdir usr/share/licenses/${pkgname}
-	ln -sf /opt/Antigravity/resources/app/LICENSE.txt ${DESTDIR}/usr/share/licenses/${pkgname}/LICENSE.txt
-	ln -sf /opt/Antigravity/LICENSES.chromium.html ${DESTDIR}/usr/share/licenses/${pkgname}/LICENSES.chromium.html
+	# License
+	vlicense usr/share/antigravity/resources/app/LICENSE.txt
+	vlicense usr/share/antigravity/LICENSES.chromium.html
 }
