@@ -133,6 +133,7 @@ jobs:
 
       - name: Setup xbps-src
         run: |
+          ls -R ../vup
           cd void-packages
           cp ../vup/vup/xbps-src .
           chmod +x xbps-src
