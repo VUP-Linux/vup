@@ -5,6 +5,7 @@ import subprocess
 import glob
 import re
 import shutil
+import json
 
 # Configuration
 REPO = os.environ.get("GITHUB_REPOSITORY")
@@ -12,105 +13,114 @@ CATEGORY = os.environ.get("CATEGORY")
 TAG_NAME = f"{CATEGORY}-current"
 DIST_DIR = "dist"
 
-def run_command(cmd, shell=False):
-    print(f"Running: {cmd}")
+def run_command(cmd, capture_output=False):
     try:
-        subprocess.check_call(cmd, shell=shell)
+        if capture_output:
+            return subprocess.check_output(cmd).decode().strip()
+        subprocess.check_call(cmd)
+        return True
     except subprocess.CalledProcessError as e:
-        print(f"Command failed: {e}")
-        # Don't exit yet, might be non-fatal (e.g. release not found)
-        return False
-    return True
+        if not capture_output:
+            print(f"Command failed: {e}")
+        return None
 
-def download_current_release():
-    """Downloads all assets from the current release to DIST_DIR."""
+def get_pkg_name(filename):
+    # Use xbps-uhelper if available for accurate parsing
+    # xbps-uhelper getpkgname <binpkg>
+    # If file doesn't exist (remote listing), fallback to regex
+    if os.path.exists(filename):
+        res = run_command(["xbps-uhelper", "getpkgname", filename], capture_output=True)
+        if res: return res
+    
+    # Fallback/Remote logic
+    # Match <name>-<version>_<revision>.<arch>.xbps
+    # Find last hyphen before a digit
+    match = re.search(r'^(.*)-([0-9][^-]*)\.[^.]*\.xbps$', os.path.basename(filename))
+    if match:
+        return match.group(1)
+    return None
+
+def get_pkg_ver(filename):
+    if os.path.exists(filename):
+        res = run_command(["xbps-uhelper", "getpkgver", filename], capture_output=True)
+        if res: return res
+    return None
+
+def download_release():
     print(f"Downloading assets from {TAG_NAME}...")
     os.makedirs(DIST_DIR, exist_ok=True)
     
     # Check if release exists
-    if not run_command(["gh", "release", "view", TAG_NAME, "--repo", REPO]):
-        print(f"Release {TAG_NAME} does not exist yet. Starting fresh.")
+    if not run_command(["gh", "release", "view", TAG_NAME, "--repo", REPO], capture_output=True):
+        print(f"Release {TAG_NAME} not found. Starting fresh.")
         return
 
-    # Download everything
-    # in a real container, 'gh' must be installed and authenticated
-    cmd = ["gh", "release", "download", TAG_NAME, "--repo", REPO, "--dir", DIST_DIR, "--pattern", "*"]
-    if not run_command(cmd):
-        print("Failed to download assets (or none existed).")
+    run_command(["gh", "release", "download", TAG_NAME, "--repo", REPO, "--dir", DIST_DIR, "--pattern", "*"])
 
-def prune_old_versions():
-    """
-    Scans DIST_DIR for multiple versions of the same package and removes older ones.
-    Relies on xbps naming convention: <pkgname>-<version>_<revision>.<arch>.xbps
-    """
-    print("Pruning old versions...")
+def prune_local():
+    """Keep only the latest version of each package in DIST_DIR."""
+    print("Pruning local old versions...")
     files = glob.glob(os.path.join(DIST_DIR, "*.xbps"))
-    if not files:
+    if not files: return
+
+    pkgs = {}
+    for f in files:
+        name = get_pkg_name(f)
+        if name:
+            pkgs.setdefault(name, []).append(f)
+
+    for name, fpaths in pkgs.items():
+        if len(fpaths) > 1:
+            # Sort using xbps-uhelper cmpver logic conceptually
+            # We assume xbps-uhelper is available in the container
+            fpaths.sort(key=lambda x: run_command(["xbps-uhelper", "getpkgver", x], capture_output=True), reverse=True)
+            
+            # Keep index 0 (newest), delete others
+            for old in fpaths[1:]:
+                print(f"Removing old version: {os.path.basename(old)}")
+                os.remove(old)
+                if os.path.exists(old + ".sig"): os.remove(old + ".sig")
+
+def clean_remote_assets():
+    """Delete remote assets that are NOT present in local DIST_DIR."""
+    print("Synchronizing remote assets (Deleting obsolete)...")
+    
+    # Get remote assets
+    try:
+        json_str = run_command(["gh", "release", "view", TAG_NAME, "--repo", REPO, "--json", "assets"], capture_output=True)
+        data = json.loads(json_str)
+        remote_assets = {a['name']: a for a in data.get('assets', [])}
+    except Exception:
+        print("Could not fetch remote assets (maybe release doesn't exist yet).")
         return
 
-    # Map pkgname -> list of files
-    # Regex to parse: name-version_revision.arch.xbps
-    # This is a heuristic. reliable XBPS parsing requires xbps-uhelper or complex regex.
-    # Pattern: match anything up to the last hyphen before a digit.
-    
-    # Simpler approach: Use `xbps-rindex -r` (remove obsolete) if available, 
-    # but we are just managing files.
-    
-    # Let's use a robust heuristic: grouping by package name.
-    pkgs = {}
-    
-    for fpath in files:
-        fname = os.path.basename(fpath)
-        # Regex: matches "pkgname" from "pkgname-1.2.3_1.x86_64.xbps"
-        # It looks for the last hyphen followed by a digit
-        match = re.search(r'^(.*)-([0-9].*)\.xbps$', fname)
-        if match:
-            pkgname = match.group(1)
-            if pkgname not in pkgs:
-                pkgs[pkgname] = []
-            pkgs[pkgname].append(fpath)
-    
-    for pkgname, fpaths in pkgs.items():
-        if len(fpaths) > 1:
-            # Sort by generic version sort (not perfect but decent for strict filename sort)
-            # For perfect sort, we need `xbps-uhelper cmpver`.
-            # In the void container, we have xbps utils.
-            
-            # Using `xbps-uhelper getpkgname` and comparison is safer if possible.
-            # But let's assume standard sorting for this script or call xbps-uhelper.
-            
-            # Sort descending (newest first)
-            # We trust that the build process put the NEWEST file here recently.
-            # Actually, `ls -t` or mtime might be unreliable if we just downloaded old ones.
-            # We must use version comparison.
-            
-            fpaths.sort(key=lambda x: run_command_output(["xbps-uhelper", "getpkgver", x]), reverse=True)
-            
-            # Keep index 0, delete the rest
-            keep = fpaths[0]
-            remove = fpaths[1:]
-            
-            print(f"Keeping {os.path.basename(keep)}")
-            for r in remove:
-                print(f"Removing old version: {os.path.basename(r)}")
-                os.remove(r)
-                # Also try to remove sig file if exists
-                if os.path.exists(r + ".sig"):
-                    os.remove(r + ".sig")
+    # Get local assets (filenames only)
+    local_assets = set(os.path.basename(f) for f in glob.glob(os.path.join(DIST_DIR, "*")))
 
-def run_command_output(cmd):
-    return subprocess.check_output(cmd).decode().strip()
+    # Repodata is always regenerated/overwritten, but we should treat it same
+    # Identify orphans
+    to_delete = []
+    for r_name in remote_assets:
+        if r_name not in local_assets:
+            to_delete.append(r_name)
 
-def delete_remote_assets(assets_to_delete):
-    """Deletes specific assets from the GitHub Release."""
-    for asset in assets_to_delete:
+    if not to_delete:
+        print("Remote is clean.")
+        return
+
+    for asset in to_delete:
         print(f"Deleting remote asset: {asset}")
         run_command(["gh", "release", "delete-asset", TAG_NAME, asset, "--repo", REPO, "--yes"])
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "download":
-        download_current_release()
-    elif len(sys.argv) > 1 and sys.argv[1] == "prune":
-        prune_old_versions()
-    else:
-        print("Usage: manage_release.py [download|prune]")
+    if len(sys.argv) < 2:
+        print("Usage: manage_release.py [download|prune|clean_remote]")
+        sys.exit(1)
+
+    cmd = sys.argv[1]
+    if cmd == "download":
+        download_release()
+    elif cmd == "prune":
+        prune_local()
+    elif cmd == "clean_remote":
+        clean_remote_assets()

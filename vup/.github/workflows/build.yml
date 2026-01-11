@@ -12,7 +12,7 @@ jobs:
   build-and-release:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/void-linux/void-linux:latest
+      image: ghcr.io/void-linux/void-glibc:latest
       options: --privileged
     strategy:
       matrix:
@@ -30,29 +30,26 @@ jobs:
         with:
           path: vup
           
-      - name: Checkout void-packages (Build System)
+      - name: Checkout void-packages
         uses: actions/checkout@v4
         with:
           repository: void-linux/void-packages
           path: void-packages
 
-      - name: Prepare Build Environment
+      - name: Bootstrap xbps-src
         run: |
           cd void-packages
           ./xbps-src binary-bootstrap
 
-      - name: Download Existing Assets (Incremental Update)
+      - name: Sync Existing Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           CATEGORY: ${{ matrix.category }}
         run: |
-          # Move to void-packages/dists so we can index everything there
           mkdir -p void-packages/dist
           cd void-packages/dist
           python3 ../../vup/vup/scripts/manage_release.py download
-          
-          # Remove old repodata to force clean regeneration
           rm -f *-repodata
 
       - name: Build Packages
@@ -61,28 +58,20 @@ jobs:
           CATEGORY_PATH="../vup/vup/srcpkgs/${{ matrix.category }}"
           
           if [ ! -d "$CATEGORY_PATH" ]; then
-             echo "Category $CATEGORY_PATH missing"
+             echo "Category missing"
              exit 0
           fi
 
-          # 1. Identify modified packages (simple check: build all present in source)
-          # In a "full flesh out" we might opt to only build modified, 
-          # but ensuring the whole category is consistent is safer for "no simplicity".
-          # We'll stick to: Iterate all templates in this category.
-          
           for pkgpath in $CATEGORY_PATH/*; do
              if [ -d "$pkgpath" ]; then
                  pkgname=$(basename "$pkgpath")
-                 echo "Preparing $pkgname..."
                  
-                 # Symlink template
                  rm -rf "srcpkgs/$pkgname"
                  ln -s "$(pwd)/$pkgpath" "srcpkgs/$pkgname"
                  
-                 # Build
                  ./xbps-src pkg "$pkgname"
                  
-                 # Copy built bins to dist (overwriting if newer)
+                 # Overwrite dist with new build
                  find hostdir/binpkgs -name "${pkgname}-*.xbps" -exec cp -f {} dist/ \;
              fi
           done
@@ -90,19 +79,19 @@ jobs:
       - name: Prune and Index
         run: |
           cd void-packages/dist
-          # Prune old versions (keep only latest) using our script
-          # The script relies on xbps-uhelper which is available in the container
           python3 ../../vup/vup/scripts/manage_release.py prune
-          
-          # Generate Index
-          # -a: add to existing index (or create new). 
-          # Since we have all files here, we can just run it.
-          # Note: We are in the flat dist dir.
           xbps-rindex -a *.xbps
-          
-          # Sign index if we had a key (skipped for now as per plan)
 
-      - name: Sync to Release (Upload)
+      - name: Clean Remote Assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          CATEGORY: ${{ matrix.category }}
+        run: |
+          cd void-packages/dist
+          python3 ../../vup/vup/scripts/manage_release.py clean_remote
+
+      - name: Upload New Assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         uses: softprops/action-gh-release@v1
@@ -111,17 +100,6 @@ jobs:
           files: void-packages/dist/*
           overwrite: true
           fail_on_unmatched_files: true
-          # This action overwrites assets with same names.
-          # Our prune script ensured local dist/ only has what we want.
-          # However, this action DOES NOT delete old assets from the remote that are NOT in the upload list.
-          # For a truly clean repo, we strictly want only what's in 'dist/' to be in the release.
-          # We might need a cleanup step. 
-          # 'manage_release.py' could have a 'sync' mode, or we accept that old cruft might linger 
-          # if we messed up pruning. But since we downloaded *everything* and pruned locally, 
-          # and we are uploading *everything* from local (which overwrites remote),
-          # the only issue is if we DELETED a file locally, it stays on remote.
-          # TODO: Add explicit delete logic if needed. 
-          # For now, 'overwrite' handles updates.
 
   deploy-index:
     needs: build-and-release
