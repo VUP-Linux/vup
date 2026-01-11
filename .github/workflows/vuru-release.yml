@@ -59,6 +59,11 @@ jobs:
           cd vup
           git config user.name "VUP Bot"
           git config user.email "bot@vup.linux"
+          
+          # Fix detached HEAD by checking out main
+          git checkout main
+          git pull origin main
+          
           git add vup/srcpkgs/core/vuru/template
           git commit -m "auto: update vuru to $VERSION"
-          git push
+          git push origin main
