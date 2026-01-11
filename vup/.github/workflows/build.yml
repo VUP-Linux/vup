@@ -18,12 +18,17 @@ jobs:
       matrix:
         category: [utilities, editors, chat]
       fail-fast: false
+    # Only run if the category was modified, or if it's a dispatch event
+    if:github.event_name == 'workflow_dispatch' || contains(toJSON(github.event.head_commit.modified), matrix.category)
+    # Prevent race conditions
+    concurrency:
+      group: vup-${{ matrix.category }}
+      cancel-in-progress: true
 
     steps:
       - name: Install Dependencies
         run: |
-          xbps-install -Syu xbps
-          xbps-install -y git curl bash python3 github-cli
+          xbps-install -Sy git curl bash python3 github-cli
 
       - name: Checkout VUP
         uses: actions/checkout@v4
@@ -39,6 +44,9 @@ jobs:
       - name: Bootstrap xbps-src
         run: |
           cd void-packages
+          # Override xbps-src with our custom version
+          cp ../vup/vup/xbps-src .
+          chmod +x xbps-src
           ./xbps-src binary-bootstrap
 
       - name: Sync Existing Release
@@ -50,7 +58,7 @@ jobs:
           mkdir -p void-packages/dist
           cd void-packages/dist
           python3 ../../vup/vup/scripts/manage_release.py download
-          rm -f *-repodata
+          rm -f repodata
 
       - name: Build Packages
         run: |
@@ -66,10 +74,15 @@ jobs:
              if [ -d "$pkgpath" ]; then
                  pkgname=$(basename "$pkgpath")
                  
+                 echo "Building $pkgname..."
+                 # Copy template to avoid pollution
                  rm -rf "srcpkgs/$pkgname"
-                 ln -s "$(pwd)/$pkgpath" "srcpkgs/$pkgname"
+                 cp -r "$pkgpath" "srcpkgs/"
                  
                  ./xbps-src pkg "$pkgname"
+                 
+                 # Cleanup
+                 rm -rf "srcpkgs/$pkgname"
                  
                  # Overwrite dist with new build
                  find hostdir/binpkgs -name "${pkgname}-*.xbps" -exec cp -f {} dist/ \;
@@ -88,6 +101,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           CATEGORY: ${{ matrix.category }}
         run: |
+          xbps-install -y ca-certificates
           cd void-packages/dist
           python3 ../../vup/vup/scripts/manage_release.py clean_remote
 

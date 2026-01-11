@@ -1,0 +1,89 @@
+name: Vuru Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-vuru:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/void-linux/void-glibc:latest
+      options: --privileged
+    env:
+      XBPS_ALLOW_RESTRICTED: yes
+    
+    steps:
+      - name: Install Dependencies
+        run: |
+          xbps-install -Sy git curl bash python3 github-cli xbps-src
+          xbps-install -y gcc pkg-config # Essential for cargo builds if not in base
+
+      - name: Checkout Source
+        uses: actions/checkout@v4
+        with:
+          path: vup
+          fetch-depth: 0
+
+      - name: Checkout void-packages
+        uses: actions/checkout@v4
+        with:
+          repository: void-linux/void-packages
+          path: void-packages
+
+      - name: Setup Custom xbps-src
+        run: |
+          cd void-packages
+          cp ../vup/vup/xbps-src .
+          chmod +x xbps-src
+          ./xbps-src binary-bootstrap
+
+      - name: Build Vuru
+        run: |
+          cd void-packages
+          # Copy template
+          mkdir -p srcpkgs/vuru
+          cp ../vup/vup/srcpkgs/utilities/vuru/template srcpkgs/vuru/
+          
+          # HACK: The template expects a tarball, but we have source here.
+          # We can override the fetch stage or just skip it and mount source?
+          # Easier way: Use 'hostdir/sources/vuru-0.1.0' and tar it up ourselves?
+          # OR: Modify template in-flight to use local path?
+          # BEST: Create a local distfile so xbps-src finds it.
+          
+          mkdir -p hostdir/sources/vuru-0.1.0
+          cd ../vup
+          # Create expected dir structure vup-v0.1.0/vuru
+          mkdir -p /tmp/dist/vup-v0.1.0
+          cp -r vuru /tmp/dist/vup-v0.1.0/
+          cd /tmp/dist
+          tar -czf ../source.tar.gz vup-v0.1.0
+          
+          # Move to void-packages distfiles
+          mv ../source.tar.gz ../../void-packages/hostdir/sources/vuru-0.1.0/v0.1.0.tar.gz
+          
+          cd ../../void-packages
+          # Update checksum
+          SHA=$(sha256sum hostdir/sources/vuru-0.1.0/v0.1.0.tar.gz | cut -d' ' -f1)
+          sed -i "s/checksum=\".*\"/checksum=\"$SHA\"/" srcpkgs/vuru/template
+          
+          # Build
+          ./xbps-src pkg vuru
+
+      - name: Create Repo Index
+        run: |
+          cd void-packages/hostdir/binpkgs
+          xbps-rindex -a *.xbps
+          
+      - name: Release Binary Package
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: vuru-current
+          files: |
+            void-packages/hostdir/binpkgs/vuru-*.xbps
+            void-packages/hostdir/binpkgs/repodata
+          overwrite: true
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

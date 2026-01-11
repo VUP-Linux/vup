@@ -35,11 +35,15 @@ jobs:
     # Since matrix jobs are static, we check inside the step or use an `if` at job level.
     # A cleaner logic for large scale is dynamic matrix, but here we can check if any files changed in that category using git.
     
+    # Prevent wasted builds on PR updates
+    concurrency:
+      group: pr-vup-${{ matrix.category }}-${{ github.head_ref }}
+      cancel-in-progress: true
+    
     steps:
       - name: Install Dependencies
         run: |
-          xbps-install -Syu xbps
-          xbps-install -y git curl bash
+          xbps-install -Sy git curl bash
 
       - name: Checkout VUP
         uses: actions/checkout@v4
@@ -78,6 +82,9 @@ jobs:
         if: steps.check_changes.outputs.skip != 'true'
         run: |
           cd void-packages
+          # Override xbps-src with our custom version
+          cp ../vup/vup/xbps-src .
+          chmod +x xbps-src
           ./xbps-src binary-bootstrap
 
       - name: Build Modified Packages
@@ -100,11 +107,14 @@ jobs:
              if [ -d "$pkgpath" ]; then
                  echo "Verifying build for $pkgname..."
                  
-                 # Clean up any previous symlink
+                 # Copy template for isolation
                  rm -rf "srcpkgs/$pkgname"
-                 ln -s "$(pwd)/$pkgpath" "srcpkgs/$pkgname"
+                 cp -r "$pkgpath" "srcpkgs/"
                  
                  # Build
-                 ./xbps-src pkg "$pkgname"
+                 ./xbps-src -Q pkg "$pkgname"
+                 
+                 # Cleanup
+                 rm -rf "srcpkgs/$pkgname"
              fi
           done

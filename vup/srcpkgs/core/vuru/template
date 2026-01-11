@@ -1,0 +1,14 @@
+# Template file for 'vuru'
+pkgname=vuru
+version=0.1.0
+revision=1
+build_style=cargo
+hostmakedepends="cargo pkg-config"
+makedepends="openssl-devel"
+short_desc="Void User Repo Utility - Simple package installer"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="MIT"
+homepage="https://github.com/void-linux/vup"
+distfiles="https://github.com/void-linux/vup/archive/refs/tags/v${version}.tar.gz"
+checksum="0000000000000000000000000000000000000000000000000000000000000000"
+wrksrc="vup-v${version}/vuru"
