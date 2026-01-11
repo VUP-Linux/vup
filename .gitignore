@@ -1,0 +1,23 @@
+# Rust / Cargo
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Python
+__pycache__/
+*.py[cod]
+
+# XBPS / VUP
+vup/binpkgs/*
+!vup/binpkgs/.keep
+vup/hostdir/
+dist/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Misc
+index.json
+*.log

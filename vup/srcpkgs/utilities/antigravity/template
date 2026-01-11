@@ -1,0 +1,57 @@
+# Template file for 'antigravity'
+pkgname=antigravity
+version=1.13.3
+revision=1
+archs="x86_64"
+restricted=yes
+wrksrc="Antigravity"
+short_desc="Agentic development platform from Google"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="custom:Google-Antigravity"
+homepage="https://antigravity.google/"
+
+distfiles="https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/stable/${version}-4533425205018624/linux-x64/Antigravity.tar.gz"
+checksum=084dfbedf1049b363aa3ad7ba679eec8b80feaf29585accb90b5910ebb270048
+
+depends="
+ alsa-lib
+ at-spi2-core
+ cairo
+ dbus
+ expat
+ libgcc
+ glib
+ glibc
+ gtk+3
+ libX11
+ libXcomposite
+ libXdamage
+ libXext
+ libXfixes
+ libxkbcommon
+ libxkbfile
+ libXrandr
+ libxcb
+ mesa
+ nspr
+ nss
+ pango
+ cups
+"
+
+nopie=yes
+nostrip=yes
+
+do_install() {
+	# Install under /opt
+	vmkdir opt
+	cp -r . ${DESTDIR}/opt/Antigravity
+
+	# Binary symlink
+	vmkdir usr/bin
+	ln -s /opt/Antigravity/antigravity ${DESTDIR}/usr/bin/antigravity
+
+	# License files (if present)
+	vmkdir usr/share/licenses/${pkgname}
+	cp LICENSE* ${DESTDIR}/usr/share/licenses/${pkgname}/ 2>/dev/null || true
+}
