@@ -40,7 +40,7 @@ jobs:
           # Default skip to true
           SKIP="true"
           
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
              echo "Manual trigger, running..."
              SKIP="false"
           else
