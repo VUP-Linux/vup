@@ -69,10 +69,11 @@ def generate_index():
             else:
                 print(f"Warning: Could not parse version/revision for {pkg}")
 
-    # Output to index.json
-    with open("index.json", "w") as f:
+    # Output to public/index.json
+    os.makedirs("public", exist_ok=True)
+    with open("public/index.json", "w") as f:
         json.dump(index, f, indent=2)
-    print("Generated index.json")
+    print("Generated public/index.json")
 
 if __name__ == "__main__":
     generate_index()
