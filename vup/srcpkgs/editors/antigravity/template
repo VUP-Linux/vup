@@ -42,9 +42,8 @@ distfiles="https://us-central1-apt.pkg.dev/projects/antigravity-auto-updater-dev
 checksum=d9920f9e0788245b1dab0f73a607b4eea00605bfb70e16795da1c1ac89eabd4b
 
 do_install() {
-	# Extract data.tar.xz from the deb (deb contents are extracted to $wrksrc by xbps-src)
-	ls -la
-	tar -xf data.tar.xz --no-same-owner -C ${DESTDIR}
+	# deb contents are already extracted to $wrksrc by xbps-src
+	cp -r usr ${DESTDIR}/
 
 	# Move /usr/share/antigravity to /opt/Antigravity
 	vmkdir opt
