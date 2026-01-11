@@ -5,7 +5,7 @@ use std::process::{Command, Stdio};
 // Fetch template content
 pub fn fetch_template(category: &str, pkg: &str) -> Result<String> {
     let url = format!(
-        "https://raw.githubusercontent.com/VUP-Linux/vup/main/srcpkgs/{}/{}/template",
+        "https://raw.githubusercontent.com/VUP-Linux/vup/main/vup/srcpkgs/{}/{}/template",
         category, pkg
     );
     let resp = reqwest::blocking::get(&url).context("Failed to fetch template")?;
