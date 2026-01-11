@@ -29,7 +29,7 @@ def get_pkg_name(filename):
     # xbps-uhelper getpkgname <binpkg>
     # If file doesn't exist (remote listing), fallback to regex
     if os.path.exists(filename):
-        res = run_command(["xbps-uhelper", "getpkgname", os.path.basename(filename)], capture_output=True)
+        res = run_command(["xbps-uhelper", "getpkgname", filename], capture_output=True)
         if res: return res
     
     # Fallback/Remote logic
