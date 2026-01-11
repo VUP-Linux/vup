@@ -44,6 +44,9 @@ jobs:
       - name: Install Dependencies
         run: |
           xbps-install -Sy git curl bash python3 github-cli util-linux
+          # Create a non-root user for xbps-src
+          useradd -m builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
 
       - name: Check Gate
@@ -100,7 +103,12 @@ jobs:
           # Override xbps-src with our custom version
           cp ../vup/vup/xbps-src .
           chmod +x xbps-src
-          ./xbps-src binary-bootstrap
+          
+          # Change ownership to builder
+          chown -R builder .
+          
+          # Run binary-bootstrap as builder
+          su builder -c "./xbps-src binary-bootstrap"
 
       - name: Sync Existing Release
         if: steps.gate.outputs.skip != 'true'
@@ -117,6 +125,9 @@ jobs:
       - name: Build Packages
         if: steps.gate.outputs.skip != 'true'
         run: |
+          # Ensure builder owns the tree (in case sync changed ownership)
+          chown -R builder void-packages
+          
           cd void-packages
           CATEGORY_PATH="../vup/vup/srcpkgs/${{ matrix.category }}"
           
@@ -134,7 +145,11 @@ jobs:
                  rm -rf "srcpkgs/$pkgname"
                  cp -r "$pkgpath" "srcpkgs/"
                  
-                 ./xbps-src pkg "$pkgname"
+                 # Fix ownership of copied template
+                 chown -R builder "srcpkgs/$pkgname"
+                 
+                 # Run build as builder
+                 su builder -c "./xbps-src pkg $pkgname"
                  
                  # Cleanup
                  rm -rf "srcpkgs/$pkgname"

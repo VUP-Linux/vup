@@ -48,6 +48,10 @@ jobs:
       - name: Install Dependencies
         run: |
           xbps-install -Sy git curl bash util-linux
+          
+          # Create a non-root user for xbps-src
+          useradd -m builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
       - name: Checkout VUP
         uses: actions/checkout@v4
@@ -89,7 +93,12 @@ jobs:
           # Override xbps-src with our custom version
           cp ../vup/vup/xbps-src .
           chmod +x xbps-src
-          ./xbps-src binary-bootstrap
+          
+          # Change ownership to builder
+          chown -R builder .
+          
+          # Run binary-bootstrap as builder
+          su builder -c "./xbps-src binary-bootstrap"
 
       - name: Build Modified Packages
         if: steps.check_changes.outputs.skip != 'true'

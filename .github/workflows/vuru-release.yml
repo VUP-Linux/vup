@@ -41,7 +41,12 @@ jobs:
           cd void-packages
           cp ../vup/vup/xbps-src .
           chmod +x xbps-src
-          ./xbps-src binary-bootstrap
+          
+          # Change ownership to builder
+          chown -R builder .
+          
+          # Run binary-bootstrap as builder
+          su builder -c "./xbps-src binary-bootstrap"
 
       - name: Build Vuru
         run: |
@@ -73,7 +78,7 @@ jobs:
           sed -i "s/checksum=\".*\"/checksum=\"$SHA\"/" srcpkgs/vuru/template
           
           # Build
-          ./xbps-src pkg vuru
+          su builder -c "./xbps-src pkg vuru"
 
       - name: Create Repo Index
         run: |
