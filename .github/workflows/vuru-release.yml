@@ -63,22 +63,22 @@ jobs:
           # Verify change
           cat "$TEMPLATE"
           
-          # Push changes
+          # Push changes to new branch
+          BRANCH="release/vuru-$VERSION"
           cd vup
           git config user.name "VUP Bot"
           git config user.email "bot@vup.linux"
           
-          # Fix detached HEAD by checking out main
-          git checkout main
-          git pull origin main
-          
+          git checkout -b "$BRANCH"
           git add vup/srcpkgs/core/vuru/template
           git commit -m "auto: update vuru to $VERSION"
-          git push origin main
+          git push -u origin "$BRANCH"
           
-      - name: Trigger Build Workflow
+          # Create Pull Request
+          gh pr create \
+            --title "auto: update vuru to $VERSION" \
+            --body "Automated update containing checksum changes for vuru v$VERSION." \
+            --head "$BRANCH" \
+            --base main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "Triggering build.yml..."
-          gh workflow run build.yml --repo ${{ github.repository }} --ref main
