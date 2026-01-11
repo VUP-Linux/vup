@@ -58,12 +58,12 @@ jobs:
 
           def main():
               changes = get_changes()
-              # Dynamically find categories in vup/srcpkgs
-              if not os.path.exists("vup/srcpkgs"):
-                  print("vup/srcpkgs not found")
+              # Dynamically find categories in vup/vup/srcpkgs
+              if not os.path.exists("vup/vup/srcpkgs"):
+                  print("vup/vup/srcpkgs not found")
                   sys.exit(0)
                   
-              all_cats = [d for d in os.listdir("vup/srcpkgs") if os.path.isdir(os.path.join("vup/srcpkgs", d))]
+              all_cats = [d for d in os.listdir("vup/vup/srcpkgs") if os.path.isdir(os.path.join("vup/vup/srcpkgs", d))]
               
               target_cats = set()
               if changes == "ALL":
@@ -76,11 +76,11 @@ jobs:
                          break
                          
                       # Check for category changes
-                      # Expected path: vup/srcpkgs/<category>/<pkg>/...
-                      if f.startswith("vup/srcpkgs/"):
+                      # Expected path: vup/vup/srcpkgs/<category>/<pkg>/...
+                      if f.startswith("vup/vup/srcpkgs/"):
                           parts = f.split("/")
-                          if len(parts) > 2 and parts[2] in all_cats:
-                              target_cats.add(parts[2])
+                          if len(parts) > 3 and parts[3] in all_cats:
+                              target_cats.add(parts[3])
               
               target_list = sorted(list(target_cats))
               
@@ -139,12 +139,8 @@ jobs:
 
       - name: Setup xbps-src
         run: |
-          echo "Workspace Structure:"
-          ls -R
-          find . -maxdepth 3 -name xbps-src
-          
           cd void-packages
-          cp ../vup/xbps-src .
+          cp ../vup/vup/xbps-src .
           chmod +x xbps-src
           echo "XBPS_ALLOW_RESTRICTED=yes" >> etc/conf
 
@@ -162,7 +158,7 @@ jobs:
         run: |
           mkdir -p void-packages/dist
           cd void-packages/dist
-          python3 ../vup/scripts/manage_release.py download
+          python3 ../../vup/vup/scripts/manage_release.py download
           rm -f repodata
 
       - name: Build Packages (Buffered)
@@ -171,14 +167,14 @@ jobs:
         run: |
           cd void-packages
           # category is passed via env
-          python3 ../vup/scripts/build_runner.py
+          python3 ../vup/vup/scripts/build_runner.py
 
       - name: Prune and Index
         env:
           XBPS_PRIVATE_KEY: ${{ secrets.XBPS_PRIVATE_KEY }}
         run: |
           cd void-packages/dist
-          python3 ../vup/scripts/manage_release.py prune
+          python3 ../../vup/vup/scripts/manage_release.py prune
           
           if [ ! -z "$XBPS_PRIVATE_KEY" ]; then
              echo "$XBPS_PRIVATE_KEY" > ../privkey.pem
@@ -206,7 +202,7 @@ jobs:
           CATEGORY: ${{ matrix.category }}
         run: |
           cd void-packages/dist
-          python3 ../vup/scripts/manage_release.py clean_remote
+          python3 ../../vup/vup/scripts/manage_release.py clean_remote
 
       - name: Upload New Assets
         env:

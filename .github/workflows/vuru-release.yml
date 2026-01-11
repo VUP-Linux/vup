@@ -54,7 +54,7 @@ jobs:
           echo "Updating template to version $VERSION with checksum $CHECKSUM"
           
           # NOTE: 'vup' is the checkout directory, 'vup/srcpkgs' is inside the repo
-          TEMPLATE="vup/srcpkgs/core/vuru/template"
+          TEMPLATE="vup/vup/srcpkgs/core/vuru/template"
           
           sed -i "s/^version=.*/version=$VERSION/" "$TEMPLATE"
           sed -i "s/^checksum=.*/checksum=\"$CHECKSUM\"/" "$TEMPLATE"
