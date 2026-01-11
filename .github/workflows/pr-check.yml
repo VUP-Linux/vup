@@ -83,7 +83,19 @@ jobs:
           repository: void-linux/void-packages
           path: void-packages
 
-      - name: Prepare Build Environment
+      - name: Cache xbps-src bootstrap
+        if: steps.check_changes.outputs.skip != 'true'
+        id: cache-bootstrap
+        uses: actions/cache@v3
+        with:
+          path: |
+            void-packages/masterdir-*
+            void-packages/hostdir/repocache
+          key: xbps-bootstrap-${{ runner.os }}-${{ hashFiles('void-packages/srcpkgs/base-chroot/template') }}
+          restore-keys: |
+            xbps-bootstrap-${{ runner.os }}-
+
+      - name: Setup xbps-src
         if: steps.check_changes.outputs.skip != 'true'
         run: |
           cd void-packages
@@ -91,10 +103,13 @@ jobs:
           cp ../vup/vup/xbps-src .
           chmod +x xbps-src
           
-          # Override xbps-src with our custom version
-          cp ../vup/vup/xbps-src .
-          chmod +x xbps-src
-          
+          # Authorize restricted packages
+          echo "XBPS_ALLOW_RESTRICTED=yes" >> etc/conf
+
+      - name: Binary Bootstrap
+        if: steps.check_changes.outputs.skip != 'true' && steps.cache-bootstrap.outputs.cache-hit != 'true'
+        run: |
+          cd void-packages
           ./xbps-src binary-bootstrap
 
       - name: Build Modified Packages

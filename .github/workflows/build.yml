@@ -94,7 +94,19 @@ jobs:
           repository: void-linux/void-packages
           path: void-packages
 
-      - name: Bootstrap xbps-src
+      - name: Cache xbps-src bootstrap
+        if: steps.gate.outputs.skip != 'true'
+        id: cache-bootstrap
+        uses: actions/cache@v3
+        with:
+          path: |
+            void-packages/masterdir-*
+            void-packages/hostdir/repocache
+          key: xbps-bootstrap-${{ runner.os }}-${{ hashFiles('void-packages/srcpkgs/base-chroot/template') }}
+          restore-keys: |
+            xbps-bootstrap-${{ runner.os }}-
+
+      - name: Setup xbps-src
         if: steps.gate.outputs.skip != 'true'
         run: |
           cd void-packages
@@ -102,6 +114,13 @@ jobs:
           cp ../vup/vup/xbps-src .
           chmod +x xbps-src
           
+          # Authorize restricted packages
+          echo "XBPS_ALLOW_RESTRICTED=yes" >> etc/conf
+
+      - name: Binary Bootstrap
+        if: steps.gate.outputs.skip != 'true' && steps.cache-bootstrap.outputs.cache-hit != 'true'
+        run: |
+          cd void-packages
           ./xbps-src binary-bootstrap
 
       - name: Sync Existing Release
