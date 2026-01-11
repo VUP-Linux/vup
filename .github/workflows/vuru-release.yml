@@ -22,7 +22,7 @@ jobs:
     steps:
       - name: Install Dependencies
         run: |
-          xbps-install -Sy git curl bash python3 github-cli util-linux shadow findutils
+          xbps-install -Sy git curl bash python3 github-cli util-linux shadow findutils tar
           xbps-install -y gcc pkg-config # Essential for cargo builds if not in base
 
       - name: Checkout Source
@@ -112,7 +112,6 @@ jobs:
           files: |
             void-packages/hostdir/binpkgs/vuru-*.xbps
             void-packages/hostdir/binpkgs/repodata
-          overwrite: true
 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

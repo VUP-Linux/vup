@@ -44,7 +44,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          xbps-install -Sy git curl bash python3 github-cli util-linux shadow findutils
+          xbps-install -Sy git curl bash python3 github-cli util-linux shadow findutils tar
 
 
       - name: Check Gate
@@ -191,7 +191,6 @@ jobs:
         with:
           tag_name: ${{ matrix.category }}-current
           files: void-packages/dist/*
-          overwrite: true
           fail_on_unmatched_files: true
 
   deploy-index:

@@ -43,3 +43,21 @@ sudo xbps-install -R https://github.com/void-linux/vup/releases/download/vuru-cu
 2. **Lookup** `pkg` → `category`.
 3. **Construct** Release URL.
 4. **Exec** `xbps-install -R <URL> <pkg>`.
+
+## 7. Release Workflow
+
+### Releasing Packages (VUP)
+Packages are built automatically when their template is modified.
+1. **Push Changes**: Modify `srcpkgs/<category>/<pkgname>/template`.
+2. **Commit & Push**: `git push origin main`.
+3. **Result**: CI builds only the modified category and updates the `<category>-current` release.
+4. **Manual**: Go to Actions -> Build and Release -> Run workflow -> Select Branch & Category.
+
+### Releasing VURU (Client)
+The VURU client has its own dedicated workflow.
+1. **Tag**: Create a tag starting with `v` (e.g., `v0.1.0`).
+   ```bash
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+2. **Result**: CI builds the `vuru` binary and updates the `vuru-current` release.

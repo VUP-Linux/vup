@@ -1,6 +1,6 @@
-# Template file for 'vuru'
+# Template file for 'vuru' 
 pkgname=vuru
-version=0.1.0
+version=0.2.0
 revision=1
 build_style=cargo
 hostmakedepends="cargo pkg-config"
