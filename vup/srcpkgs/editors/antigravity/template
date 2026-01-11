@@ -21,7 +21,7 @@ depends="
  expat
  libgcc
  glib
- glibcssss
+ glibcsssss
  gtk+3
  libX11
  libXcomposite
