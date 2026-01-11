@@ -43,7 +43,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          xbps-install -Sy git curl bash python3 github-cli util-linux
+          xbps-install -Sy git curl bash python3 github-cli util-linux shadow
           # Create a non-root user for xbps-src
           useradd -m builder
           echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers

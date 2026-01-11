@@ -21,8 +21,12 @@ jobs:
     steps:
       - name: Install Dependencies
         run: |
-          xbps-install -Sy git curl bash python3 github-cli
+          xbps-install -Sy git curl bash python3 github-cli util-linux shadow
           xbps-install -y gcc pkg-config # Essential for cargo builds if not in base
+          
+          # Create a non-root user for xbps-src
+          useradd -m builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
       - name: Checkout Source
         uses: actions/checkout@v4
