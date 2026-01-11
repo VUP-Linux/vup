@@ -260,11 +260,13 @@ jobs:
               icon = "✅" if r["status"] == "success" else "❌"
               duration = r.get("duration", 0)
               dur = f"{duration:.1f}s"
-              print(f"| {r[\"name\"]} | {icon} {r[\"status\"]} | {dur} |")
+              name = r["name"]
+              status = r["status"]
+              print(f"| {name} | {icon} {status} | {dur} |")
               
-              if r["status"] == "failure":
+              if status == "failure":
                   print("<details>")
-                  print(f"<summary>Error Log: {r[\"name\"]}</summary>")
+                  print(f"<summary>Error Log: {name}</summary>")
                   print("\n```")
                   print(r.get("error_log", "No log captured"))
                   print("```\n")

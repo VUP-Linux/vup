@@ -75,3 +75,10 @@ jobs:
           git add vup/srcpkgs/core/vuru/template
           git commit -m "auto: update vuru to $VERSION"
           git push origin main
+          
+      - name: Trigger Build Workflow
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Triggering build.yml..."
+          gh workflow run build.yml --ref main

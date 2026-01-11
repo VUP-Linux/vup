@@ -4,7 +4,22 @@ use clap::{Parser, Subcommand};
 #[command(author, version, about, long_about = None)]
 pub struct Cli {
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
+
+    /// Sync remote repository index
+    #[arg(short = 'S', long)]
+    pub sync: bool,
+
+    /// Update target package(s) or all packages if none specified
+    #[arg(short = 'u', long)]
+    pub update: bool,
+
+    /// Assume yes to all questions
+    #[arg(short = 'y', long)]
+    pub yes: bool,
+
+    /// Packages to install/update
+    pub packages: Vec<String>,
 }
 
 #[derive(Subcommand)]
@@ -14,9 +29,9 @@ pub enum Commands {
         /// Package name to search for
         query: String,
     },
-    /// Install a package from VUR
-    Install {
-        /// Package name to install
+    /// Remove a package
+    Remove {
+        /// Package name to remove
         package: String,
     },
     /// Manage VUR repositories

@@ -32,6 +32,11 @@ impl Cache {
         }
     }
 
+    /// Returns the path where the index should be stored
+    pub fn index_path(&self) -> PathBuf {
+        self.root.parent().unwrap().join("index.json")
+    }
+
     /// Saves a template to the cache
     pub fn save_template(&self, pkg_name: &str, content: &str) -> Result<()> {
         let path = self.template_path(pkg_name);

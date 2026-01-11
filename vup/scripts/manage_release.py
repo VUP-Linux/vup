@@ -57,6 +57,31 @@ def download_release():
 
     run_command(["gh", "release", "download", TAG_NAME, "--repo", REPO, "--dir", DIST_DIR, "--pattern", "*"])
 
+from functools import cmp_to_key
+
+def xbps_ver_cmp(f1, f2):
+    v1 = run_command(["xbps-uhelper", "binpkgver", f1], capture_output=True)
+    v2 = run_command(["xbps-uhelper", "binpkgver", f2], capture_output=True)
+    
+    if not v1 or not v2:
+        return 0
+        
+    # xbps-uhelper cmpver v1 v2
+    # Returns 0 (eq), 1 (v1>v2), 255 (v1<v2)
+    # We want standard -1, 0, 1
+    try:
+        # Note: xbps-uhelper cmpver returns exit code, not stdout
+        # 0: equal
+        # 1: v1 > v2
+        # 255 (-1): v1 < v2
+        ret = subprocess.call(["xbps-uhelper", "cmpver", v1, v2], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if ret == 1: return 1
+        if ret == 255: return -1
+        return 0
+    except Exception:
+        return 0
+
+def prune_local():
 def prune_local():
     """Keep only the latest version of each package in DIST_DIR."""
     print("Pruning local old versions...")
@@ -71,21 +96,18 @@ def prune_local():
 
     for name, fpaths in pkgs.items():
         if len(fpaths) > 1:
-            # Sort using xbps-uhelper cmpver logic conceptually
-            # We assume xbps-uhelper is available in the container
-            fpaths.sort(key=lambda x: run_command(["xbps-uhelper", "binpkgver", x], capture_output=True), reverse=True)
+            fpaths.sort(key=cmp_to_key(xbps_ver_cmp), reverse=True)
             
-            # Keep index 0 (newest), delete others
             for old in fpaths[1:]:
                 print(f"Removing old version: {os.path.basename(old)}")
                 os.remove(old)
                 if os.path.exists(old + ".sig"): os.remove(old + ".sig")
+                if os.path.exists(old + ".sig2"): os.remove(old + ".sig2")
 
 def clean_remote_assets():
     """Delete remote assets that are NOT present in local DIST_DIR."""
     print("Synchronizing remote assets (Deleting obsolete)...")
     
-    # Get remote assets
     try:
         json_str = run_command(["gh", "release", "view", TAG_NAME, "--repo", REPO, "--json", "assets"], capture_output=True)
         data = json.loads(json_str)
@@ -94,11 +116,8 @@ def clean_remote_assets():
         print("Could not fetch remote assets (maybe release doesn't exist yet).")
         return
 
-    # Get local assets (filenames only)
     local_assets = set(os.path.basename(f) for f in glob.glob(os.path.join(DIST_DIR, "*")))
 
-    # Repodata is always regenerated/overwritten, but we should treat it same
-    # Identify orphans
     to_delete = []
     for r_name in remote_assets:
         if r_name not in local_assets:

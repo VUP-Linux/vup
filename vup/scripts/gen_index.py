@@ -41,13 +41,13 @@ def generate_index():
         print(f"Error: {SRCPKGS_DIR} not found.")
         return
 
-    categories = [d for d in os.listdir(SRCPKGS_DIR) 
-                 if os.path.isdir(os.path.join(SRCPKGS_DIR, d))]
+    categories = sorted([d for d in os.listdir(SRCPKGS_DIR) 
+                 if os.path.isdir(os.path.join(SRCPKGS_DIR, d))])
     
     for category in categories:
         cat_dir = os.path.join(SRCPKGS_DIR, category)
-        packages = [d for d in os.listdir(cat_dir) 
-                   if os.path.isdir(os.path.join(cat_dir, d))]
+        packages = sorted([d for d in os.listdir(cat_dir) 
+                   if os.path.isdir(os.path.join(cat_dir, d))])
         
         for pkg in packages:
             template_path = os.path.join(cat_dir, pkg, "template")
