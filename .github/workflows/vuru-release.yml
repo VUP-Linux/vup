@@ -22,7 +22,7 @@ jobs:
     steps:
       - name: Install Dependencies
         run: |
-          xbps-install -Sy git curl bash python3 github-cli util-linux shadow
+          xbps-install -Sy git curl bash python3 github-cli util-linux shadow findutils
           xbps-install -y gcc pkg-config # Essential for cargo builds if not in base
 
       - name: Checkout Source
