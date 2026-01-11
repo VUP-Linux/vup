@@ -28,7 +28,7 @@ jobs:
       options: --privileged
     strategy:
       matrix:
-        category: [utilities, editors, chat]
+        category: [core, utilities, editors, chat]
       fail-fast: false
     
     # Conditional execution: Only run if the PR has the corresponding label OR if we detect changes in that dir.

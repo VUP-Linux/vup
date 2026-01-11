@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
+
 jobs:
   build-vuru:
     runs-on: ubuntu-latest
@@ -44,7 +48,7 @@ jobs:
           cd void-packages
           # Copy template
           mkdir -p srcpkgs/vuru
-          cp ../vup/vup/srcpkgs/utilities/vuru/template srcpkgs/vuru/
+          cp ../vup/vup/srcpkgs/core/vuru/template srcpkgs/vuru/
           
           # HACK: The template expects a tarball, but we have source here.
           # We can override the fetch stage or just skip it and mount source?

@@ -5,6 +5,12 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+
 env:
   XBPS_ALLOW_RESTRICTED: yes
 
@@ -16,7 +22,7 @@ jobs:
       options: --privileged
     strategy:
       matrix:
-        category: [utilities, editors, chat]
+        category: [core, utilities, editors, chat]
       fail-fast: false
     # Only run if the category was modified, or if it's a dispatch event
     if:github.event_name == 'workflow_dispatch' || contains(toJSON(github.event.head_commit.modified), matrix.category)
