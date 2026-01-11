@@ -185,7 +185,7 @@ jobs:
              done
              
              echo "Signing repository index..."
-             xbps-rindex --sign --privkey ../privkey.pem --signed-by "VUP Builder" -a *.xbps
+             xbps-rindex --sign --privkey ../privkey.pem --signedby "VUP Builder" -a *.xbps
              
              rm -f ../privkey.pem
           else
