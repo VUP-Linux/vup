@@ -1,0 +1,20 @@
+# .github/labeler.yml
+utilities:
+  - changed-files:
+    - any-glob-to-any-file: 'vup/srcpkgs/utilities/**/*'
+
+editors:
+  - changed-files:
+    - any-glob-to-any-file: 'vup/srcpkgs/editors/**/*'
+
+chat:
+  - changed-files:
+    - any-glob-to-any-file: 'vup/srcpkgs/chat/**/*'
+
+core:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'DEV.md'
+      - 'README.md'
+      - 'vup/.github/**/*'
+      - 'vup/scripts/**/*'

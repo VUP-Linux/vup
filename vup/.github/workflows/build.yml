@@ -96,9 +96,9 @@ jobs:
           tag_name: ${{ matrix.category }}-current
           files: void-packages/dist/*
           overwrite: true
-          # Note: We need a mechanism to keep the release "rolling". 
-          # softprops/action-gh-release handles 'overwrite' of assets.
-          # To ensure the tag moves or stays current, we might need to pre-create it or allow updates.
+          prerelease: false
+          # We use the same tag to maintain a "rolling" release.
+          # The history of the release will show the updates.
 
   deploy-index:
     needs: build-and-release

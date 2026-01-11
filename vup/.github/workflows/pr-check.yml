@@ -1,0 +1,110 @@
+name: PR Check
+
+on:
+  pull_request:
+    paths:
+      - 'vup/srcpkgs/**/*'
+
+env:
+  XBPS_ALLOW_RESTRICTED: yes
+
+jobs:
+  labeler:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/labeler@v5
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
+          configuration-path: vup/.github/labeler.yml
+
+  verify-build:
+    runs-on: ubuntu-latest
+    needs: labeler
+    container:
+      image: ghcr.io/void-linux/void-linux:latest
+      options: --privileged
+    strategy:
+      matrix:
+        category: [utilities, editors, chat]
+      fail-fast: false
+    
+    # Conditional execution: Only run if the PR has the corresponding label OR if we detect changes in that dir.
+    # Since matrix jobs are static, we check inside the step or use an `if` at job level.
+    # A cleaner logic for large scale is dynamic matrix, but here we can check if any files changed in that category using git.
+    
+    steps:
+      - name: Install Dependencies
+        run: |
+          xbps-install -Syu xbps
+          xbps-install -y git curl bash
+
+      - name: Checkout VUP
+        uses: actions/checkout@v4
+        with:
+          path: vup
+          fetch-depth: 0 # Need history to diff
+
+      - name: Check for modified packages in ${{ matrix.category }}
+        id: check_changes
+        run: |
+          # Check if any file in vup/srcpkgs/${{ matrix.category }} matches the diff
+          # We compare against origin/main. In a PR, headers usually set GITHUB_BASE_REF
+          
+          # Mark safe dir
+          git config --global --add safe.directory "$PWD/vup"
+          
+          cd vup
+          CHANGED=$(git diff --name-only origin/main HEAD | grep "srcpkgs/${{ matrix.category }}" || true)
+          
+          if [ -z "$CHANGED" ]; then
+             echo "No changes in ${{ matrix.category }}, skipping."
+             echo "skip=true" >> $GITHUB_OUTPUT
+          else
+             echo "Changes detected in ${{ matrix.category }}."
+             echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout void-packages (Build System)
+        if: steps.check_changes.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: void-linux/void-packages
+          path: void-packages
+
+      - name: Prepare Build Environment
+        if: steps.check_changes.outputs.skip != 'true'
+        run: |
+          cd void-packages
+          ./xbps-src binary-bootstrap
+
+      - name: Build Modified Packages
+        if: steps.check_changes.outputs.skip != 'true'
+        run: |
+          cd void-packages
+          CATEGORY_PATH="../vup/vup/srcpkgs/${{ matrix.category }}"
+          
+          # Re-detect changed packages to iterate specifically over them
+          # Or just build everything in the category that is present? 
+          # Better: Extract pkgnames from git diff to only build modified ones.
+          
+          cd ../vup
+          # Get list of modified template dirs
+          MODIFIED_PKGS=$(git diff --name-only origin/main HEAD | grep "srcpkgs/${{ matrix.category }}" | cut -d/ -f4 | sort -u)
+          cd ../void-packages
+
+          for pkgname in $MODIFIED_PKGS; do
+             pkgpath="$CATEGORY_PATH/$pkgname"
+             if [ -d "$pkgpath" ]; then
+                 echo "Verifying build for $pkgname..."
+                 
+                 # Clean up any previous symlink
+                 rm -rf "srcpkgs/$pkgname"
+                 ln -s "$(pwd)/$pkgpath" "srcpkgs/$pkgname"
+                 
+                 # Build
+                 ./xbps-src pkg "$pkgname"
+             fi
+          done
