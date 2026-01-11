@@ -92,11 +92,12 @@ jobs:
           mkdir -p "hostdir/sources/vuru-$VERSION"
           
           # Create source tarball
-          mkdir -p "$DIST_TMP/vup-v$VERSION"
-          cp -r "$VUP_DIR/vuru" "$DIST_TMP/vup-v$VERSION/"
+          mkdir -p "$DIST_TMP/vuru-$VERSION"
+          # Copy content of vuru folder into the root of the release dir
+          cp -r "$VUP_DIR/vuru/." "$DIST_TMP/vuru-$VERSION/"
           
           cd "$DIST_TMP"
-          tar -czf "source.tar.gz" "vup-v$VERSION"
+          tar -czf "source.tar.gz" "vuru-$VERSION"
           
           # Move to void-packages distfiles
           mv "source.tar.gz" "$VOID_DIR/hostdir/sources/vuru-$VERSION/v$VERSION.tar.gz"
