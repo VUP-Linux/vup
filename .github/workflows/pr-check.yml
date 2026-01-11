@@ -48,7 +48,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          xbps-install -Sy git curl bash util-linux shadow findutils tar
+          xbps-install -Sy git curl bash util-linux shadow findutils tar gzip
 
       - name: Checkout VUP
         uses: actions/checkout@v4

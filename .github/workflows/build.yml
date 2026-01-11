@@ -44,7 +44,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          xbps-install -Sy git curl bash python3 github-cli util-linux shadow findutils tar
+          xbps-install -Sy git curl bash python3 github-cli util-linux shadow findutils tar gzip
 
 
       - name: Check Gate
