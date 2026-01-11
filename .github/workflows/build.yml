@@ -117,6 +117,12 @@ jobs:
       - name: Checkout VUP
         uses: actions/checkout@v4
         with:
+          path: vup
+          fetch-depth: 0
+
+      - name: Checkout void-packages
+        uses: actions/checkout@v4
+        with:
           repository: void-linux/void-packages
           path: void-packages
 
@@ -133,25 +139,8 @@ jobs:
 
       - name: Setup xbps-src
         run: |
-          echo "Current Dir: $(pwd)"
-          echo "Listing Parent Dir:"
-          ls -F ..
-          echo "Listing vup Dir:"
-          ls -F ../vup || echo "vup dir not found"
-          echo "Listing vup/vup Dir (if exists):"
-          ls -F ../vup/vup || echo "vup/vup dir not found"
-          
           cd void-packages
-          # Attempt copy based on discovery, but for now just fail verbosely if missed
-          if [ -f "../vup/vup/xbps-src" ]; then
-             cp ../vup/vup/xbps-src .
-          elif [ -f "../vup/xbps-src" ]; then
-             cp ../vup/xbps-src .
-          else
-             echo "ERROR: Could not find xbps-src"
-             exit 1
-          fi
-          
+          cp ../vup/xbps-src .
           chmod +x xbps-src
           echo "XBPS_ALLOW_RESTRICTED=yes" >> etc/conf
 
