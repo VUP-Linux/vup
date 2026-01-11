@@ -139,6 +139,10 @@ jobs:
 
       - name: Setup xbps-src
         run: |
+          echo "Workspace Structure:"
+          ls -R
+          find . -maxdepth 3 -name xbps-src
+          
           cd void-packages
           cp ../vup/xbps-src .
           chmod +x xbps-src
