@@ -16,6 +16,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: vup
+          fetch-depth: 0 # Needed for push
 
       - name: Create Source Tarball
         run: |
@@ -36,3 +37,28 @@ jobs:
           files: dist/vuru-*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Template
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          CHECKSUM=$(sha256sum dist/vuru-$VERSION.tar.gz | cut -d ' ' -f 1)
+          
+          echo "Updating template to version $VERSION with checksum $CHECKSUM"
+          
+          # NOTE: 'vup' is the checkout directory, 'vup/srcpkgs' is inside the repo
+          TEMPLATE="vup/vup/srcpkgs/core/vuru/template"
+          
+          sed -i "s/^version=.*/version=$VERSION/" "$TEMPLATE"
+          sed -i "s/^checksum=.*/checksum=\"$CHECKSUM\"/" "$TEMPLATE"
+          sed -i "s/^revision=.*/revision=1/" "$TEMPLATE"
+          
+          # Verify change
+          cat "$TEMPLATE"
+          
+          # Push changes
+          cd vup
+          git config user.name "VUP Bot"
+          git config user.email "bot@vup.linux"
+          git add vup/srcpkgs/core/vuru/template
+          git commit -m "auto: update vuru to $VERSION"
+          git push
