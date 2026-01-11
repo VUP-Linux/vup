@@ -45,6 +45,13 @@ do_install() {
 	# deb contents are already extracted to $wrksrc by xbps-src
 	cp -r usr ${DESTDIR}/
 
+	# Fix zsh completions
+	if [ -d ${DESTDIR}/usr/share/zsh/vendor-completions ]; then
+		vmkdir usr/share/zsh/site-functions
+		mv ${DESTDIR}/usr/share/zsh/vendor-completions/* ${DESTDIR}/usr/share/zsh/site-functions/
+		rm -rf ${DESTDIR}/usr/share/zsh/vendor-completions
+	fi
+
 	# Move /usr/share/antigravity to /opt/Antigravity
 	vmkdir opt
 	mv ${DESTDIR}/usr/share/antigravity ${DESTDIR}/opt/Antigravity
