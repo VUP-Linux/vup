@@ -133,8 +133,25 @@ jobs:
 
       - name: Setup xbps-src
         run: |
+          echo "Current Dir: $(pwd)"
+          echo "Listing Parent Dir:"
+          ls -F ..
+          echo "Listing vup Dir:"
+          ls -F ../vup || echo "vup dir not found"
+          echo "Listing vup/vup Dir (if exists):"
+          ls -F ../vup/vup || echo "vup/vup dir not found"
+          
           cd void-packages
-          cp ../vup/xbps-src .
+          # Attempt copy based on discovery, but for now just fail verbosely if missed
+          if [ -f "../vup/vup/xbps-src" ]; then
+             cp ../vup/vup/xbps-src .
+          elif [ -f "../vup/xbps-src" ]; then
+             cp ../vup/xbps-src .
+          else
+             echo "ERROR: Could not find xbps-src"
+             exit 1
+          fi
+          
           chmod +x xbps-src
           echo "XBPS_ALLOW_RESTRICTED=yes" >> etc/conf
 
