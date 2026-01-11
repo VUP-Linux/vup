@@ -82,7 +82,6 @@ def xbps_ver_cmp(f1, f2):
         return 0
 
 def prune_local():
-def prune_local():
     """Keep only the latest version of each package in DIST_DIR."""
     print("Pruning local old versions...")
     files = glob.glob(os.path.join(DIST_DIR, "*.xbps"))

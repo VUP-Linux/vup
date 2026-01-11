@@ -81,4 +81,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Triggering build.yml..."
-          gh workflow run build.yml --ref main
+          gh workflow run build.yml --repo ${{ github.repository }} --ref main
