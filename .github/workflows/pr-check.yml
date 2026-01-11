@@ -24,6 +24,9 @@ jobs:
   verify-build:
     runs-on: ubuntu-latest
     needs: labeler
+    permissions:
+      contents: read
+      packages: read
     container:
       image: ghcr.io/vup-linux/vup-builder:latest
       options: --privileged
