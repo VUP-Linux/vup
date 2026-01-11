@@ -44,7 +44,7 @@ nopie=yes
 nostrip=yes
 
 do_install() {
-	# Install under /opt
+	# Install under /opt 
 	vmkdir opt
 	cp -r . ${DESTDIR}/opt/Antigravity
 
