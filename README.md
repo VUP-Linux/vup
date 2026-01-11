@@ -1,4 +1,4 @@
-# VUP – Void User Protocols
+# VUP – Void User Protocols 
 
 VUP is an **experimental, community-driven packaging workflow for Void Linux** designed to improve third-party package availability and discovery **without changing Void’s core model**.
 
