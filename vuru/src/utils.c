@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/utsname.h>
 #include "utils.h"
 
 #define COLOR_RESET  "\033[0m"
@@ -90,4 +91,34 @@ int write_file(const char *path, const char *content) {
     }
     
     return 1;
+}
+
+const char *get_arch(void) {
+    static char arch[128] = {0};
+    
+    if (arch[0] != '\0') {
+        return arch;
+    }
+    
+    struct utsname info;
+    if (uname(&info) != 0) {
+        return NULL;
+    }
+    
+    // Map machine name to XBPS arch names
+    if (strcmp(info.machine, "x86_64") == 0) {
+        snprintf(arch, sizeof(arch), "x86_64");
+    } else if (strcmp(info.machine, "aarch64") == 0) {
+        snprintf(arch, sizeof(arch), "aarch64");
+    } else if (strcmp(info.machine, "armv7l") == 0) {
+        snprintf(arch, sizeof(arch), "armv7l");
+    } else if (strcmp(info.machine, "i686") == 0 || 
+               strcmp(info.machine, "i386") == 0) {
+        snprintf(arch, sizeof(arch), "i686");
+    } else {
+        // Use machine name as-is for other architectures
+        snprintf(arch, sizeof(arch), "%s", info.machine);
+    }
+    
+    return arch;
 }

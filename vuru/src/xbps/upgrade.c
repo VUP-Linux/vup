@@ -278,13 +278,22 @@ int xbps_upgrade_all(Index *idx, int yes) {
         if (!info) continue;
         
         cJSON *idx_ver = cJSON_GetObjectItem(info, "version");
-        cJSON *repo_url = cJSON_GetObjectItem(info, "repo_url");
+        cJSON *repo_urls = cJSON_GetObjectItem(info, "repo_urls");
         cJSON *category = cJSON_GetObjectItem(info, "category");
         
         if (!idx_ver || !cJSON_IsString(idx_ver) || !idx_ver->valuestring ||
-            !repo_url || !cJSON_IsString(repo_url) || !repo_url->valuestring ||
+            !repo_urls || !cJSON_IsObject(repo_urls) ||
             !category || !cJSON_IsString(category) || !category->valuestring) {
             continue;
+        }
+        
+        // Get architecture-specific repo URL
+        const char *arch = get_arch();
+        if (!arch) continue;
+        
+        cJSON *repo_url = cJSON_GetObjectItem(repo_urls, arch);
+        if (!repo_url || !cJSON_IsString(repo_url) || !repo_url->valuestring) {
+            continue;  // Package not available for this architecture
         }
         
         if (version_gt(idx_ver->valuestring, installed_ver)) {

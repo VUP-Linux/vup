@@ -8,7 +8,7 @@
 #include "utils.h"
 
 #define INDEX_URL "https://vup-linux.github.io/vup/index.json"
-#define VERSION   "0.3.5"
+#define VERSION   "0.3.7"
 
 static void print_version(void) {
     printf("vuru %s\n", VERSION);

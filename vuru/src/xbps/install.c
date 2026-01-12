@@ -56,15 +56,28 @@ int xbps_install_pkg(Index *idx, const char *pkg_name, int yes) {
     }
 
     cJSON *cat = cJSON_GetObjectItem(pkg, "category");
-    cJSON *url = cJSON_GetObjectItem(pkg, "repo_url");
+    cJSON *repo_urls = cJSON_GetObjectItem(pkg, "repo_urls");
     
     if (!cat || !cJSON_IsString(cat) || !cat->valuestring ||
-        !url || !cJSON_IsString(url) || !url->valuestring) {
+        !repo_urls || !cJSON_IsObject(repo_urls)) {
         log_error("Invalid package metadata for '%s'", pkg_name);
         return -1;
     }
+    
+    // Get architecture-specific repo URL
+    const char *arch = get_arch();
+    if (!arch) {
+        log_error("Failed to detect system architecture");
+        return -1;
+    }
+    
+    cJSON *url = cJSON_GetObjectItem(repo_urls, arch);
+    if (!url || !cJSON_IsString(url) || !url->valuestring) {
+        log_error("Package '%s' is not available for architecture '%s'", pkg_name, arch);
+        return -1;
+    }
 
-    log_info("Found %s in category '%s'", pkg_name, cat->valuestring);
+    log_info("Found %s in category '%s' for %s", pkg_name, cat->valuestring, arch);
     
     // Fetch template for review
     log_info("Fetching template for review...");
