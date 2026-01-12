@@ -1,0 +1,55 @@
+# Template file for 'vlang'
+pkgname=vlang
+version=0.4.11
+revision=1
+# Commit hashes for the latest release in the v & vc repositories
+_v_commit="b9e5757236a948c71cdac5ba913a9d42f1349963"
+_vc_commit="30f2d6ee52d8e1e7f5653454262bf32f297607da"
+archs="x86_64 aarch64"
+create_wrksrc=yes
+hostmakedepends="git"
+makedepends="libX11-devel"
+depends="clang"
+short_desc="Simple, fast, safe, compiled language for developing maintainable software"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="MIT"
+homepage="https://vlang.io"
+distfiles="https://github.com/vlang/v/archive/${_v_commit}.zip
+ https://github.com/vlang/vc/archive/${_vc_commit}.zip"
+checksum="5a496eafa7879f77d19dd133ca4c16350e7be347a67ee580637a4e9df1bba824
+ 5fd1d28f5fadb4a2b0cc2b5a7d3bf50e814b11a5e4977428aff5ee5a0c7d64db"
+nopie=yes
+
+post_extract() {
+	mv v-${_v_commit} v
+	rm -rf v/vc
+	mv vc-${_vc_commit} v/vc
+}
+
+do_build() {
+	cd v
+	make fresh_tcc
+	make prod=1 local=1
+	./v build-tools
+}
+
+do_install() {
+	cd v
+	vmkdir usr/lib/vlang
+	vcopy cmd usr/lib/vlang
+	vcopy thirdparty usr/lib/vlang
+	vcopy vlib usr/lib/vlang
+	vcopy v.mod usr/lib/vlang
+	
+	vinstall v 755 usr/lib/vlang
+	
+	vmkdir usr/bin
+	ln -sf /usr/lib/vlang/v ${DESTDIR}/usr/bin/v
+	
+	vlicense LICENSE
+	
+	vmkdir usr/share/vlang
+	vcopy examples usr/share/vlang
+
+	touch ${DESTDIR}/usr/lib/vlang/cmd/tools/.disable_autorecompilation
+}
