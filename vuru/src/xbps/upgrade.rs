@@ -48,6 +48,7 @@ pub fn upgrade(index: &Index) -> Result<()> {
             .arg("xbps-install")
             .arg("-R")
             .arg(repo)
+            .arg("-u")
             .arg("-y")
             .arg(pkg)
             .status()
