@@ -32,19 +32,25 @@ def get_changes():
         
     return output.splitlines()
 
-def get_category_archs(category_path):
+def get_category_archs(category_path, packages=None):
     """
-    Scan all packages in a category and return the union of all architectures needed.
+    Scan packages in a category and return the union of all architectures needed.
+    If packages is None or empty, scan all packages. Otherwise only scan specified packages.
     """
     archs = set()
     
     if not os.path.isdir(category_path):
         return SUPPORTED_ARCHS
     
-    packages = [d for d in os.listdir(category_path) 
-                if os.path.isdir(os.path.join(category_path, d))]
+    if packages:
+        # Only scan specified packages
+        pkg_list = packages
+    else:
+        # Scan all packages in category
+        pkg_list = [d for d in os.listdir(category_path) 
+                    if os.path.isdir(os.path.join(category_path, d))]
     
-    for pkg in packages:
+    for pkg in pkg_list:
         template_path = os.path.join(category_path, pkg, "template")
         if os.path.exists(template_path):
             raw_archs = parse_template_archs(template_path)
@@ -111,13 +117,14 @@ def main():
         includes = []
         for cat in target_list:
             cat_path = os.path.join("vup/srcpkgs", cat)
-            archs = get_category_archs(cat_path)
             
             # Determine packages
             if build_all or cat not in cat_pkgs or not cat_pkgs[cat]:
-                 pkg_str = "ALL"
+                pkg_str = "ALL"
+                archs = get_category_archs(cat_path, None)  # All packages
             else:
-                 pkg_str = " ".join(sorted(list(cat_pkgs[cat])))
+                pkg_str = " ".join(sorted(list(cat_pkgs[cat])))
+                archs = get_category_archs(cat_path, cat_pkgs[cat])  # Only changed packages
 
             print(f"Category '{cat}' needs architectures: {archs} (packages: {pkg_str})")
             for arch in archs:
