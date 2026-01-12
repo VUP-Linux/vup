@@ -239,10 +239,6 @@ jobs:
     needs: [check-changes, release]
     if: needs.check-changes.outputs.should_run == 'true' && always() && needs.release.result == 'success'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

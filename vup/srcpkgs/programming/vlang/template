@@ -26,7 +26,7 @@ post_extract() {
 
 do_build() {
 	cd v
-	CFLAGS="" LDFLAGS="" make CC=clang prod=1 local=1 -j${XBPS_MAKEJOBS}
+	CFLAGS="" LDFLAGS="" make CC=clang prod=1 -j${XBPS_MAKEJOBS}
 	./v -cc clang -j ${XBPS_MAKEJOBS} build-tools
 }
 
