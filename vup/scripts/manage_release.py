@@ -7,18 +7,10 @@ import re
 import json
 from functools import cmp_to_key
 
-# Import shared config
-try:
-    from config import NATIVE_ARCH
-except ImportError:
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from config import NATIVE_ARCH
-
 # Configuration
 REPO = os.environ.get("GITHUB_REPOSITORY")
 CATEGORY = os.environ.get("CATEGORY")
-ARCH = os.environ.get("ARCH", NATIVE_ARCH)
-TAG_NAME = f"{CATEGORY}-{ARCH}-current"
+TAG_NAME = f"{CATEGORY}-current"
 DIST_DIR = "dist"
 
 def run_command(cmd, capture_output=False):
@@ -167,9 +159,9 @@ def prune_local():
         if os.path.isdir(f): continue
         if f.endswith(".xbps"): continue
         
-        # Skip repodata files (xbps names them {arch}-repodata)
+        # Skip repodata files
         basename = os.path.basename(f)
-        if "-repodata" in basename or basename == "repodata":
+        if basename == "repodata" or basename.startswith("repodata."):
             continue
             
         # Check if it is a signature for a missing package
@@ -218,11 +210,22 @@ def update_repository():
                     run_command(["xbps-rindex", "--sign-pkg", "--privkey", privkey_file, pkg])
 
         # 3. Generate Index
-        print("Generatng index...")
+        print("Generating index...")
         pkgs = glob.glob("*.xbps")
         if pkgs:
+            print(f"Found {len(pkgs)} packages to index: {pkgs}")
             # -a adds to index
-            run_command(["xbps-rindex", "-a"] + pkgs)
+            result = run_command(["xbps-rindex", "-a"] + pkgs)
+            if result is None:
+                print("ERROR: xbps-rindex failed to generate index!")
+            else:
+                # Verify repodata was created
+                repodata_files = glob.glob("*-repodata*")
+                print(f"Repodata files after indexing: {repodata_files}")
+                if not repodata_files:
+                    print("WARNING: No repodata files were generated!")
+        else:
+            print("WARNING: No .xbps packages found to index!")
         
         # 4. Sign Repository
         if privkey_file:
@@ -250,6 +253,9 @@ def clean_remote_assets():
         return
 
     local_assets = set(os.path.basename(f) for f in glob.glob(os.path.join(DIST_DIR, "*")))
+    
+    print(f"Local assets in {DIST_DIR}: {sorted(local_assets)}")
+    print(f"Remote assets: {sorted(remote_assets.keys())}")
 
     to_delete = []
     for r_name in remote_assets:
