@@ -10,7 +10,8 @@ from functools import cmp_to_key
 # Configuration
 REPO = os.environ.get("GITHUB_REPOSITORY")
 CATEGORY = os.environ.get("CATEGORY")
-TAG_NAME = f"{CATEGORY}-current"
+ARCH = os.environ.get("ARCH", "x86_64")
+TAG_NAME = f"{CATEGORY}-{ARCH}-current"
 DIST_DIR = "dist"
 
 def run_command(cmd, capture_output=False):
@@ -71,14 +72,24 @@ def python_ver_cmp(v1, v2):
     if ver1 == ver2:
         return 1 if rev1 > rev2 else (-1 if rev1 < rev2 else 0)
     
-    # Simple string compare for version part if different (imperfect but better than nothing)
-    # Ideally we'd use a robust semver parser, but for revision cleanup, usually versions matches.
-    from distutils.version import LooseVersion
+    # Simple version comparison - split by common separators and compare parts
+    def normalize(v):
+        # Split version string into comparable parts
+        parts = re.split(r'[._-]', v)
+        result = []
+        for p in parts:
+            # Try to convert to int for numeric comparison
+            try:
+                result.append((0, int(p)))
+            except ValueError:
+                result.append((1, p))  # String parts sort after numbers
+        return result
+    
     try:
-         # Try to leverage distutils if available, though deprecated it's standard in many envs
-        if LooseVersion(ver1) > LooseVersion(ver2): return 1
-        if LooseVersion(ver1) < LooseVersion(ver2): return -1
-    except:
+        n1, n2 = normalize(ver1), normalize(ver2)
+        if n1 > n2: return 1
+        if n1 < n2: return -1
+    except Exception:
         pass
 
     return 1 if v1 > v2 else -1
@@ -214,8 +225,8 @@ def update_repository():
         pkgs = glob.glob("*.xbps")
         if pkgs:
             print(f"Found {len(pkgs)} packages to index: {pkgs}")
-            # -a adds to index
-            result = run_command(["xbps-rindex", "-a"] + pkgs)
+            # -a adds to index, -f forces indexing of foreign arch packages
+            result = run_command(["xbps-rindex", "-f", "-a"] + pkgs)
             if result is None:
                 print("ERROR: xbps-rindex failed to generate index!")
             else:

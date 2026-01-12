@@ -95,7 +95,9 @@ def main():
                             })
                 else:
                     row += " — |"  # Not built for this arch
-                        
+            
+            print(row)
+        
         print()
     
     # Print errors after all tables (so they don't break table formatting)
