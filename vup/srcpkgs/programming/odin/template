@@ -1,0 +1,52 @@
+# Template file for 'odin'
+pkgname=odin
+version=2025.11
+revision=1
+_tag="dev-${version//./-}"
+archs="x86_64"
+hostmakedepends="clang llvm make which"
+makedepends="llvm21-devel"
+checkdepends="python3"
+depends="clang"
+short_desc="Data-oriented programming language"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="BSD-3-Clause"
+homepage="https://odin-lang.org/"
+nostrip=yes
+distfiles="https://github.com/odin-lang/Odin/archive/refs/tags/${_tag}.tar.gz"
+checksum=89360f3ff2aee16ca01c36460819dda6ea7f58f0fc1cdff04130a25737fdd7dc
+wrksrc="Odin-${_tag}"
+
+do_build() {
+	export CXX=clang++
+	export LLVM_CONFIG=llvm-config
+	make release
+
+	make -C vendor/cgltf/src
+	make -C vendor/miniaudio/src
+	make -C vendor/stb/src
+}
+
+do_check() {
+	./odin check examples/all -strict-style
+	python3 tests/core/download_assets.py tests/core/assets
+	./odin test tests/core/speed.odin -o:speed -file -all-packages
+	./odin test tests/vendor -all-packages
+	./odin test tests/internal -all-packages
+}
+
+do_install() {
+	vmkdir usr/lib/odin
+	vcopy odin usr/lib/odin
+	vcopy base usr/lib/odin
+	vcopy core usr/lib/odin
+	vcopy shared usr/lib/odin
+	vcopy vendor usr/lib/odin
+	
+	vmkdir usr/bin
+	ln -s /usr/lib/odin/odin ${DESTDIR}/usr/bin/odin
+	
+	vlicense LICENSE
+	vdoc PROPOSAL-PROCESS.md
+	vdoc README.md
+}
