@@ -1,0 +1,55 @@
+# Template file for 'ferdium'
+pkgname=ferdium
+version=7.1.1
+revision=1
+archs="x86_64 aarch64"
+create_wrksrc=yes
+depends="alsa-lib at-spi2-core cairo cups dbus expat glib gtk+3 libX11 libXcomposite libXdamage libXext libXfixes libXrandr libXScrnSaver libdrm libxcb libxkbcommon libxkbfile libxshmfence mesa nspr nss pango xdg-utils libsecret libevent libxslt minizip re2 snappy"
+short_desc="All your services in one place, built by the community"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="Apache-2.0"
+homepage="https://ferdium.org/"
+# Binary repackage
+restricted=no
+nopie=yes
+nostrip=yes
+noshlibprovides=yes
+
+_baseurl="https://github.com/ferdium/ferdium-app/releases/download/v${version}"
+
+case "$XBPS_TARGET_MACHINE" in
+	x86_64)
+		distfiles="${_baseurl}/Ferdium-linux-${version}-amd64.deb"
+		checksum=d635e8f0c324d841242e8d27e080a6189b5e28fae82d82a4305fff83addfac7b
+		;;
+	aarch64)
+		distfiles="${_baseurl}/Ferdium-linux-${version}-arm64.deb"
+		checksum=8d80c655984bd1bb30a309b51ffe1a6b7e653496a58a5eb2995df835033919f7
+		;;
+esac
+
+hostmakedepends="tar"
+
+do_install() {
+	# Extract and copy contents (deb is already extracted to $wrksrc by xbps-src)
+	# Structure in deb: usr/ opt/
+	
+	# Move /opt/Ferdium to destination
+	vmkdir opt
+	vcopy opt/Ferdium opt
+	
+	# Install desktop file and icons provided in the deb
+	# Verify where they are in the deb extracted structure
+	if [ -d usr/share ]; then
+		vcopy usr/share usr
+	fi
+	
+	# Create binary symlink
+	vmkdir usr/bin
+	ln -sf /opt/Ferdium/ferdium ${DESTDIR}/usr/bin/ferdium
+	
+	# License
+	if [ -f opt/Ferdium/LICENSE.electron.txt ]; then
+		vlicense opt/Ferdium/LICENSE.electron.txt LICENSE
+	fi
+}
