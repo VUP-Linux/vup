@@ -20,7 +20,7 @@ def run_command(cmd, capture_output=False):
             return subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
         subprocess.check_call(cmd)
         return True
-    except subprocess.CalledProcessError as e:
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
         if not capture_output:
             print(f"Command failed: {e}")
         return None
