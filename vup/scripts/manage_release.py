@@ -6,6 +6,7 @@ import glob
 import re
 import shutil
 import json
+from functools import cmp_to_key
 
 # Configuration
 REPO = os.environ.get("GITHUB_REPOSITORY")
@@ -43,10 +44,49 @@ def get_pkg_name(filename):
     return None
 
 def get_pkg_ver(filename):
+    # Try xbps-uhelper first
     if os.path.exists(filename):
         res = run_command(["xbps-uhelper", "binpkgver", filename], capture_output=True)
         if res: return res
+    
+    # Fallback regex extraction from filename
+    # <name>-<version>_<revision>.<arch>.xbps
+    base = os.path.basename(filename)
+    match = re.search(r'-([0-9][^-]*_[0-9]+)\.[^.]*\.xbps$', base)
+    if match:
+        return match.group(1)
+    
     return None
+
+def parse_ver_rev(version_str):
+    """Splits version_revision string into (version, revision_int)."""
+    if "_" in version_str:
+        ver, rev = version_str.rsplit("_", 1)
+        try:
+            return ver, int(rev)
+        except ValueError:
+            return ver, 0
+    return version_str, 0
+
+def python_ver_cmp(v1, v2):
+    """Fallback comparison logic."""
+    ver1, rev1 = parse_ver_rev(v1)
+    ver2, rev2 = parse_ver_rev(v2)
+    
+    if ver1 == ver2:
+        return 1 if rev1 > rev2 else (-1 if rev1 < rev2 else 0)
+    
+    # Simple string compare for version part if different (imperfect but better than nothing)
+    # Ideally we'd use a robust semver parser, but for revision cleanup, usually versions matches.
+    from distutils.version import LooseVersion
+    try:
+         # Try to leverage distutils if available, though deprecated it's standard in many envs
+        if LooseVersion(ver1) > LooseVersion(ver2): return 1
+        if LooseVersion(ver1) < LooseVersion(ver2): return -1
+    except:
+        pass
+
+    return 1 if v1 > v2 else -1
 
 def download_release():
     print(f"Downloading assets from {TAG_NAME}...")
@@ -59,18 +99,24 @@ def download_release():
 
     run_command(["gh", "release", "download", TAG_NAME, "--repo", REPO, "--dir", DIST_DIR, "--pattern", "*"])
 
-from functools import cmp_to_key
-
 def xbps_ver_cmp(f1, f2):
-    v1 = run_command(["xbps-uhelper", "binpkgver", f1], capture_output=True)
-    v2 = run_command(["xbps-uhelper", "binpkgver", f2], capture_output=True)
+    v1 = get_pkg_ver(f1)
+    v2 = get_pkg_ver(f2)
     
     if not v1 or not v2:
+        print(f"Warning: Could not determine version for {f1} or {f2}")
         return 0
         
-    # xbps-uhelper cmpver v1 v2
-    # Returns 0 (eq), 1 (v1>v2), 255 (v1<v2)
-    # We want standard -1, 0, 1
+    # Python Fallback for same version different revision (most common cleanup case)
+    # This avoids xbps-uhelper issues with revision comparison via cmpver if implementation varies
+    # or if xbps-uhelper is missing.
+    val1, rev1 = parse_ver_rev(v1)
+    val2, rev2 = parse_ver_rev(v2)
+    
+    if val1 == val2:
+        return 1 if rev1 > rev2 else (-1 if rev1 < rev2 else 0)
+
+    # Try xbps-uhelper cmpver for different versions
     try:
         # Note: xbps-uhelper cmpver returns exit code, not stdout
         # 0: equal
@@ -79,9 +125,11 @@ def xbps_ver_cmp(f1, f2):
         ret = subprocess.call(["xbps-uhelper", "cmpver", v1, v2], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if ret == 1: return 1
         if ret == 255: return -1
-        return 0
+        # If 0, fall through to python cmp which handles it anyway
     except Exception:
-        return 0
+        pass
+        
+    return python_ver_cmp(v1, v2)
 
 def prune_local():
     """Keep only the latest version of each package in DIST_DIR."""
