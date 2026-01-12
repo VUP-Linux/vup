@@ -1,0 +1,26 @@
+# Template file for 'zig15'
+pkgname=zig15
+version=0.15.2
+revision=1
+archs="x86_64"
+conflicts="zig"
+short_desc="Programming language designed for robustness, optimality, and clarity"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="MIT"
+homepage="https://ziglang.org/"
+distfiles="https://ziglang.org/download/${version}/zig-x86_64-linux-${version}.tar.xz"
+checksum=02aa270f183da276e5b5920b1dac44a63f1a49e55050ebde3aecc9eb82f93239
+nopie=yes
+nocross=yes
+
+do_install() {
+	vmkdir usr/lib/zig
+	vcopy lib usr/lib/zig
+	vcopy zig usr/lib/zig
+	
+	vmkdir usr/bin
+	ln -sf /usr/lib/zig/zig ${DESTDIR}/usr/bin/zig
+	
+	vlicense LICENSE
+}
+	
