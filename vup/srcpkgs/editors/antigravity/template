@@ -64,8 +64,7 @@ do_install() {
 	vmkdir usr/bin
 	ln -sf /opt/Antigravity/bin/antigravity ${DESTDIR}/usr/bin/antigravity
 
-	# Install license files
-	vmkdir usr/share/licenses/${pkgname}
-	ln -sf /opt/Antigravity/resources/app/LICENSE.txt ${DESTDIR}/usr/share/licenses/${pkgname}/LICENSE.txt
-	ln -sf /opt/Antigravity/LICENSES.chromium.html ${DESTDIR}/usr/share/licenses/${pkgname}/LICENSES.chromium.html
+	# License
+	vlicense usr/share/antigravity/resources/app/LICENSE.txt
+	vlicense usr/share/antigravity/LICENSES.chromium.html
 }
