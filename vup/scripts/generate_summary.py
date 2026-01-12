@@ -95,9 +95,7 @@ def main():
                             })
                 else:
                     row += " — |"  # Not built for this arch
-            
-            row += f" {total_duration:.1f}s |"
-            
+                        
         print()
     
     # Print errors after all tables (so they don't break table formatting)
