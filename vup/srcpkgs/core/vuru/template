@@ -1,6 +1,7 @@
 # Template file for 'vuru'
 pkgname=vuru
 version=0.3.5
+revision=1
 archs="x86_64 aarch64"
 revision=1
 build_style=gnu-makefile
