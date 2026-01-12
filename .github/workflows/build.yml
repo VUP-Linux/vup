@@ -224,7 +224,7 @@ jobs:
 
   report-status:
     needs: build-and-release
-    if: always()
+    if: always() && needs.build-and-release.result != 'skipped'
     runs-on: ubuntu-latest
     steps:
       - name: Download Build Reports
