@@ -124,24 +124,23 @@ jobs:
     needs: [check-changes, build]
     if: needs.check-changes.outputs.should_run == 'true' && always() && needs.build.result == 'success'
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/vup-linux/vup-builder:latest
-      options: --privileged
     strategy:
       matrix: ${{ fromJson(needs.check-changes.outputs.matrix) }}
       fail-fast: false
     
     steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      
       - name: Checkout VUP
         uses: actions/checkout@v4
         with:
           path: vup
 
       - name: Prepare Workspace
-        run: |
-          mkdir -p work/dist
+        run: mkdir -p work/dist
 
-      - name: Download Old Release and Sync
+      - name: Download Old Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -149,9 +148,7 @@ jobs:
           ARCH: ${{ matrix.arch }}
         run: |
           cd work
-          # Helper to safely move dist content
           python3 ../vup/vup/scripts/manage_release.py download || true
-          # manage_release.py download might fail if tag doesn't exist, which is fine for first run
 
       - name: Download New Binpkgs
         uses: actions/download-artifact@v4
@@ -159,31 +156,54 @@ jobs:
           name: binpkgs-${{ matrix.category }}-${{ matrix.arch }}
           path: work/dist
 
-      - name: Prune and Sign
+      - name: Prune Old Packages
         env:
-          XBPS_PRIVATE_KEY: ${{ secrets.XBPS_PRIVATE_KEY }}
           CATEGORY: ${{ matrix.category }}
           ARCH: ${{ matrix.arch }}
         run: |
           cd work
-          # Remove repodata to regenerate
-          rm -f dist/repodata
-          
-          # Prune old packages
+          rm -f dist/*-repodata*
           python3 ../vup/vup/scripts/manage_release.py prune
+
+      - name: Sign and Index
+        env:
+          XBPS_PRIVATE_KEY: ${{ secrets.XBPS_PRIVATE_KEY }}
+        run: |
+          # Map arch to docker platform
+          case "${{ matrix.arch }}" in
+            x86_64)  PLATFORM="linux/amd64" ;;
+            aarch64) PLATFORM="linux/arm64" ;;
+            armv7l)  PLATFORM="linux/arm/v7" ;;
+            *)       PLATFORM="linux/amd64" ;;
+          esac
           
-          # Sign and Index
-          python3 ../vup/vup/scripts/manage_release.py update_repo
+          # Write key if present
+          [ -n "$XBPS_PRIVATE_KEY" ] && echo "$XBPS_PRIVATE_KEY" > work/privkey.pem
+          
+          docker run --rm --platform "$PLATFORM" \
+            -v "$PWD/work/dist:/dist" \
+            ${XBPS_PRIVATE_KEY:+-v "$PWD/work/privkey.pem:/privkey.pem:ro"} \
+            ghcr.io/void-linux/void-glibc:latest sh -c '
+              cd /dist
+              [ -f /privkey.pem ] && for p in *.xbps; do
+                [ -e "$p" ] && [ ! -f "$p.sig2" ] && xbps-rindex --sign-pkg --privkey /privkey.pem "$p"
+              done
+              xbps-rindex -a *.xbps
+              [ -f /privkey.pem ] && xbps-rindex --sign --privkey /privkey.pem --signedby "VUP Builder" .
+              ls -la *-repodata* 2>/dev/null || echo "No repodata!"
+            '
+          
+          rm -f work/privkey.pem
 
       - name: Clean Remote Assets
         env:
-           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-           GITHUB_REPOSITORY: ${{ github.repository }}
-           CATEGORY: ${{ matrix.category }}
-           ARCH: ${{ matrix.arch }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          CATEGORY: ${{ matrix.category }}
+          ARCH: ${{ matrix.arch }}
         run: |
-           cd work
-           python3 ../vup/vup/scripts/manage_release.py clean_remote
+          cd work
+          python3 ../vup/vup/scripts/manage_release.py clean_remote
 
       - name: Upload Release
         env:
