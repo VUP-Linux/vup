@@ -67,8 +67,6 @@ def main():
         for arch in all_archs:
             header += f" {arch} |"
             separator += "----------|"
-        header += " Total Duration |"
-        separator += "----------------|"
         
         print(header)
         print(separator)
@@ -76,14 +74,12 @@ def main():
         for pkg in sorted(packages.keys()):
             arch_results = packages[pkg]
             row = f"| {pkg} |"
-            total_duration = 0
             
             for arch in all_archs:
                 if arch in arch_results:
                     result = arch_results[arch]
                     status = result["status"]
                     duration = result["duration"]
-                    total_duration += duration
                     
                     if status == "success":
                         row += f" ✅ {duration:.1f}s |"
@@ -101,8 +97,7 @@ def main():
                     row += " — |"  # Not built for this arch
             
             row += f" {total_duration:.1f}s |"
-            print(row)
-        
+            
         print()
     
     # Print errors after all tables (so they don't break table formatting)
