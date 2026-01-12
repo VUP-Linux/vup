@@ -150,7 +150,7 @@ jobs:
         run: |
           cd work
           # Helper to safely move dist content
-          python3 ${{ github.workspace }}/scripts/manage_release.py download || true
+          python3 ../vup/vup/scripts/manage_release.py download || true
           # manage_release.py download might fail if tag doesn't exist, which is fine for first run
 
       - name: Download New Binpkgs
@@ -170,10 +170,10 @@ jobs:
           rm -f dist/repodata
           
           # Prune old packages
-          python3 ${{ github.workspace }}/scripts/manage_release.py prune
+          python3 ../vup/vup/scripts/manage_release.py prune
           
           # Sign and Index
-          python3 ${{ github.workspace }}/scripts/manage_release.py update_repo
+          python3 ../vup/vup/scripts/manage_release.py update_repo
 
       - name: Clean Remote Assets
         env:
@@ -183,7 +183,7 @@ jobs:
            ARCH: ${{ matrix.arch }}
         run: |
            cd work
-           python3 ${{ github.workspace }}/scripts/manage_release.py clean_remote
+           python3 ../vup/vup/scripts/manage_release.py clean_remote
 
       - name: Upload Release
         env:
