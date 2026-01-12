@@ -239,6 +239,9 @@ jobs:
     needs: [check-changes, release]
     if: needs.check-changes.outputs.should_run == 'true' && always() && needs.release.result == 'success'
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout VUP
         uses: actions/checkout@v4
@@ -251,11 +254,12 @@ jobs:
       - name: Generate Global Index
         run: |
           python3 vup/scripts/generate_index.py
-          
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: public
-          publish_branch: gh-pages
-          keep_files: false
+          path: public
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
