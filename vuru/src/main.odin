@@ -5,7 +5,7 @@ import "core:fmt"
 import "core:os"
 import "core:strings"
 
-VERSION :: "0.4.0"
+VERSION :: "0.3.6"
 INDEX_URL :: "https://vup-linux.github.io/vup/index.json"
 
 Command :: enum {
