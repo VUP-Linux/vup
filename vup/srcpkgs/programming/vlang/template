@@ -27,9 +27,7 @@ post_extract() {
 }
 
 do_build() {
-	cd v
-	make fresh_tcc
-	make prod=1 local=1
+	CFLAGS="" LDFLAGS="" make CC=clang prod=1 local=1
 	./v -cc cc build-tools
 }
 
