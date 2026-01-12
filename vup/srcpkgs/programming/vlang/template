@@ -30,7 +30,7 @@ do_build() {
 	cd v
 	make fresh_tcc
 	make prod=1 local=1
-	./v build-tools
+	./v -cc cc build-tools
 }
 
 do_install() {
