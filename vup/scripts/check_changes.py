@@ -3,6 +3,15 @@ import os
 import subprocess
 import json
 import sys
+import re
+
+# Import shared config
+try:
+    from config import SUPPORTED_ARCHS
+except ImportError:
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from config import SUPPORTED_ARCHS
 
 def get_changes():
     event = os.environ.get("GITHUB_EVENT_NAME")
@@ -24,6 +33,51 @@ def get_changes():
         return "ALL"
         
     return output.splitlines()
+
+def parse_archs_from_template(template_path):
+    """
+    Parse the 'archs' variable from a template file.
+    Returns a list of architectures, or None if not specified.
+    """
+    try:
+        with open(template_path, 'r') as f:
+            content = f.read()
+        
+        # Match archs="..." or archs='...'
+        match = re.search(r'^archs=["\']([^"\']+)["\']', content, re.MULTILINE)
+        if match:
+            archs_str = match.group(1)
+            # Split by whitespace and filter out negated archs (starting with ~)
+            archs = [a for a in archs_str.split() if not a.startswith('~') and a != 'noarch']
+            return archs if archs else None
+    except Exception as e:
+        print(f"Warning: Could not parse {template_path}: {e}")
+    
+    return None
+
+def get_category_archs(category_path):
+    """
+    Scan all packages in a category and return the union of all architectures needed.
+    """
+    archs = set()
+    
+    if not os.path.isdir(category_path):
+        return SUPPORTED_ARCHS
+    
+    packages = [d for d in os.listdir(category_path) 
+                if os.path.isdir(os.path.join(category_path, d))]
+    
+    for pkg in packages:
+        template_path = os.path.join(category_path, pkg, "template")
+        if os.path.exists(template_path):
+            pkg_archs = parse_archs_from_template(template_path)
+            if pkg_archs:
+                archs.update(pkg_archs)
+            else:
+                # No archs specified means it builds for all supported
+                archs.update(SUPPORTED_ARCHS)
+    
+    return sorted(list(archs)) if archs else SUPPORTED_ARCHS
 
 def main():
     changes = get_changes()
@@ -60,10 +114,19 @@ def main():
         if output_file:
             with open(output_file, "a") as gh:
                 gh.write("should_run=false\n")
-                gh.write("matrix={\"category\":[]}\n")
+                gh.write('matrix={"include":[]}\n')
     else:
-        print(f"Building categories: {target_list}")
-        matrix_json = json.dumps({"category": target_list})
+        # Build matrix with category + arch combinations
+        includes = []
+        for cat in target_list:
+            cat_path = os.path.join("vup/srcpkgs", cat)
+            archs = get_category_archs(cat_path)
+            print(f"Category '{cat}' needs architectures: {archs}")
+            for arch in archs:
+                includes.append({"category": cat, "arch": arch})
+        
+        print(f"Total build jobs: {len(includes)}")
+        matrix_json = json.dumps({"include": includes})
         if output_file:
             with open(output_file, "a") as gh:
                 gh.write("should_run=true\n")

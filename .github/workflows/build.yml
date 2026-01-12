@@ -91,6 +91,7 @@ jobs:
       - name: Build Packages (Buffered)
         env:
           CATEGORY: ${{ matrix.category }}
+          ARCH: ${{ matrix.arch }}
         run: |
           cd void-packages
           python3 ../vup/vup/scripts/build_runner.py
@@ -102,20 +103,20 @@ jobs:
              cp -r void-packages/dist/* dist-out/
           fi
           mkdir -p logs-out
-          cp void-packages/report-${{ matrix.category }}.json logs-out/
+          cp void-packages/report-${{ matrix.category }}-${{ matrix.arch }}.json logs-out/
           cp void-packages/build-logs/*.log logs-out/
 
       - name: Upload Binpkgs
         uses: actions/upload-artifact@v4
         with:
-          name: binpkgs-${{ matrix.category }}
+          name: binpkgs-${{ matrix.category }}-${{ matrix.arch }}
           path: dist-out
           if-no-files-found: ignore
 
       - name: Upload Build Logs
         uses: actions/upload-artifact@v4
         with:
-          name: build-logs-${{ matrix.category }}
+          name: build-logs-${{ matrix.category }}-${{ matrix.arch }}
           path: logs-out
           if-no-files-found: ignore
 
@@ -145,22 +146,24 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           CATEGORY: ${{ matrix.category }}
+          ARCH: ${{ matrix.arch }}
         run: |
           cd work
           # Helper to safely move dist content
-          python3 ${{ github.workspace }}/scripts/manage_release.py download || true
+          python3 ${{ github.workspace }}/vup/vup/scripts/manage_release.py download || true
           # manage_release.py download might fail if tag doesn't exist, which is fine for first run
 
       - name: Download New Binpkgs
         uses: actions/download-artifact@v4
         with:
-          name: binpkgs-${{ matrix.category }}
+          name: binpkgs-${{ matrix.category }}-${{ matrix.arch }}
           path: work/dist
 
       - name: Prune and Sign
         env:
           XBPS_PRIVATE_KEY: ${{ secrets.XBPS_PRIVATE_KEY }}
           CATEGORY: ${{ matrix.category }}
+          ARCH: ${{ matrix.arch }}
         run: |
           cd work
           # Remove repodata to regenerate
@@ -177,6 +180,7 @@ jobs:
            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
            GITHUB_REPOSITORY: ${{ github.repository }}
            CATEGORY: ${{ matrix.category }}
+           ARCH: ${{ matrix.arch }}
         run: |
            cd work
            python3 ../vup/vup/scripts/manage_release.py clean_remote
@@ -186,7 +190,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ matrix.category }}-current
+          tag_name: ${{ matrix.category }}-${{ matrix.arch }}-current
           files: work/dist/*
           fail_on_unmatched_files: true
 

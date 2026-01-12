@@ -3,11 +3,13 @@ import os
 import json
 import re
 
-# Configuration
-REPO_OWNER = "VUP-Linux"
-REPO_NAME = "vup"
-BASE_URL = f"https://github.com/{REPO_OWNER}/{REPO_NAME}/releases/download"
-SRCPKGS_DIR = "vup/srcpkgs" # Path relative to repo root
+# Import shared config
+try:
+    from config import SUPPORTED_ARCHS, BASE_URL, SRCPKGS_DIR
+except ImportError:
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from config import SUPPORTED_ARCHS, BASE_URL, SRCPKGS_DIR
 
 def parse_template(template_path):
     """
@@ -58,14 +60,30 @@ def generate_index():
             
             if version and revision:
                 full_version = f"{version}_{revision}"
-                repo_url = f"{BASE_URL}/{category}-current"
+                
+                # Parse archs from template
+                archs = SUPPORTED_ARCHS.copy()  # default to all supported
+                with open(template_path, 'r') as f:
+                    content = f.read()
+                    archs_match = re.search(r'^archs=["\']([^"\']+)["\']', content, re.MULTILINE)
+                    if archs_match:
+                        archs = [a for a in archs_match.group(1).split() 
+                                if not a.startswith('~') and a != 'noarch']
+                        if not archs:
+                            archs = SUPPORTED_ARCHS.copy()
+                
+                # Build repo_urls dict per architecture
+                repo_urls = {}
+                for arch in archs:
+                    repo_urls[arch] = f"{BASE_URL}/{category}-{arch}-current"
                 
                 index[pkg] = {
                     "category": category,
                     "version": full_version,
-                    "repo_url": repo_url
+                    "archs": archs,
+                    "repo_urls": repo_urls
                 }
-                print(f"Indexed: {pkg} -> {category} ({full_version})")
+                print(f"Indexed: {pkg} -> {category} ({full_version}) [{', '.join(archs)}]")
             else:
                 print(f"Warning: Could not parse version/revision for {pkg}")
 

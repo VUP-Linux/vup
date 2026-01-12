@@ -7,6 +7,13 @@ import shutil
 import glob
 import time
 
+# Import shared config
+try:
+    from config import NATIVE_ARCH
+except ImportError:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from config import NATIVE_ARCH
+
 def run_command(cmd, log_file=None):
     """Run a command and capture output to log_file if provided."""
     print(f"Running: {' '.join(cmd)}")
@@ -39,6 +46,9 @@ def main():
     if not category:
         print("Error: CATEGORY environment variable not set.")
         sys.exit(1)
+    
+    arch = os.environ.get("ARCH", NATIVE_ARCH)
+    print(f"Building for architecture: {arch}"))
 
     # Assumes we are running from 'void-packages' directory
     # and vup checkout is at '../vup'
@@ -82,8 +92,13 @@ def main():
         # Copy new template
         shutil.copytree(pkg_src, pkg_dest)
 
-        print(f"[{pkg}] Building...")
-        success = run_command(["./xbps-src", "pkg", pkg], log_file=log_file)
+        print(f"[{pkg}] Building for {arch}...")
+        # Use -a flag for cross-compilation if not native arch
+        if arch == NATIVE_ARCH:
+            build_cmd = ["./xbps-src", "pkg", pkg]
+        else:
+            build_cmd = ["./xbps-src", "-a", arch, "pkg", pkg]
+        success = run_command(build_cmd, log_file=log_file)
         
         result_entry["end_time"] = time.time()
         result_entry["duration"] = result_entry["end_time"] - result_entry["start_time"]
@@ -126,10 +141,11 @@ def main():
     # Write Report
     report = {
         "category": category,
+        "arch": arch,
         "results": results
     }
     
-    with open(f"report-{category}.json", "w") as f:
+    with open(f"report-{category}-{arch}.json", "w") as f:
         json.dump(report, f, indent=2)
 
 if __name__ == "__main__":

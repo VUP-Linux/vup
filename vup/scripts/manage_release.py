@@ -7,10 +7,18 @@ import re
 import json
 from functools import cmp_to_key
 
+# Import shared config
+try:
+    from config import NATIVE_ARCH
+except ImportError:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from config import NATIVE_ARCH
+
 # Configuration
 REPO = os.environ.get("GITHUB_REPOSITORY")
 CATEGORY = os.environ.get("CATEGORY")
-TAG_NAME = f"{CATEGORY}-current"
+ARCH = os.environ.get("ARCH", NATIVE_ARCH)
+TAG_NAME = f"{CATEGORY}-{ARCH}-current"
 DIST_DIR = "dist"
 
 def run_command(cmd, capture_output=False):
