@@ -213,12 +213,7 @@ jobs:
         id: summary
         run: |
            echo "# Build Summary" >> $GITHUB_STEP_SUMMARY
-           chmod +x vup/scripts/generate_summary.py
-           
-           for report_file in reports/*.json; do
-              [ -e "$report_file" ] || continue
-              cat "$report_file" | python3 vup/scripts/generate_summary.py >> $GITHUB_STEP_SUMMARY
-           done
+           python3 vup/scripts/generate_summary.py reports >> $GITHUB_STEP_SUMMARY
 
   deploy-index:
     needs: [check-changes, release]

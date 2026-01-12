@@ -167,9 +167,9 @@ def prune_local():
         if os.path.isdir(f): continue
         if f.endswith(".xbps"): continue
         
-        # Skip repodata files
+        # Skip repodata files (xbps names them {arch}-repodata)
         basename = os.path.basename(f)
-        if basename == "repodata" or basename.startswith("repodata."):
+        if "-repodata" in basename or basename == "repodata":
             continue
             
         # Check if it is a signature for a missing package
