@@ -46,7 +46,7 @@ jobs:
       matrix: ${{ fromJson(needs.check-changes.outputs.matrix) }}
       fail-fast: false
     concurrency:
-      group: vup-build-${{ matrix.category }}
+      group: vup-build-${{ matrix.category }}-${{ matrix.arch }}
       cancel-in-progress: true
     steps:
       - name: Checkout VUP
