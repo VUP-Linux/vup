@@ -3,7 +3,7 @@
 
 #include "../index.h"
 #include "../utils.h"
-#include "../cJSON.h"
+#include "../vendor/cJSON.h"
 
 // Forward declarations if needed
 

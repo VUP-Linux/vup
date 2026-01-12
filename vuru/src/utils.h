@@ -32,7 +32,8 @@ int write_file(const char *path, const char *content);
 
 /**
  * Get the current system architecture name.
- * @return Static string with architecture (e.g., "x86_64", "aarch64"), or NULL on failure
+ * @return Static string with architecture (e.g., "x86_64", "aarch64"), or NULL
+ * on failure
  */
 const char *get_arch(void);
 

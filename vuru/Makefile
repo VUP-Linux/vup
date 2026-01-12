@@ -9,7 +9,7 @@ SRC_DIR = src
 OBJ_DIR = obj
 BIN_DIR = .
 
-SRCS = $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/xbps/*.c)
+SRCS = $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/xbps/*.c) $(wildcard $(SRC_DIR)/vendor/*.c)
 OBJS = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRCS))
 TARGET = $(BIN_DIR)/vuru
 
