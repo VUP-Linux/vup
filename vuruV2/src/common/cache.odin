@@ -1,4 +1,4 @@
-package vuru
+package common
 
 import "core:fmt"
 import "core:os"

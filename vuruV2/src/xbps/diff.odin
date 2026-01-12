@@ -1,8 +1,10 @@
 package xbps
 
+import common "../common"
+
 import "core:fmt"
 import "core:strings"
-import vuru ".."
+
 
 // Show a simple diff between old and new content
 show_diff :: proc(old_content: string, new_content: string) {
@@ -14,8 +16,8 @@ show_diff :: proc(old_content: string, new_content: string) {
     }
     
     fmt.println()
-    fmt.printf("%s--- old%s\n", vuru.color_code(.Red), vuru.color_code(.Reset))
-    fmt.printf("%s+++ new%s\n", vuru.color_code(.Green), vuru.color_code(.Reset))
+    fmt.printf("%s--- old%s\n", common.color_code(.Red), common.color_code(.Reset))
+    fmt.printf("%s+++ new%s\n", common.color_code(.Green), common.color_code(.Reset))
     fmt.println()
     
     // Simple line-by-line diff
@@ -65,17 +67,17 @@ show_diff :: proc(old_content: string, new_content: string) {
                 // Changed line
                 if i < len(old_lines) && len(old_line) > 0 {
                     fmt.printf("%s-%4d | %s%s\n",
-                        vuru.color_code(.Red),
+                        common.color_code(.Red),
                         i + 1,
                         old_line,
-                        vuru.color_code(.Reset))
+                        common.color_code(.Reset))
                 }
                 if i < len(new_lines) && len(new_line) > 0 {
                     fmt.printf("%s+%4d | %s%s\n",
-                        vuru.color_code(.Green),
+                        common.color_code(.Green),
                         i + 1,
                         new_line,
-                        vuru.color_code(.Reset))
+                        common.color_code(.Reset))
                 }
             }
         }

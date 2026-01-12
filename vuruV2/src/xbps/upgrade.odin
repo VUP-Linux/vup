@@ -1,26 +1,32 @@
 package xbps
 
-import vuru ".."
+import common "../common"
+
+import "core:c"
+import "core:strings"
+import "core:sys/posix"
+
+
 
 // Upgrade all VUP packages
-upgrade_all :: proc(idx: ^vuru.Index, yes: bool) -> bool {
+upgrade_all :: proc(idx: ^common.Index, yes: bool) -> bool {
     if idx == nil {
-        vuru.log_error("Invalid index")
+        common.log_error("Invalid index")
         return false
     }
     
-    vuru.log_info("Checking for package updates...")
+    common.log_info("Checking for package updates...")
     
     // Get list of installed VUP packages
     installed := get_installed_vup_packages(idx)
     defer delete(installed)
     
     if len(installed) == 0 {
-        vuru.log_info("No VUP packages installed")
+        common.log_info("No VUP packages installed")
         return true
     }
     
-    vuru.log_info("Found %d VUP packages installed", len(installed))
+    common.log_info("Found %d VUP packages installed", len(installed))
     
     // Check each package for updates
     updates_available := false
@@ -28,37 +34,37 @@ upgrade_all :: proc(idx: ^vuru.Index, yes: bool) -> bool {
     defer delete(packages_to_update)
     
     for pkg_name in installed {
-        pkg, found := vuru.index_get_package(idx, pkg_name)
+        pkg, found := common.index_get_package(idx, pkg_name)
         if !found {
             continue
         }
         
         // Fetch current template
-        new_tmpl, tmpl_ok := vuru.fetch_template(pkg.category, pkg_name, context.temp_allocator)
+        new_tmpl, tmpl_ok := common.fetch_template(pkg.category, pkg_name, context.temp_allocator)
         if !tmpl_ok {
             continue
         }
         
         // Compare with cached
-        cached_tmpl, cached_ok := vuru.cache_get_template(pkg_name, context.temp_allocator)
+        cached_tmpl, cached_ok := common.cache_get_template(pkg_name, context.temp_allocator)
         if cached_ok && cached_tmpl != new_tmpl {
-            vuru.log_info("Update available: %s", pkg_name)
+            common.log_info("Update available: %s", pkg_name)
             append(&packages_to_update, pkg_name)
             updates_available = true
         }
     }
     
     if !updates_available {
-        vuru.log_success("All packages are up to date")
+        common.log_success("All packages are up to date")
         return true
     }
     
-    vuru.log_info("%d package(s) can be updated", len(packages_to_update))
+    common.log_info("%d package(s) can be updated", len(packages_to_update))
     
     // Confirm unless --yes
     if !yes {
-        if !vuru.prompt_yes_no("Proceed with updates?") {
-            vuru.log_info("Update cancelled")
+        if !common.prompt_yes_no("Proceed with updates?") {
+            common.log_info("Update cancelled")
             return false
         }
     }
@@ -72,27 +78,23 @@ upgrade_all :: proc(idx: ^vuru.Index, yes: bool) -> bool {
     }
     
     if success {
-        vuru.log_success("All updates completed")
+        common.log_success("All updates completed")
     } else {
-        vuru.log_warn("Some updates failed")
+        common.log_warn("Some updates failed")
     }
     
     return success
 }
 
 // Get list of installed packages that are in the VUP index
-get_installed_vup_packages :: proc(idx: ^vuru.Index, allocator := context.allocator) -> []string {
-    import "core:strings"
-    import "core:c"
-    import "core:sys/posix"
-    
+get_installed_vup_packages :: proc(idx: ^common.Index, allocator := context.allocator) -> []string {
     if idx == nil {
         return {}
     }
     
     // Run xbps-query to get installed packages
-    pipe_fds: [2]c.int
-    if posix.pipe(&pipe_fds) != .SUCCESS {
+    pipe_fds: [2]posix.FD
+    if posix.pipe(&pipe_fds) != .OK {
         return {}
     }
     
@@ -168,8 +170,6 @@ get_installed_vup_packages :: proc(idx: ^vuru.Index, allocator := context.alloca
 
 // Extract package name from "name-version" string
 extract_package_name :: proc(pkg_with_version: string) -> string {
-    import "core:strings"
-    
     // Find the last dash that's followed by a digit (version start)
     last_version_dash := -1
     

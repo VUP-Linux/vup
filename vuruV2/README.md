@@ -6,7 +6,12 @@ A package manager frontend for the VUP (Void User Packages) repository, rewritte
 
 ### Requirements
 
-- Odin compiler (latest)
+- Odin compiler (latest) 
+>Odin isn't on Void repo's but it does exist in VUP
+
+```bash
+vuru -S odin
+```
 - POSIX-compatible system (Linux)
 
 ### Compile

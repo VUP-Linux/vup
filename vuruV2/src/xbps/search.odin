@@ -1,11 +1,13 @@
 package xbps
 
+import common "../common"
+
 import "core:fmt"
 import "core:strings"
-import vuru ".."
+
 
 // Search for packages matching query
-search :: proc(idx: ^vuru.Index, query: string) {
+search :: proc(idx: ^common.Index, query: string) {
     if idx == nil || len(query) == 0 {
         return
     }
@@ -17,12 +19,12 @@ search :: proc(idx: ^vuru.Index, query: string) {
     // Print header
     fmt.println()
     fmt.printf("%s%-30s %-15s %-12s %s%s\n",
-        vuru.color_code(.Bold),
+        common.color_code(.Bold),
         "Package",
         "Version",
         "Category",
         "Description",
-        vuru.color_code(.Reset))
+        common.color_code(.Reset))
     fmt.println(strings.repeat("-", 80))
     
     for name, pkg in idx.packages {
@@ -40,9 +42,9 @@ search :: proc(idx: ^vuru.Index, query: string) {
             // Highlight matching name
             if strings.contains(name_lower, query_lower) {
                 fmt.printf("%s%-30s%s %-15s %-12s %s\n",
-                    vuru.color_code(.Green),
+                    common.color_code(.Green),
                     name,
-                    vuru.color_code(.Reset),
+                    common.color_code(.Reset),
                     pkg.version,
                     pkg.category,
                     desc)
@@ -60,8 +62,8 @@ search :: proc(idx: ^vuru.Index, query: string) {
     
     fmt.println()
     if found_count == 0 {
-        vuru.log_info("No packages found matching '%s'", query)
+        common.log_info("No packages found matching '%s'", query)
     } else {
-        vuru.log_info("Found %d package(s)", found_count)
+        common.log_info("Found %d package(s)", found_count)
     }
 }

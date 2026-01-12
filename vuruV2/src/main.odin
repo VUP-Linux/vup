@@ -1,5 +1,6 @@
 package vuru
 
+import "common"
 import "core:fmt"
 import "core:os"
 import "core:strings"
@@ -84,7 +85,7 @@ parse_args :: proc(args: []string) -> (opts: Options, ok: bool) {
                     print_help(args[0])
                     os.exit(0)
                 case:
-                    log_error("Unknown option: -%c", c)
+                    common.log_error("Unknown option: -%c", c)
                     return {}, false
                 }
             }
@@ -100,7 +101,7 @@ parse_args :: proc(args: []string) -> (opts: Options, ok: bool) {
                 print_help(args[0])
                 os.exit(0)
             case:
-                log_error("Unknown option: %s", arg)
+                common.log_error("Unknown option: %s", arg)
                 return {}, false
             }
         }
@@ -137,12 +138,12 @@ main :: proc() {
     
     // Handle -u flag without explicit command
     if opts.update && opts.command == .None {
-        idx, idx_ok := index_load_or_fetch(INDEX_URL, opts.sync)
+        idx, idx_ok := common.index_load_or_fetch(INDEX_URL, opts.sync)
         if !idx_ok {
-            log_error("Failed to load package index")
+            common.log_error("Failed to load package index")
             os.exit(1)
         }
-        defer index_free(&idx)
+        defer common.index_free(&idx)
         
         xbps_upgrade_all(&idx, opts.yes)
         return
@@ -150,14 +151,14 @@ main :: proc() {
     
     // Just sync the index
     if opts.sync && opts.command == .None && len(opts.args) == 0 {
-        idx, idx_ok := index_load_or_fetch(INDEX_URL, true)
+        idx, idx_ok := common.index_load_or_fetch(INDEX_URL, true)
         if !idx_ok {
-            log_error("Failed to load package index")
+            common.log_error("Failed to load package index")
             os.exit(1)
         }
-        defer index_free(&idx)
+        defer common.index_free(&idx)
         
-        log_info("Package index synchronized")
+        common.log_info("Package index synchronized")
         return
     }
     
@@ -165,29 +166,29 @@ main :: proc() {
     switch opts.command {
     case .Search:
         if len(opts.args) == 0 {
-            log_error("search requires a query argument")
+            common.log_error("search requires a query argument")
             os.exit(1)
         }
-        idx, idx_ok := index_load_or_fetch(INDEX_URL, opts.sync)
+        idx, idx_ok := common.index_load_or_fetch(INDEX_URL, opts.sync)
         if !idx_ok {
-            log_error("Failed to load package index")
+            common.log_error("Failed to load package index")
             os.exit(1)
         }
-        defer index_free(&idx)
+        defer common.index_free(&idx)
         
         xbps_search(&idx, opts.args[0])
         
     case .Install:
         if len(opts.args) == 0 {
-            log_error("install requires at least one package name")
+            common.log_error("install requires at least one package name")
             os.exit(1)
         }
-        idx, idx_ok := index_load_or_fetch(INDEX_URL, opts.sync)
+        idx, idx_ok := common.index_load_or_fetch(INDEX_URL, opts.sync)
         if !idx_ok {
-            log_error("Failed to load package index")
+            common.log_error("Failed to load package index")
             os.exit(1)
         }
-        defer index_free(&idx)
+        defer common.index_free(&idx)
         
         for pkg in opts.args {
             xbps_install_pkg(&idx, pkg, opts.yes)
@@ -195,27 +196,27 @@ main :: proc() {
         
     case .Remove:
         if len(opts.args) == 0 {
-            log_error("remove requires at least one package name")
+            common.log_error("remove requires at least one package name")
             os.exit(1)
         }
-        idx, idx_ok := index_load_or_fetch(INDEX_URL, opts.sync)
+        idx, idx_ok := common.index_load_or_fetch(INDEX_URL, opts.sync)
         if !idx_ok {
-            log_error("Failed to load package index")
+            common.log_error("Failed to load package index")
             os.exit(1)
         }
-        defer index_free(&idx)
+        defer common.index_free(&idx)
         
         for pkg in opts.args {
             xbps_remove_pkg(&idx, pkg, opts.yes)
         }
         
     case .Update:
-        idx, idx_ok := index_load_or_fetch(INDEX_URL, opts.sync)
+        idx, idx_ok := common.index_load_or_fetch(INDEX_URL, opts.sync)
         if !idx_ok {
-            log_error("Failed to load package index")
+            common.log_error("Failed to load package index")
             os.exit(1)
         }
-        defer index_free(&idx)
+        defer common.index_free(&idx)
         
         xbps_upgrade_all(&idx, opts.yes)
         

@@ -1,4 +1,4 @@
-package vuru
+package common
 
 import "core:encoding/json"
 import "core:fmt"
@@ -61,8 +61,8 @@ fetch_url :: proc(url: string, allocator := context.allocator) -> (content: stri
     }
     
     // Create pipe for reading curl output
-    pipe_fds: [2]c.int
-    if posix.pipe(&pipe_fds) != .SUCCESS {
+    pipe_fds: [2]posix.FD
+    if posix.pipe(&pipe_fds) != .OK {
         log_error("pipe() failed")
         return "", false
     }

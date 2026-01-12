@@ -1,4 +1,4 @@
-package vuru
+package common
 
 import "core:fmt"
 import "core:os"
@@ -44,8 +44,8 @@ is_tty :: proc() -> bool {
         return cached
     }
     result := posix.isatty(posix.STDOUT_FILENO)
-    _is_tty = result
-    return result
+    _is_tty = bool(result)
+    return bool(result)
 }
 
 log_info :: proc(format: string, args: ..any) {
