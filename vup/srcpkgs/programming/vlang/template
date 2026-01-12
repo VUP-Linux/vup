@@ -3,8 +3,8 @@ pkgname=vlang
 version=0.4.11
 revision=1
 # Commit hashes for the latest release in the v & vc repositories
-_v_commit="b9e5757236a948c71cdac5ba913a9d42f1349963"
-_vc_commit="30f2d6ee52d8e1e7f5653454262bf32f297607da"
+_v_commit="e3616f2db89dc76a37297963840c26f87a24a249"
+_vc_commit="e2b49597de33cddd9aba1cb0ec98b6ce66ff17c7"
 archs="x86_64"
 create_wrksrc=yes
 hostmakedepends="git clang"
@@ -15,36 +15,37 @@ license="MIT"
 homepage="https://vlang.io"
 distfiles="https://github.com/vlang/v/archive/${_v_commit}.zip
  https://github.com/vlang/vc/archive/${_vc_commit}.zip"
-checksum="5a496eafa7879f77d19dd133ca4c16350e7be347a67ee580637a4e9df1bba824
- 5fd1d28f5fadb4a2b0cc2b5a7d3bf50e814b11a5e4977428aff5ee5a0c7d64db"
+checksum="368c6202c8f7850ba162f79fc5fca515befd498dfc6aba1424df99699998f2aa
+ c727fa4eeeb9c0c5aa5d760ed3b0ed94e2f3b4022122776bf7adfe00e137212b"
+nopie=yes
 
 post_extract() {
-	mv v-${_v_commit} v
-	rm -rf v/vc
-	mv vc-${_vc_commit} v/vc
+	rm -rf "v-${_v_commit}/vc"
+	mv "vc-${_vc_commit}" "v-${_v_commit}/vc"
 }
 
 do_build() {
-	cd v
-	CFLAGS="" LDFLAGS="" make CC=clang prod=1 -j${XBPS_MAKEJOBS}
-	./v -cc clang -j ${XBPS_MAKEJOBS} build-tools
+	cd "v-${_v_commit}"
+	make fresh_tcc
+	CFLAGS="" LDFLAGS="" make CC=clang prod=1 local=1 -j${XBPS_MAKEJOBS}
+    ./v -cc clang build-tools
 }
 
 do_install() {
-	cd v
+	cd "v-${_v_commit}"
 	vmkdir usr/lib/vlang
 	vcopy cmd usr/lib/vlang
 	vcopy thirdparty usr/lib/vlang
 	vcopy vlib usr/lib/vlang
 	vcopy v.mod usr/lib/vlang
-	
+
 	vinstall v 755 usr/lib/vlang
-	
+
 	vmkdir usr/bin
 	ln -sf /usr/lib/vlang/v ${DESTDIR}/usr/bin/v
-	
+
 	vlicense LICENSE
-	
+
 	vmkdir usr/share/vlang
 	vcopy examples usr/share/vlang
 
