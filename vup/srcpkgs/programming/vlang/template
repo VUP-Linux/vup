@@ -2,7 +2,7 @@
 pkgname=vlang
 version=0.4.11
 revision=1
-# Commit hashes for the latest release in the v & vc repositories
+# Commit hashes for the latest release in the v & vc repositories (they have to match)
 _v_commit="e3616f2db89dc76a37297963840c26f87a24a249"
 _vc_commit="e2b49597de33cddd9aba1cb0ec98b6ce66ff17c7"
 archs="x86_64"
@@ -22,13 +22,20 @@ nopie=yes
 post_extract() {
 	rm -rf "v-${_v_commit}/vc"
 	mv "vc-${_vc_commit}" "v-${_v_commit}/vc"
+
+	# we have to set a local=1 because we manually download a specific vc
+    # version. this flag also disables downloading tcc automatically.
+	make -C "v-${_v_commit}" fresh_tcc
 }
 
 do_build() {
 	cd "v-${_v_commit}"
-	make fresh_tcc
+
+	# Build v with clang for optimal performance
 	CFLAGS="" LDFLAGS="" make CC=clang prod=1 local=1 -j${XBPS_MAKEJOBS}
-    ./v -cc clang build-tools
+
+	# Compile v using tcc
+    LDFLAGS="" ./v build-tools
 }
 
 do_install() {
