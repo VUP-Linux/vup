@@ -170,10 +170,10 @@ jobs:
           rm -f dist/repodata
           
           # Prune old packages
-          python3 ${{ github.workspace }}//scripts/manage_release.py prune
+          python3 ${{ github.workspace }}/scripts/manage_release.py prune
           
           # Sign and Index
-          python3 ${{ github.workspace }}//scripts/manage_release.py update_repo
+          python3 ${{ github.workspace }}/scripts/manage_release.py update_repo
 
       - name: Clean Remote Assets
         env:
