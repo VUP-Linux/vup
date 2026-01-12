@@ -48,7 +48,7 @@ def main():
         sys.exit(1)
     
     arch = os.environ.get("ARCH", NATIVE_ARCH)
-    print(f"Building for architecture: {arch}"))
+    print(f"Building for architecture: {arch}")
 
     # Assumes we are running from 'void-packages' directory
     # and vup checkout is at '../vup'
