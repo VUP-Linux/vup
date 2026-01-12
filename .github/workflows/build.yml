@@ -26,80 +26,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
+      
       - name: Determine Systems to Build
         id: set-matrix
         env:
           BEFORE_SHA: ${{ github.event.before }}
         run: |
-          python3 -c '
-          import os, subprocess, json, sys
+          chmod +x vup/scripts/check_changes.py
+          python3 vup/scripts/check_changes.py
 
-          def get_changes():
-              event = os.environ.get("GITHUB_EVENT_NAME")
-              if event == "workflow_dispatch":
-                  return "ALL"
-              
-              before = os.environ.get("BEFORE_SHA")
-              sha = os.environ.get("GITHUB_SHA")
-              
-              if not before or before == "0000000000000000000000000000000000000000":
-                  # forced push or new branch, diff against HEAD~1
-                  cmd = ["git", "diff", "--name-only", "HEAD~1", "HEAD"]
-              else:
-                  cmd = ["git", "diff", "--name-only", before, sha]
-                  
-              try:
-                  output = subprocess.check_output(cmd).decode()
-              except subprocess.CalledProcessError:
-                  return "ALL"
-                  
-              return output.splitlines()
-
-          def main():
-              changes = get_changes()
-              # Dynamically find categories in vup/srcpkgs
-              if not os.path.exists("vup/srcpkgs"):
-                  print("vup/srcpkgs not found")
-                  sys.exit(0)
-                  
-              all_cats = [d for d in os.listdir("vup/srcpkgs") if os.path.isdir(os.path.join("vup/srcpkgs", d))]
-              
-              target_cats = set()
-              if changes == "ALL":
-                  target_cats = set(all_cats)
-              else:
-                  for f in changes:
-                      # Check for global changes
-                      if f.startswith("common/") or f.startswith("vup/common/") or f.startswith(".github/workflows/"):
-                         target_cats = set(all_cats)
-                         break
-                         
-                      # Check for category changes
-                      # Expected path: vup/srcpkgs/<category>/<pkg>/...
-                      if f.startswith("vup/srcpkgs/"):
-                          parts = f.split("/")
-                          if len(parts) > 2 and parts[2] in all_cats:
-                              target_cats.add(parts[2])
-              
-              target_list = sorted(list(target_cats))
-              
-              if not target_list:
-                  print("No changes detected.")
-                  with open(os.environ["GITHUB_OUTPUT"], "a") as gh:
-                      gh.write("should_run=false\n")
-                      gh.write("matrix={\"category\":[]}\n")
-              else:
-                  print(f"Building categories: {target_list}")
-                  matrix_json = json.dumps({"category": target_list})
-                  with open(os.environ["GITHUB_OUTPUT"], "a") as gh:
-                      gh.write("should_run=true\n")
-                      gh.write(f"matrix={matrix_json}\n")
-          
-          main()
-          '
-
-  build-and-release:
+  build:
     needs: check-changes
     if: needs.check-changes.outputs.should_run == 'true'
     runs-on: ubuntu-latest
@@ -110,9 +46,8 @@ jobs:
       matrix: ${{ fromJson(needs.check-changes.outputs.matrix) }}
       fail-fast: false
     concurrency:
-      group: vup-${{ matrix.category }}
+      group: vup-build-${{ matrix.category }}
       cancel-in-progress: true
-
     steps:
       - name: Checkout VUP
         uses: actions/checkout@v4
@@ -126,16 +61,17 @@ jobs:
           repository: void-linux/void-packages
           path: void-packages
 
-      - name: Cache xbps-src bootstrap
-        id: cache-bootstrap
+      - name: Cache xbps-src bootstrap & ccache
+        id: cache-xbps
         uses: actions/cache@v3
         with:
           path: |
             void-packages/masterdir-*
             void-packages/hostdir/repocache
-          key: xbps-bootstrap-${{ runner.os }}-${{ hashFiles('void-packages/srcpkgs/base-chroot/template') }}
+            void-packages/hostdir/ccache
+          key: xbps-cache-${{ runner.os }}-${{ hashFiles('void-packages/srcpkgs/base-chroot/template') }}
           restore-keys: |
-            xbps-bootstrap-${{ runner.os }}-
+            xbps-cache-${{ runner.os }}-
 
       - name: Setup xbps-src
         run: |
@@ -143,141 +79,146 @@ jobs:
           cp ../vup/vup/xbps-src .
           chmod +x xbps-src
           echo "XBPS_ALLOW_RESTRICTED=yes" >> etc/conf
+          echo "XBPS_CCACHE=yes" >> etc/conf
+          mkdir -p hostdir/ccache
 
       - name: Binary Bootstrap
-        if: steps.cache-bootstrap.outputs.cache-hit != 'true'
+        if: steps.cache-xbps.outputs.cache-hit != 'true'
         run: |
           cd void-packages
           ./xbps-src binary-bootstrap
-
-      - name: Sync Existing Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          CATEGORY: ${{ matrix.category }}
-        run: |
-          mkdir -p void-packages/dist
-          cd void-packages/dist
-          python3 ../../vup/vup/scripts/manage_release.py download
-          rm -f repodata
 
       - name: Build Packages (Buffered)
         env:
           CATEGORY: ${{ matrix.category }}
         run: |
           cd void-packages
-          # category is passed via env
           python3 ../vup/vup/scripts/build_runner.py
 
-      - name: Prune and Index
-        env:
-          XBPS_PRIVATE_KEY: ${{ secrets.XBPS_PRIVATE_KEY }}
+      - name: Prepare Artifacts
         run: |
-          cd void-packages/dist
-          python3 ../../vup/vup/scripts/manage_release.py prune
-          
-          if [ ! -z "$XBPS_PRIVATE_KEY" ]; then
-             echo "$XBPS_PRIVATE_KEY" > ../privkey.pem
-             echo "Signing packages..."
-             for pkg in *.xbps; do
-                xbps-rindex --sign-pkg --privkey ../privkey.pem "$pkg"
-             done
-             
-             echo "Adding packages to index..."
-             xbps-rindex -a *.xbps
-             
-             echo "Signing repository index..."
-             xbps-rindex --sign --privkey ../privkey.pem --signedby "VUP Builder" .
-             
-             rm -f ../privkey.pem
-          else
-             echo "No private key found, skipping signing."
-             xbps-rindex -a *.xbps
+          mkdir -p dist-out
+          if [ -d "void-packages/dist" ]; then
+             cp -r void-packages/dist/* dist-out/
           fi
+          mkdir -p logs-out
+          cp void-packages/report-${{ matrix.category }}.json logs-out/
+          cp void-packages/build-logs/*.log logs-out/
 
-      - name: Clean Remote Assets
+      - name: Upload Binpkgs
+        uses: actions/upload-artifact@v4
+        with:
+          name: binpkgs-${{ matrix.category }}
+          path: dist-out
+          if-no-files-found: ignore
+
+      - name: Upload Build Logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ matrix.category }}
+          path: logs-out
+          if-no-files-found: ignore
+
+  release:
+    needs: [check-changes, build]
+    if: needs.check-changes.outputs.should_run == 'true' && always() && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/vup-linux/vup-builder:latest
+      options: --privileged
+    strategy:
+      matrix: ${{ fromJson(needs.check-changes.outputs.matrix) }}
+      fail-fast: false
+    
+    steps:
+      - name: Checkout VUP
+        uses: actions/checkout@v4
+        with:
+          path: vup
+
+      - name: Prepare Workspace
+        run: |
+          mkdir -p work/dist
+
+      - name: Download Old Release and Sync
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           CATEGORY: ${{ matrix.category }}
         run: |
-          cd void-packages/dist
-          python3 ../../vup/vup/scripts/manage_release.py clean_remote
+          cd work
+          # Helper to safely move dist content
+          python3 ${{ github.workspace }}/vup/vup/scripts/manage_release.py download || true
+          # manage_release.py download might fail if tag doesn't exist, which is fine for first run
 
-      - name: Upload New Assets
+      - name: Download New Binpkgs
+        uses: actions/download-artifact@v4
+        with:
+          name: binpkgs-${{ matrix.category }}
+          path: work/dist
+
+      - name: Prune and Sign
+        env:
+          XBPS_PRIVATE_KEY: ${{ secrets.XBPS_PRIVATE_KEY }}
+          CATEGORY: ${{ matrix.category }}
+        run: |
+          cd work
+          # Remove repodata to regenerate
+          rm -f dist/repodata
+          
+          # Prune old packages
+          python3 ${{ github.workspace }}/vup/vup/scripts/manage_release.py prune
+          
+          # Sign and Index
+          python3 ${{ github.workspace }}/vup/vup/scripts/manage_release.py update_repo
+
+      - name: Clean Remote Assets
+        env:
+           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+           GITHUB_REPOSITORY: ${{ github.repository }}
+           CATEGORY: ${{ matrix.category }}
+        run: |
+           cd work
+           python3 ${{ github.workspace }}/vup/vup/scripts/manage_release.py clean_remote
+
+      - name: Upload Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ matrix.category }}-current
-          files: void-packages/dist/*
+          files: work/dist/*
           fail_on_unmatched_files: true
 
-      - name: Upload Build Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-report-${{ matrix.category }}
-          path: |
-            void-packages/report-${{ matrix.category }}.json
-            void-packages/build-logs/*.log
-
   report-status:
-    needs: build-and-release
-    if: always() && needs.build-and-release.result != 'skipped'
+    needs: [build, release]
+    if: always() && needs.build.result != 'skipped'
     runs-on: ubuntu-latest
     steps:
-      - name: Download Build Reports
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Reports
         uses: actions/download-artifact@v4
         with:
-          pattern: build-report-*
+          pattern: build-logs-*
           path: reports
           merge-multiple: true
       
       - name: Generate Summary
         id: summary
         run: |
-          echo "# Build Summary" >> $GITHUB_STEP_SUMMARY
-          
-          has_failures=false
-          
-          for report_file in reports/*.json; do
-             # Skip if glob failed
-             [ -e "$report_file" ] || continue
-             
-             cat "$report_file" | python3 -c '
-          import sys, json, os
-
-          data = json.load(sys.stdin)
-          cat = data["category"]
-          results = data["results"]
-          
-          print(f"## Category: {cat}")
-          print("| Package | Status | Duration |")
-          print("|---------|--------|----------|")
-          
-          for r in results:
-              icon = "✅" if r["status"] == "success" else "❌"
-              duration = r.get("duration", 0)
-              dur = f"{duration:.1f}s"
-              name = r["name"]
-              status = r["status"]
-              print(f"| {name} | {icon} {status} | {dur} |")
-              
-              if status == "failure":
-                  print("<details>")
-                  print(f"<summary>Error Log: {name}</summary>")
-                  print("\n```")
-                  print(r.get("error_log", "No log captured"))
-                  print("```\n")
-                  print("</details>")
-          ' >> $GITHUB_STEP_SUMMARY
-          done
+           echo "# Build Summary" >> $GITHUB_STEP_SUMMARY
+           chmod +x vup/scripts/generate_summary.py
+           
+           for report_file in reports/*.json; do
+              [ -e "$report_file" ] || continue
+              cat "$report_file" | python3 vup/scripts/generate_summary.py >> $GITHUB_STEP_SUMMARY
+           done
 
   deploy-index:
-    needs: [check-changes, build-and-release]
-    # Run if check-changes said run AND build-and-release succeeded
-    if: needs.check-changes.outputs.should_run == 'true' && always() && needs.build-and-release.result == 'success'
+    needs: [check-changes, release]
+    if: needs.check-changes.outputs.should_run == 'true' && always() && needs.release.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout VUP
@@ -290,7 +231,7 @@ jobs:
 
       - name: Generate Global Index
         run: |
-          python3 vup/scripts/gen_index.py
+          python3 vup/scripts/generate_index.py
           
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3

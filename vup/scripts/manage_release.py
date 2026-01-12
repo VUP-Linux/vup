@@ -4,7 +4,6 @@ import sys
 import subprocess
 import glob
 import re
-import shutil
 import json
 from functools import cmp_to_key
 
@@ -26,10 +25,6 @@ def run_command(cmd, capture_output=False):
         return None
 
 def get_pkg_name(filename):
-    # Use xbps-uhelper if available for accurate parsing
-    # xbps-uhelper getpkgname <binpkg>
-    # If file doesn't exist (remote listing), fallback to regex
-    # If file doesn't exist (remote listing), fallback to regex
     # Also skip xbps-uhelper for .xbps files as it expects pkgver string
     if os.path.exists(filename) and not filename.endswith(".xbps"):
         res = run_command(["xbps-uhelper", "getpkgname", filename], capture_output=True)
@@ -181,6 +176,59 @@ def prune_local():
                 print(f"Removing orphaned signature: {basename}")
                 os.remove(f)
 
+def update_repository():
+    """Signs packages (if key present), indexes them, and signs the repo."""
+    print("Updating repository index...")
+    
+    # We expect to run from the parent of DIST_DIR, but xbps-rindex works best
+    # when run inside the directory or we must be careful with paths.
+    # To mimic previous behavior, we'll chdir into DIST_DIR.
+    cwd = os.getcwd()
+    try:
+        if os.path.isdir(DIST_DIR):
+            os.chdir(DIST_DIR)
+        else:
+            print(f"Directory {DIST_DIR} does not exist.")
+            return
+
+        privkey = os.environ.get("XBPS_PRIVATE_KEY")
+        privkey_file = None
+        
+        # 1. Setup Private Key
+        if privkey:
+            # Write key to a file outside dist to avoid indexing it
+            privkey_file = os.path.abspath("../privkey.pem")
+            with open(privkey_file, "w") as f:
+                f.write(privkey)
+            print("Private key loaded.")
+
+        # 2. Sign Individual Packages
+        if privkey_file:
+            print("Signing packages...")
+            for pkg in glob.glob("*.xbps"):
+                if not os.path.exists(pkg + ".sig"):
+                    run_command(["xbps-rindex", "--sign-pkg", "--privkey", privkey_file, pkg])
+
+        # 3. Generate Index
+        print("Generatng index...")
+        pkgs = glob.glob("*.xbps")
+        if pkgs:
+            # -a adds to index
+            run_command(["xbps-rindex", "-a"] + pkgs)
+        
+        # 4. Sign Repository
+        if privkey_file:
+            print("Signing repository index...")
+            run_command(["xbps-rindex", "--sign", "--privkey", privkey_file, "--signedby", "VUP Builder", "."])
+
+    finally:
+        # Cleanup
+        if privkey_file and os.path.exists(privkey_file):
+            os.remove(privkey_file)
+            print("Private key cleaned up.")
+        
+        os.chdir(cwd)
+
 def clean_remote_assets():
     """Delete remote assets that are NOT present in local DIST_DIR."""
     print("Synchronizing remote assets (Deleting obsolete)...")
@@ -220,3 +268,5 @@ if __name__ == "__main__":
         prune_local()
     elif cmd == "clean_remote":
         clean_remote_assets()
+    elif cmd == "update_repo":
+        update_repository()
