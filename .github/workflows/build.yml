@@ -186,8 +186,10 @@ jobs:
             ${XBPS_PRIVATE_KEY:+-v "$PWD/work/privkey.pem:/privkey.pem:ro"} \
             ghcr.io/void-linux/void-glibc:latest sh -c '
               cd /dist
+              # Remove old signatures - they will be regenerated
+              rm -f *.sig *.sig2
               [ -f /privkey.pem ] && for p in *.xbps; do
-                [ -e "$p" ] && [ ! -f "$p.sig2" ] && xbps-rindex --sign-pkg --privkey /privkey.pem "$p"
+                [ -e "$p" ] && xbps-rindex --sign-pkg --privkey /privkey.pem "$p"
               done
               xbps-rindex -a *.xbps
               [ -f /privkey.pem ] && xbps-rindex --sign --privkey /privkey.pem --signedby "VUP Builder" .

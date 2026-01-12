@@ -137,6 +137,20 @@ def xbps_ver_cmp(f1, f2):
         
     return python_ver_cmp(v1, v2)
 
+def clean_stale_sigs():
+    """Remove signatures for packages that have been rebuilt (sig is older than pkg)."""
+    print("Cleaning stale signatures...")
+    for pkg in glob.glob(os.path.join(DIST_DIR, "*.xbps")):
+        for ext in [".sig", ".sig2"]:
+            sig = pkg + ext
+            if os.path.exists(sig):
+                # If signature is older than the package, it's stale
+                pkg_mtime = os.path.getmtime(pkg)
+                sig_mtime = os.path.getmtime(sig)
+                if sig_mtime < pkg_mtime:
+                    print(f"Removing stale signature: {os.path.basename(sig)}")
+                    os.remove(sig)
+
 def prune_local():
     """Keep only the latest version of each package in DIST_DIR."""
     print("Pruning local old versions...")
@@ -291,6 +305,7 @@ if __name__ == "__main__":
         download_release()
     elif cmd == "prune":
         prune_local()
+        clean_stale_sigs()
     elif cmd == "clean_remote":
         clean_remote_assets()
     elif cmd == "update_repo":
