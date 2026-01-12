@@ -20,12 +20,22 @@ install_pkg :: proc(idx: ^common.Index, pkg_name: string, yes: bool) -> bool {
         return false
     }
     
-    if len(pkg.repo_url) == 0 || len(pkg.category) == 0 {
+    if len(pkg.category) == 0 {
         common.log_error("Invalid package metadata for '%s'", pkg_name)
         return false
     }
     
-    common.log_info("Found %s in category '%s'", pkg_name, pkg.category)
+    // Get system architecture and find matching repo URL
+    system_arch := common.get_system_arch()
+    repo_url, url_ok := common.get_repo_url_for_arch(&pkg, system_arch)
+    
+    if !url_ok {
+        common.log_error("Package '%s' is not available for architecture '%s'", pkg_name, system_arch)
+        common.log_info("Available architectures: %v", pkg.archs[:])
+        return false
+    }
+    
+    common.log_info("Found %s in category '%s' (arch: %s)", pkg_name, pkg.category, system_arch)
     
     // Fetch template for review
     common.log_info("Fetching template for review...")
@@ -69,7 +79,7 @@ install_pkg :: proc(idx: ^common.Index, pkg_name: string, yes: bool) -> bool {
     defer delete(args)
     
     append(&args, "xbps-install")
-    append(&args, "-R", pkg.repo_url)
+    append(&args, "-R", repo_url)
     append(&args, "-S")
     if yes {
         append(&args, "-y")

@@ -11,15 +11,74 @@ import "core:sys/posix"
 // Package metadata from the index
 Package :: struct {
     category:    string,
-    repo_url:    string,
     version:     string,
     description: string,
+    archs:       [dynamic]string,
+    repo_urls:   map[string]string,  // arch -> url
 }
 
 // The package index
 Index :: struct {
     packages: map[string]Package,
     raw_json: json.Value,
+}
+
+// Get current system architecture
+get_system_arch :: proc() -> string {
+    // Use uname to get machine type
+    pipe_fds: [2]posix.FD
+    if posix.pipe(&pipe_fds) != .OK {
+        return "x86_64"  // fallback
+    }
+    
+    pid := posix.fork()
+    
+    if pid < 0 {
+        posix.close(pipe_fds[0])
+        posix.close(pipe_fds[1])
+        return "x86_64"
+    }
+    
+    if pid == 0 {
+        posix.close(pipe_fds[0])
+        posix.dup2(pipe_fds[1], posix.STDOUT_FILENO)
+        posix.close(pipe_fds[1])
+        
+        args: []cstring = {"uname", "-m", nil}
+        posix.execvp("uname", raw_data(args))
+        posix._exit(127)
+    }
+    
+    posix.close(pipe_fds[1])
+    
+    buf: [64]byte
+    n := posix.read(pipe_fds[0], raw_data(buf[:]), len(buf))
+    posix.close(pipe_fds[0])
+    
+    status: c.int
+    posix.waitpid(pid, &status, {})
+    
+    if n > 0 {
+        arch := strings.trim_space(string(buf[:n]))
+        // Map uname output to xbps arch names
+        if arch == "x86_64" { return "x86_64" }
+        if arch == "aarch64" { return "aarch64" }
+        if arch == "armv7l" { return "armv7l" }
+        if arch == "armv6l" { return "armv6l" }
+        if arch == "i686" || arch == "i386" { return "i686" }
+        return arch
+    }
+    
+    return "x86_64"
+}
+
+// Get repo URL for current architecture
+get_repo_url_for_arch :: proc(pkg: ^Package, arch: string) -> (url: string, ok: bool) {
+    if pkg == nil {
+        return "", false
+    }
+    url, ok = pkg.repo_urls[arch]
+    return url, ok
 }
 
 // Free index resources
@@ -146,14 +205,30 @@ parse_index :: proc(json_str: string) -> (idx: Index, ok: bool) {
         if cat, cat_ok := pkg_obj["category"].(json.String); cat_ok {
             pkg.category = cat
         }
-        if url, url_ok := pkg_obj["repo_url"].(json.String); url_ok {
-            pkg.repo_url = url
-        }
         if ver, ver_ok := pkg_obj["version"].(json.String); ver_ok {
             pkg.version = ver
         }
         if desc, desc_ok := pkg_obj["description"].(json.String); desc_ok {
             pkg.description = desc
+        }
+        
+        // Parse archs array
+        if archs_arr, archs_ok := pkg_obj["archs"].(json.Array); archs_ok {
+            for arch_val in archs_arr {
+                if arch_str, str_ok := arch_val.(json.String); str_ok {
+                    append(&pkg.archs, arch_str)
+                }
+            }
+        }
+        
+        // Parse repo_urls map
+        if urls_obj, urls_ok := pkg_obj["repo_urls"].(json.Object); urls_ok {
+            pkg.repo_urls = make(map[string]string)
+            for arch, url_val in urls_obj {
+                if url_str, str_ok := url_val.(json.String); str_ok {
+                    pkg.repo_urls[arch] = url_str
+                }
+            }
         }
         
         idx.packages[name] = pkg
