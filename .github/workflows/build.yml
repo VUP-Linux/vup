@@ -92,6 +92,7 @@ jobs:
         env:
           CATEGORY: ${{ matrix.category }}
           ARCH: ${{ matrix.arch }}
+          PACKAGES: ${{ matrix.packages }}
         run: |
           cd void-packages
           python3 ../vup/vup/scripts/build_runner.py

@@ -67,13 +67,16 @@ def main():
     all_cats = [d for d in os.listdir("vup/srcpkgs") if os.path.isdir(os.path.join("vup/srcpkgs", d))]
     
     target_cats = set()
+    cat_pkgs = {}
+    build_all = False
+
     if changes == "ALL":
-        target_cats = set(all_cats)
+        build_all = True
     else:
         for f in changes:
             # Check for global changes
             if f.startswith("common/") or f.startswith("vup/common/") or f.startswith(".github/workflows/"):
-                target_cats = set(all_cats)
+                build_all = True
                 break
                 
             # Check for category changes
@@ -81,9 +84,19 @@ def main():
             if f.startswith("vup/srcpkgs/"):
                 parts = f.split("/")
                 if len(parts) > 2 and parts[2] in all_cats:
-                    target_cats.add(parts[2])
+                    cat = parts[2]
+                    target_cats.add(cat)
+                    
+                    if cat not in cat_pkgs:
+                        cat_pkgs[cat] = set()
+                    
+                    if len(parts) > 3:
+                        cat_pkgs[cat].add(parts[3])
     
-    target_list = sorted(list(target_cats))
+    if build_all:
+        target_list = sorted(list(set(all_cats)))
+    else:
+        target_list = sorted(list(target_cats))
     
     output_file = os.environ.get("GITHUB_OUTPUT")
     
@@ -99,9 +112,16 @@ def main():
         for cat in target_list:
             cat_path = os.path.join("vup/srcpkgs", cat)
             archs = get_category_archs(cat_path)
-            print(f"Category '{cat}' needs architectures: {archs}")
+            
+            # Determine packages
+            if build_all or cat not in cat_pkgs or not cat_pkgs[cat]:
+                 pkg_str = "ALL"
+            else:
+                 pkg_str = " ".join(sorted(list(cat_pkgs[cat])))
+
+            print(f"Category '{cat}' needs architectures: {archs} (packages: {pkg_str})")
             for arch in archs:
-                includes.append({"category": cat, "arch": arch})
+                includes.append({"category": cat, "arch": arch, "packages": pkg_str})
         
         print(f"Total build jobs: {len(includes)}")
         matrix_json = json.dumps({"include": includes})

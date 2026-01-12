@@ -31,7 +31,19 @@ post_extract() {
 do_build() {
 	cd "v-${_v_commit}"
 
-	# Build v with clang for optimal performance
+    local tmpdir="/tmp/${pkgname}-${_v_commit}"
+    mkdir -p "$tmpdir" || { echo "Can't create temporary directory!"; exit 1; }
+
+    # Delete directory when exiting function (even if there is an error)
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    # Redefining HOME and TMPDIR for Isolation
+    export HOME="$tmpdir"
+    export TMPDIR="$tmpdir"
+
+	# Build v with clang for performance 
+	# 20minutes CI with everything else 6 minutes with clang
+	# CFLAGS and LDFLAGS are emptied for speed as well
 	CFLAGS="" LDFLAGS="" make CC=clang prod=1 local=1 -j${XBPS_MAKEJOBS}
 
 	# Compile v using tcc

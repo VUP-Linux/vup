@@ -69,10 +69,17 @@ def main():
     # Ensure logs directory exists
     os.makedirs("build-logs", exist_ok=True)
 
-    packages = [p for p in os.listdir(vup_src_path) if os.path.isdir(os.path.join(vup_src_path, p))]
-    packages.sort()
+    all_packages = [p for p in os.listdir(vup_src_path) if os.path.isdir(os.path.join(vup_src_path, p))]
+    all_packages.sort()
 
-    print(f"Found {len(packages)} packages in {category}: {', '.join(packages)}")
+    packages_env = os.environ.get("PACKAGES", "ALL")
+    if packages_env == "ALL":
+        packages = all_packages
+    else:
+        whitelist = set(packages_env.split())
+        packages = [p for p in all_packages if p in whitelist]
+
+    print(f"Found {len(packages)} packages to build in {category}: {', '.join(packages)}")
 
     for pkg in packages:
         pkg_src = os.path.join(vup_src_path, pkg)
