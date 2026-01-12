@@ -2,7 +2,7 @@
 pkgname=antigravity
 version=1.13.3
 _build=4533425205018624
-revision=5
+revision=6
 archs="x86_64"
 depends="alsa-lib at-spi2-core cairo cups dbus expat glib gtk+3 libX11 libXcomposite libXdamage libXext libXfixes libXrandr libXScrnSaver libdrm libxcb libxkbcommon libxkbfile libxshmfence mesa nspr nss pango xdg-utils libsecret"
 short_desc="An agentic development platform from Google"
