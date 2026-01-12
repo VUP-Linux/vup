@@ -6,7 +6,7 @@ VUP is a community-driven repository. We welcome new packages and improvements!
 
 * **[`vup/`](vup/)**: Source repository containing package templates and policy.
   * `srcpkgs/<category>/<pkgname>/template`
-* **[`vuru/`](vuru/)**: The Rust-based client for managing VUP packages.
+* **[`vuru/`](vuru/)**: The utility written in C for managing VUP packages.
 
 ## How to Add a Package
 
