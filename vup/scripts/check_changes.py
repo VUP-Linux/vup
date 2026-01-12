@@ -3,15 +3,13 @@ import os
 import subprocess
 import json
 import sys
-import re
 
 # Import shared config
 try:
-    from config import SUPPORTED_ARCHS
+    from config import SUPPORTED_ARCHS, parse_template_archs, get_positive_archs
 except ImportError:
-    import sys
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from config import SUPPORTED_ARCHS
+    from config import SUPPORTED_ARCHS, parse_template_archs, get_positive_archs
 
 def get_changes():
     event = os.environ.get("GITHUB_EVENT_NAME")
@@ -34,27 +32,6 @@ def get_changes():
         
     return output.splitlines()
 
-def parse_archs_from_template(template_path):
-    """
-    Parse the 'archs' variable from a template file.
-    Returns a list of architectures, or None if not specified.
-    """
-    try:
-        with open(template_path, 'r') as f:
-            content = f.read()
-        
-        # Match archs="..." or archs='...'
-        match = re.search(r'^archs=["\']([^"\']+)["\']', content, re.MULTILINE)
-        if match:
-            archs_str = match.group(1)
-            # Split by whitespace and filter out negated archs (starting with ~)
-            archs = [a for a in archs_str.split() if not a.startswith('~') and a != 'noarch']
-            return archs if archs else None
-    except Exception as e:
-        print(f"Warning: Could not parse {template_path}: {e}")
-    
-    return None
-
 def get_category_archs(category_path):
     """
     Scan all packages in a category and return the union of all architectures needed.
@@ -70,7 +47,8 @@ def get_category_archs(category_path):
     for pkg in packages:
         template_path = os.path.join(category_path, pkg, "template")
         if os.path.exists(template_path):
-            pkg_archs = parse_archs_from_template(template_path)
+            raw_archs = parse_template_archs(template_path)
+            pkg_archs = get_positive_archs(raw_archs)
             if pkg_archs:
                 archs.update(pkg_archs)
             else:

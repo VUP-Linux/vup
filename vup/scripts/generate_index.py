@@ -5,11 +5,11 @@ import re
 
 # Import shared config
 try:
-    from config import SUPPORTED_ARCHS, BASE_URL, SRCPKGS_DIR
+    from config import SUPPORTED_ARCHS, BASE_URL, SRCPKGS_DIR, parse_template_archs, get_positive_archs
 except ImportError:
     import sys
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from config import SUPPORTED_ARCHS, BASE_URL, SRCPKGS_DIR
+    from config import SUPPORTED_ARCHS, BASE_URL, SRCPKGS_DIR, parse_template_archs, get_positive_archs
 
 def parse_template(template_path):
     """
@@ -61,16 +61,11 @@ def generate_index():
             if version and revision:
                 full_version = f"{version}_{revision}"
                 
-                # Parse archs from template
-                archs = SUPPORTED_ARCHS.copy()  # default to all supported
-                with open(template_path, 'r') as f:
-                    content = f.read()
-                    archs_match = re.search(r'^archs=["\']([^"\']+)["\']', content, re.MULTILINE)
-                    if archs_match:
-                        archs = [a for a in archs_match.group(1).split() 
-                                if not a.startswith('~') and a != 'noarch']
-                        if not archs:
-                            archs = SUPPORTED_ARCHS.copy()
+                # Parse archs from template using shared function
+                raw_archs = parse_template_archs(template_path)
+                archs = get_positive_archs(raw_archs)
+                if not archs:
+                    archs = SUPPORTED_ARCHS.copy()
                 
                 # Build repo_urls dict per architecture
                 repo_urls = {}

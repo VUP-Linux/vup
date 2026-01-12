@@ -9,10 +9,11 @@ import time
 
 # Import shared config
 try:
-    from config import NATIVE_ARCH
+    from config import NATIVE_ARCH, parse_template_archs, arch_supported
 except ImportError:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from config import NATIVE_ARCH
+    from config import NATIVE_ARCH, parse_template_archs, arch_supported
+
 
 def run_command(cmd, log_file=None):
     """Run a command and capture output to log_file if provided."""
@@ -77,6 +78,14 @@ def main():
         pkg_src = os.path.join(vup_src_path, pkg)
         pkg_dest = os.path.join("srcpkgs", pkg)
         log_file = f"build-logs/{pkg}.log"
+        
+        # Check if this package supports the target architecture
+        template_path = os.path.join(pkg_src, "template")
+        pkg_archs = parse_template_archs(template_path)
+        
+        if not arch_supported(pkg_archs, arch):
+            print(f"[{pkg}] Skipping - not supported on {arch} (archs: {pkg_archs})")
+            continue
         
         result_entry = {
             "name": pkg,
