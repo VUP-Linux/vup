@@ -14,9 +14,13 @@ nopie=yes
 nocross=yes
 
 do_install() {
-	# Symlink the binary to /usr/bin/zig15
+	vmkdir usr/lib/zig
+	vcopy lib usr/lib/zig
+	vcopy zig usr/lib/zig
+	
 	vmkdir usr/bin
-	ln -sf /usr/lib/zig15/zig ${DESTDIR}/usr/bin/zig15
+	ln -sf /usr/lib/zig/zig ${DESTDIR}/usr/bin/zig
 	
 	vlicense LICENSE
 }
+	
