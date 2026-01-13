@@ -67,6 +67,8 @@ jobs:
           # Push changes to new branch
           BRANCH="release/vuru-$VERSION"
           cd vup
+          git config user.name "vup-bot"
+          git config user.email "vup-bot@users.noreply.github.com"
           
           # Make workflow idempotent
           git push origin --delete "$BRANCH" || true
@@ -83,4 +85,4 @@ jobs:
             --head "$BRANCH" \
             --base main
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.BOT_ACCESS_TOKEN }}
