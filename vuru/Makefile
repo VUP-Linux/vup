@@ -12,21 +12,24 @@ BUILD_DIR = build
 TARGET = $(BUILD_DIR)/vuru
 
 # Collections for package imports
-COLLECTIONS = -collection:xbps=$(SRC_DIR)/xbps -collection:errors=$(SRC_DIR)/errors
+COLLECTIONS = -collection:xbps=$(SRC_DIR)/core/xbps -collection:errors=$(SRC_DIR)/core/errors
+
+# Find all .odin source files
+SRCS = $(shell find $(SRC_DIR) -name '*.odin')
 
 .PHONY: all clean install uninstall debug run check
 
 all: $(TARGET)
 
-$(TARGET): $(SRC_DIR)/*.odin $(SRC_DIR)/xbps/*.odin $(SRC_DIR)/errors/*.odin
+$(TARGET): $(SRCS)
 	@mkdir -p $(BUILD_DIR)
 	$(ODIN) build $(SRC_DIR) -out:$@ $(ODIN_FLAGS) $(COLLECTIONS)
 
-debug: $(SRC_DIR)/*.odin $(SRC_DIR)/xbps/*.odin $(SRC_DIR)/errors/*.odin
+debug: $(SRCS)
 	@mkdir -p $(BUILD_DIR)
 	$(ODIN) build $(SRC_DIR) -out:$(TARGET) $(DEBUG_FLAGS) $(COLLECTIONS)
 
-check: $(SRC_DIR)/*.odin $(SRC_DIR)/xbps/*.odin $(SRC_DIR)/errors/*.odin
+check: $(SRCS)
 	$(ODIN) check $(SRC_DIR) $(COLLECTIONS)
 
 run: $(TARGET)
