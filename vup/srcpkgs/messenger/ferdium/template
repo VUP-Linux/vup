@@ -4,7 +4,39 @@ version=7.1.1
 revision=1
 archs="x86_64 aarch64"
 create_wrksrc=yes
-depends="alsa-lib at-spi2-core cairo cups dbus expat glib gtk+3 libX11 libXcomposite libXdamage libXext libXfixes libXrandr libXScrnSaver libdrm libxcb libxkbcommon libxkbfile libxshmfence mesa nspr nss pango xdg-utils libsecret libevent libxslt minizip re2 snappy"
+depends="
+ alsa-lib
+ at-spi2-core
+ cairo
+ cups
+ dbus
+ expat
+ glib
+ gtk+3
+ libevent
+ libsecret
+ libX11
+ libXcomposite
+ libXdamage
+ libXext
+ libXfixes
+ libXrandr
+ libXScrnSaver
+ libdrm
+ libxcb
+ libxkbcommon
+ libxkbfile
+ libxshmfence
+ libxslt
+ mesa
+ minizip
+ nspr
+ nss
+ pango
+ re2
+ snappy
+ xdg-utils
+"
 short_desc="All your services in one place, built by the community"
 maintainer="AmarBego <begovicamar@proton.me>"
 license="Apache-2.0"
@@ -44,9 +76,12 @@ do_install() {
 		vcopy usr/share usr
 	fi
 	
-	# Create binary symlink
-	vmkdir usr/bin
-	ln -sf /opt/Ferdium/ferdium ${DESTDIR}/usr/bin/ferdium
+	# Create wrapper script
+	cat > ferdium.sh <<EOF
+#!/bin/sh
+exec /opt/Ferdium/ferdium "\$@"
+EOF
+	vbin ferdium.sh ferdium
 	
 	# License
 	if [ -f opt/Ferdium/LICENSE.electron.txt ]; then
