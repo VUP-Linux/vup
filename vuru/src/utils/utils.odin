@@ -1,7 +1,5 @@
 package utils
 
-import "core:c"
-import "core:fmt"
 import "core:mem"
 import "core:os"
 import "core:strings"
@@ -9,36 +7,6 @@ import "core:sys/linux"
 
 // Define execvp since it's missing from core:c/libc sometimes or not exported commonly
 foreign import libc "system:c"
-foreign libc {
-	execvp :: proc(file: cstring, argv: [^]cstring) -> c.int ---
-}
-
-// ANSI color codes
-COLOR_RESET :: "\033[0m"
-COLOR_INFO :: "\033[1;34m"
-COLOR_ERROR :: "\033[1;31m"
-COLOR_WARNING :: "\033[1;33m"
-
-// Log an informational message to stdout
-log_info :: proc(msg: string, args: ..any) {
-	fmt.printf("%s[info]%s ", COLOR_INFO, COLOR_RESET)
-	fmt.printf(msg, ..args)
-	fmt.println()
-}
-
-// Log a warning message to stderr
-log_warning :: proc(msg: string, args: ..any) {
-	fmt.eprintf("%s[warn]%s ", COLOR_WARNING, COLOR_RESET)
-	fmt.eprintf(msg, ..args)
-	fmt.eprintln()
-}
-
-// Log an error message to stderr
-log_error :: proc(msg: string, args: ..any) {
-	fmt.eprintf("%s[error]%s ", COLOR_ERROR, COLOR_RESET)
-	fmt.eprintf(msg, ..args)
-	fmt.eprintln()
-}
 
 // Read entire file contents
 read_file :: proc(path: string, allocator := context.allocator) -> (string, bool) {
@@ -118,9 +86,6 @@ run_command_output :: proc(args: []string, allocator := context.allocator) -> (s
 		argv := make_argv(args, context.temp_allocator)
 		path := strings.clone_to_cstring(args[0], context.temp_allocator)
 
-		// Use execvp
-		execvp(path, argv)
-
 		// If execvp returns, it failed
 		os.exit(1)
 	}
@@ -172,7 +137,6 @@ run_command_silent :: proc(args: []string) -> int {
 		argv := make_argv(args, context.temp_allocator)
 		path := strings.clone_to_cstring(args[0], context.temp_allocator)
 
-		execvp(path, argv)
 		os.exit(127)
 	}
 
@@ -208,7 +172,6 @@ run_command :: proc(args: []string) -> int {
 		argv := make_argv(args, context.temp_allocator)
 		path := strings.clone_to_cstring(args[0], context.temp_allocator)
 
-		execvp(path, argv)
 		os.exit(127)
 	}
 

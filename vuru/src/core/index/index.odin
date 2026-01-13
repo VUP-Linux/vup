@@ -7,6 +7,7 @@ import "core:os"
 import "core:strings"
 
 import "../../utils"
+import errors "../errors"
 
 // Package metadata from index
 Package_Info :: struct {
@@ -67,13 +68,13 @@ parse_index :: proc(content: string, allocator := context.allocator) -> (Index, 
 	// Parse JSON
 	parsed, err := json.parse(transmute([]u8)content, allocator = context.temp_allocator)
 	if err != .None {
-		utils.log_error("Failed to parse index JSON")
+		errors.log_error("Failed to parse index JSON")
 		return idx, false
 	}
 
 	root, ok := parsed.(json.Object)
 	if !ok {
-		utils.log_error("Invalid index format")
+		errors.log_error("Invalid index format")
 		return idx, false
 	}
 
@@ -142,18 +143,18 @@ index_load_or_fetch :: proc(
 	bool,
 ) {
 	if !is_valid_url(url) {
-		utils.log_error("Invalid or unsafe URL provided")
+		errors.log_error("Invalid or unsafe URL provided")
 		return {}, false
 	}
 
 	cache_dir, cache_ok := utils.get_cache_dir(context.temp_allocator)
 	if !cache_ok {
-		utils.log_error("Could not determine cache directory")
+		errors.log_error("Could not determine cache directory")
 		return {}, false
 	}
 
 	if !utils.mkdir_p(cache_dir) {
-		utils.log_error("Failed to create cache directory: %s", cache_dir)
+		errors.log_error("Failed to create cache directory: %s", cache_dir)
 		return {}, false
 	}
 
@@ -177,7 +178,7 @@ index_load_or_fetch :: proc(
 		}
 	}
 
-	utils.log_info("Fetching index...")
+	errors.log_info("Fetching index...")
 
 	// Build curl command
 	curl_args: [dynamic]string
@@ -195,12 +196,12 @@ index_load_or_fetch :: proc(
 	defer delete(output)
 
 	if !ok {
-		utils.log_error("Failed to fetch index")
+		errors.log_error("Failed to fetch index")
 		os.remove(temp_path)
 
 		// Fallback to cache
 		if os.exists(index_path) {
-			utils.log_info("Using cached index")
+			errors.log_info("Using cached index")
 			return load_index_from_file(index_path, allocator)
 		}
 		return {}, false
@@ -209,18 +210,18 @@ index_load_or_fetch :: proc(
 	status := strings.trim_space(output)
 
 	if status == "304" {
-		utils.log_info("Index not modified (cached)")
+		errors.log_info("Index not modified (cached)")
 		os.remove(temp_path)
 		return load_index_from_file(index_path, allocator)
 	}
 
 	if status == "200" {
-		utils.log_info("Index updated")
+		errors.log_info("Index updated")
 
 		// Move temp to index
 		os.remove(index_path)
 		if os.rename(temp_path, index_path) != os.ERROR_NONE {
-			utils.log_error("Failed to save index")
+			errors.log_error("Failed to save index")
 			os.remove(temp_path)
 			return {}, false
 		}
@@ -229,12 +230,12 @@ index_load_or_fetch :: proc(
 	}
 
 	// Unexpected status
-	utils.log_error("Unexpected HTTP status: %s", status)
+	errors.log_error("Unexpected HTTP status: %s", status)
 	os.remove(temp_path)
 
 	// Fallback to cache
 	if os.exists(index_path) {
-		utils.log_info("Using cached index as fallback")
+		errors.log_info("Using cached index as fallback")
 		return load_index_from_file(index_path, allocator)
 	}
 

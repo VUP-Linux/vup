@@ -123,7 +123,7 @@ download_vup_pkg_to_binpkgs :: proc(
 
 	// Check if already exists
 	if os.exists(dest_path) {
-		utils.log_info("%s already in binpkgs", pkg_name)
+		errors.log_info("%s already in binpkgs", pkg_name)
 		return true, {}
 	}
 
@@ -133,7 +133,7 @@ download_vup_pkg_to_binpkgs :: proc(
 	}
 
 	// Download the package
-	utils.log_info("Downloading %s to hostdir/binpkgs...", pkg_name)
+	errors.log_info("Downloading %s to hostdir/binpkgs...", pkg_name)
 
 	// Use curl to download (-L to follow redirects)
 	curl_args := []string{"curl", "-fsSL", "-o", dest_path, full_url}
@@ -149,7 +149,7 @@ download_vup_pkg_to_binpkgs :: proc(
 
 // Update the local repo index after adding packages
 update_binpkgs_index :: proc(binpkgs_dir: string) -> (bool, errors.Error) {
-	utils.log_info("Updating local repository index...")
+	errors.log_info("Updating local repository index...")
 
 	// xbps-rindex -a <path>/*.xbps doesn't work directly
 	// Weneed to pass individual .xbps files or use a glob in shell
@@ -189,7 +189,7 @@ install_vup_deps_for_pkg :: proc(
 	// Parse the template
 	tmpl, ok := template.template_parse_file(template_path)
 	if !ok {
-		utils.log_warning("Could not parse template for %s", pkg_name)
+		errors.log_warning("Could not parse template for %s", pkg_name)
 		return true, {} // Continue anyway, let xbps-src handle the error
 	}
 	defer template.template_free(&tmpl)
@@ -209,7 +209,7 @@ install_vup_deps_for_pkg :: proc(
 	}
 
 	if len(all_deps) == 0 {
-		utils.log_info("No dependencies in template")
+		errors.log_info("No dependencies in template")
 		return true, {}
 	}
 
@@ -225,25 +225,31 @@ install_vup_deps_for_pkg :: proc(
 	}
 
 	if len(vup_deps) == 0 {
-		utils.log_info("No VUP dependencies found")
+		errors.log_info("No VUP dependencies found")
 		return true, {}
 	}
 
 	fmt.printf(
 		"\n%s:: VUP dependencies detected for '%s':%s\n",
-		utils.COLOR_INFO,
+		errors.COLOR_INFO,
 		pkg_name,
-		utils.COLOR_RESET,
+		errors.COLOR_RESET,
 	)
 	for dep in vup_deps {
 		pkg_info := idx.packages[dep]
-		fmt.printf("   %s%s%s (%s)\n", utils.COLOR_INFO, dep, utils.COLOR_RESET, pkg_info.version)
+		fmt.printf(
+			"   %s%s%s (%s)\n",
+			errors.COLOR_INFO,
+			dep,
+			errors.COLOR_RESET,
+			pkg_info.version,
+		)
 	}
 	fmt.println()
 
 	// Download VUP deps to hostdir/binpkgs
 	binpkgs := get_binpkgs_dir(xbps_src_path, context.temp_allocator)
-	utils.log_info("Downloading VUP dependencies to %s...", binpkgs)
+	errors.log_info("Downloading VUP dependencies to %s...", binpkgs)
 
 	for dep in vup_deps {
 		dl_ok, dl_err := download_vup_pkg_to_binpkgs(idx, dep, binpkgs)
@@ -258,7 +264,7 @@ install_vup_deps_for_pkg :: proc(
 		return false, idx_err
 	}
 
-	utils.log_info("VUP dependencies ready in hostdir/binpkgs")
+	errors.log_info("VUP dependencies ready in hostdir/binpkgs")
 	return true, {}
 }
 
@@ -332,12 +338,12 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 			)
 		}
 
-		utils.log_info("Checking VUP dependencies for '%s'...", pkg_name)
+		errors.log_info("Checking VUP dependencies for '%s'...", pkg_name)
 
 		// Load the index
 		idx, idx_ok := index.index_load_or_fetch(config.index_url, false)
 		if !idx_ok {
-			utils.log_warning("Could not load VUP index, continuing without VUP dep resolution")
+			errors.log_warning("Could not load VUP index, continuing without VUP dep resolution")
 		} else {
 			defer index.index_free(&idx)
 
@@ -350,7 +356,7 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 
 	// Run the actual xbps-src command
 	joined_args := strings.join(args, " ", context.temp_allocator)
-	utils.log_info("Running: xbps-src %s", joined_args)
+	errors.log_info("Running: xbps-src %s", joined_args)
 	if !run_xbps_src(xbps_src_path, args) {
 		return false, errors.make_error(.Command_Failed, fmt.tprintf("xbps-src %s", joined_args))
 	}

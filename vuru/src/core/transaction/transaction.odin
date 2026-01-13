@@ -6,6 +6,7 @@ import "core:os"
 import "core:strings"
 
 import builder "../../core/builder"
+import errors "../../core/errors"
 import resolve "../../core/resolve"
 import xbps "../../core/xbps"
 import utils "../../utils"
@@ -163,34 +164,34 @@ transaction_execute :: proc(t: ^Transaction, cfg: ^builder.Build_Config, yes: bo
 	for item in t.items {
 		switch item.op {
 		case .Install_Official:
-			utils.log_info("Installing %s from official repos...", item.name)
+			errors.log_info("Installing %s from official repos...", item.name)
 			if utils.run_command(build_official_install_args(item.name, yes)[:]) != 0 {
-				utils.log_error("Failed to install %s", item.name)
+				errors.log_error("Failed to install %s", item.name)
 				return false
 			}
 
 		case .Install_VUP:
-			utils.log_info("Installing %s from VUP...", item.name)
+			errors.log_info("Installing %s from VUP...", item.name)
 			if xbps.install_from_repo(item.repo_url, item.name, yes, utils.run_command) != 0 {
-				utils.log_error("Failed to install %s", item.name)
+				errors.log_error("Failed to install %s", item.name)
 				return false
 			}
 
 		case .Build_Install:
-			utils.log_info("Building %s...", item.name)
+			errors.log_info("Building %s...", item.name)
 			if !builder.build_package(cfg, item.name, item.category) {
-				utils.log_error("Failed to build %s", item.name)
+				errors.log_error("Failed to build %s", item.name)
 				return false
 			}
 			if !builder.install_local_package(cfg, item.name, yes) {
-				utils.log_error("Failed to install built package %s", item.name)
+				errors.log_error("Failed to install built package %s", item.name)
 				return false
 			}
 
 		case .Remove:
-			utils.log_info("Removing %s...", item.name)
+			errors.log_info("Removing %s...", item.name)
 			if xbps.remove_package(item.name, yes, utils.run_command) != 0 {
-				utils.log_error("Failed to remove %s", item.name)
+				errors.log_error("Failed to remove %s", item.name)
 				return false
 			}
 

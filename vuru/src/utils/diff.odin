@@ -1,5 +1,6 @@
 package utils
 
+import errors "../core/errors"
 import "core:fmt"
 import "core:math/rand"
 import "core:os"
@@ -83,12 +84,12 @@ review_changes :: proc(pkg_name: string, current: string, previous: string) -> b
 	}
 
 	if !is_valid_identifier(pkg_name) {
-		log_error("Invalid package name")
+		errors.log_error("Invalid package name")
 		return false
 	}
 
 	if len(previous) > 0 && current == previous {
-		log_info("Template for %s unchanged since last install.", pkg_name)
+		errors.log_info("Template for %s unchanged since last install.", pkg_name)
 	} else {
 		if len(previous) > 0 {
 			// Generate colored diff and show in pager

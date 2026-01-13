@@ -1,6 +1,8 @@
 package commands
 
+import errors "../core/errors"
 import utils "../utils"
+import "core:fmt"
 
 // Remove command implementation
 remove_run :: proc(args: []string, config: ^Config) -> int {
@@ -16,9 +18,9 @@ remove_run :: proc(args: []string, config: ^Config) -> int {
 
 	// Standard remove
 	if len(args) == 0 {
-		utils.log_error("Usage: vuru remove <package> [packages...]")
-		utils.log_error("       vuru remove -o    (remove orphans)")
-		utils.log_error("       vuru remove -O    (clean cache)")
+		fmt.println("Usage: vuru remove <package> [packages...]")
+		fmt.println("       vuru remove -o    (remove orphans)")
+		fmt.println("       vuru remove -O    (clean cache)")
 		return 1
 	}
 
@@ -35,6 +37,11 @@ remove_run :: proc(args: []string, config: ^Config) -> int {
 // Remove orphan packages (xbps-remove -o)
 remove_orphans :: proc(config: ^Config) -> int {
 	cmd := make([dynamic]string, context.temp_allocator)
+
+	// Need sudo for system operations (unless dry-run)
+	if !config.dry_run {
+		append(&cmd, "sudo")
+	}
 	append(&cmd, "xbps-remove", "-o")
 
 	if config.dry_run {
@@ -50,13 +57,18 @@ remove_orphans :: proc(config: ^Config) -> int {
 		append(&cmd, "-r", config.rootdir)
 	}
 
-	utils.log_info("Removing orphan packages...")
+	errors.log_info("Removing orphan packages...")
 	return utils.run_command(cmd[:])
 }
 
 // Clean package cache (xbps-remove -O)
 remove_cache :: proc(config: ^Config) -> int {
 	cmd := make([dynamic]string, context.temp_allocator)
+
+	// Need sudo for cache operations (unless dry-run)
+	if !config.dry_run {
+		append(&cmd, "sudo")
+	}
 	append(&cmd, "xbps-remove", "-O")
 
 	if config.dry_run {
@@ -72,22 +84,30 @@ remove_cache :: proc(config: ^Config) -> int {
 		append(&cmd, "-r", config.rootdir)
 	}
 
-	utils.log_info("Cleaning package cache...")
+	errors.log_info("Cleaning package cache...")
 	return utils.run_command(cmd[:])
 }
 
 // Remove a package using xbps-remove
 xbps_uninstall :: proc(pkg_name: string, config: ^Config) -> int {
 	if len(pkg_name) == 0 {
-		utils.log_error("Invalid package name")
+		errors.log_error("Invalid package name")
 		return -1
 	}
 
-	utils.log_info("Removing %s...", pkg_name)
+	errors.log_info("Removing %s...", pkg_name)
 
 	cmd := make([dynamic]string, context.temp_allocator)
+
+	// Need sudo for package removal (unless dry-run)
+	if !config.dry_run {
+		append(&cmd, "sudo")
+	}
 	append(&cmd, "xbps-remove", pkg_name)
 
+	if config.dry_run {
+		append(&cmd, "-n")
+	}
 	if config.yes {
 		append(&cmd, "-y")
 	}
@@ -102,10 +122,10 @@ xbps_uninstall :: proc(pkg_name: string, config: ^Config) -> int {
 	}
 
 	if utils.run_command(cmd[:]) == 0 {
-		utils.log_info("Successfully removed %s", pkg_name)
+		errors.log_info("Successfully removed %s", pkg_name)
 		return 0
 	}
 
-	utils.log_error("xbps-remove failed for %s", pkg_name)
+	errors.log_error("xbps-remove failed for %s", pkg_name)
 	return -1
 }

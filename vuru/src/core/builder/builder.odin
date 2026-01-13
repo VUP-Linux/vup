@@ -5,6 +5,7 @@ import "core:os"
 import "core:strings"
 
 import utils "../../utils"
+import errors "../errors"
 
 // Configuration for the build system
 Build_Config :: struct {
@@ -51,12 +52,12 @@ vup_clone_or_update :: proc(target_dir: string) -> bool {
 
 	if os.exists(utils.path_join(target_dir, ".git", allocator = context.temp_allocator)) {
 		// Update existing
-		utils.log_info("Updating VUP repository...")
+		errors.log_info("Updating VUP repository...")
 		return utils.run_command({"git", "-C", target_dir, "pull", "--ff-only"}) == 0
 	}
 
 	// Clone fresh
-	utils.log_info("Cloning VUP repository...")
+	errors.log_info("Cloning VUP repository...")
 	return utils.run_command({"git", "clone", "--depth=1", VUP_REPO, target_dir}) == 0
 }
 
@@ -68,7 +69,7 @@ xbps_src_bootstrap :: proc(cfg: ^Build_Config) -> bool {
 		return true
 	}
 
-	utils.log_info("Bootstrapping xbps-src (this may take a while)...")
+	errors.log_info("Bootstrapping xbps-src (this may take a while)...")
 
 	xbps_src := utils.path_join(cfg.vup_dir, "xbps-src", allocator = context.temp_allocator)
 	return utils.run_command({xbps_src, "binary-bootstrap"}) == 0
@@ -77,7 +78,7 @@ xbps_src_bootstrap :: proc(cfg: ^Build_Config) -> bool {
 // Build a package using xbps-src
 build_package :: proc(cfg: ^Build_Config, pkg_name: string, category: string) -> bool {
 	if !utils.is_valid_identifier(pkg_name) || !utils.is_valid_identifier(category) {
-		utils.log_error("Invalid package name or category")
+		errors.log_error("Invalid package name or category")
 		return false
 	}
 
@@ -94,11 +95,11 @@ build_package :: proc(cfg: ^Build_Config, pkg_name: string, category: string) ->
 	)
 
 	if !os.exists(template_path) {
-		utils.log_error("Template not found: %s", template_path)
+		errors.log_error("Template not found: %s", template_path)
 		return false
 	}
 
-	utils.log_info("Building %s...", pkg_name)
+	errors.log_info("Building %s...", pkg_name)
 
 	// Run xbps-src pkg <pkgname>
 	// Note: xbps-src expects to be run from its directory
@@ -111,7 +112,7 @@ build_package :: proc(cfg: ^Build_Config, pkg_name: string, category: string) ->
 	)
 
 	if result != 0 {
-		utils.log_error("Build failed for %s", pkg_name)
+		errors.log_error("Build failed for %s", pkg_name)
 		return false
 	}
 
@@ -190,6 +191,6 @@ show_build_log :: proc(cfg: ^Build_Config, pkg_name: string) {
 	if os.exists(log_path) {
 		utils.run_command({"less", "+G", log_path})
 	} else {
-		utils.log_error("Build log not found")
+		errors.log_error("Build log not found")
 	}
 }

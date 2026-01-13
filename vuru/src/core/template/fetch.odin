@@ -1,6 +1,7 @@
 package template
 
 import utils "../../utils"
+import errors "../errors"
 
 import "core:fmt"
 import "core:os"
@@ -19,7 +20,7 @@ fetch_template :: proc(
 	bool,
 ) {
 	if !utils.is_valid_identifier(category) || !utils.is_valid_identifier(pkg_name) {
-		utils.log_error("Invalid category or package name")
+		errors.log_error("Invalid category or package name")
 		return "", false
 	}
 
@@ -31,7 +32,7 @@ fetch_template :: proc(
 
 	// curl to fetch
 	if utils.run_command({"curl", "-s", "-f", "-L", "-o", tmp_path, url}) != 0 {
-		utils.log_error("Failed to fetch template from %s", url)
+		errors.log_error("Failed to fetch template from %s", url)
 		return "", false
 	}
 

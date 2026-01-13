@@ -1,5 +1,6 @@
 package commands
 
+import "core:fmt"
 import "core:strings"
 
 import builder "../core/builder"
@@ -13,9 +14,9 @@ import utils "../utils"
 install_run :: proc(args: []string, config: ^Config) -> int {
 	// Sync repos if -S flag
 	if config.sync {
-		utils.log_info("Syncing repository index...")
+		errors.log_info("Syncing repository index...")
 		if utils.run_command({"xbps-install", "-S"}) != 0 {
-			utils.log_error("Failed to sync repositories")
+			errors.log_error("Failed to sync repositories")
 			return 1
 		}
 	}
@@ -26,16 +27,16 @@ install_run :: proc(args: []string, config: ^Config) -> int {
 	}
 
 	if len(args) == 0 {
-		utils.log_error("Usage: vuru install <package> [packages...]")
-		utils.log_error("       vuru install -S       (Sync repos)")
-		utils.log_error("       vuru install -Su      (Sync repos and update system)")
+		fmt.println("Usage: vuru install <package> [packages...]")
+		fmt.println("       vuru install -S       (sync repos)")
+		fmt.println("       vuru install -Su      (full system update)")
 		return 1
 	}
 
 	// Load index
 	idx, ok := index.index_load_or_fetch(config.index_url, false)
 	if !ok {
-		utils.log_error("Failed to load package index")
+		errors.log_error("Failed to load package index")
 		return 1
 	}
 	defer index.index_free(&idx)
@@ -52,7 +53,7 @@ install_run :: proc(args: []string, config: ^Config) -> int {
 					errors.print_error(err)
 				}
 			} else {
-				utils.log_error("Failed to resolve dependencies for %s", pkg_name)
+				errors.log_error("Failed to resolve dependencies for %s", pkg_name)
 			}
 			resolve.resolution_free(&res)
 			exit_code = 1
@@ -68,7 +69,7 @@ install_run :: proc(args: []string, config: ^Config) -> int {
 					errors.print_error(err)
 				}
 			} else {
-				utils.log_error(
+				errors.log_error(
 					"Cannot resolve: %s",
 					strings.join(res.missing[:], ", ", context.temp_allocator),
 				)
@@ -91,7 +92,7 @@ install_run :: proc(args: []string, config: ^Config) -> int {
 
 		// Confirm unless -y
 		if !config.yes && !transaction.transaction_confirm(&tx) {
-			utils.log_info("Installation cancelled")
+			errors.log_info("Installation cancelled")
 			continue
 		}
 
@@ -108,7 +109,7 @@ install_run :: proc(args: []string, config: ^Config) -> int {
 		if has_build {
 			cfg_result, cfg_ok := builder.default_build_config()
 			if !cfg_ok {
-				utils.log_error("VUP repository not found. Run 'vuru clone' first.")
+				errors.log_error("VUP repository not found. Run 'vuru clone' first.")
 				exit_code = 1
 				continue
 			}
@@ -142,6 +143,6 @@ install_update :: proc(config: ^Config) -> int {
 		append(&cmd, "-r", config.rootdir)
 	}
 
-	utils.log_info("Updating system packages...")
+	errors.log_info("Updating system packages...")
 	return utils.run_command(cmd[:])
 }

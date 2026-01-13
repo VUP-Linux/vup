@@ -3,6 +3,7 @@ package commands
 import "core:fmt"
 import "core:strings"
 
+import errors "../core/errors"
 import index "../core/index"
 import resolve "../core/resolve"
 import template "../core/template"
@@ -11,14 +12,14 @@ import utils "../utils"
 // Info command implementation
 info_run :: proc(args: []string, config: ^Config) -> int {
 	if len(args) == 0 {
-		utils.log_error("Usage: vuru info <package>")
+		errors.log_error("Usage: vuru info <package>")
 		return 1
 	}
 
 	// Load index
 	idx, ok := index.index_load_or_fetch(config.index_url, false)
 	if !ok {
-		utils.log_error("Failed to load package index")
+		errors.log_error("Failed to load package index")
 		return 1
 	}
 	defer index.index_free(&idx)
@@ -68,7 +69,7 @@ info_run :: proc(args: []string, config: ^Config) -> int {
 		} else {
 			// Check official repos
 			if utils.run_command({"xbps-query", "-R", pkg_name}) != 0 {
-				utils.log_error("Package '%s' not found", pkg_name)
+				errors.log_error("Package '%s' not found", pkg_name)
 				return 1
 			}
 		}

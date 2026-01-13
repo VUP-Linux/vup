@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:os"
 import "core:strings"
 
+import errors "../core/errors"
 import index "../core/index"
 import template "../core/template"
 import xbps "../core/xbps"
@@ -29,7 +30,7 @@ update_run :: proc(args: []string, config: ^Config) -> int {
 	// Load index (force sync)
 	idx, ok := index.index_load_or_fetch(config.index_url, true)
 	if !ok {
-		utils.log_error("Failed to load package index")
+		errors.log_error("Failed to load package index")
 		return 1
 	}
 	defer index.index_free(&idx)
@@ -115,7 +116,7 @@ show_batch_review :: proc(upgrades: []Upgrade_Info) -> bool {
 	content := strings.to_string(builder)
 	review_path, path_ok := utils.diff_write_temp_file(content, context.temp_allocator)
 	if !path_ok {
-		utils.log_error("Failed to create review file")
+		errors.log_error("Failed to create review file")
 		return false
 	}
 	defer os.remove(review_path)
@@ -141,11 +142,11 @@ show_batch_review :: proc(upgrades: []Upgrade_Info) -> bool {
 
 // Upgrade all VUP packages
 xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
-	utils.log_info("Checking for VUP package updates...")
+	errors.log_info("Checking for VUP package updates...")
 
 	output, ok := utils.run_command_output({"xbps-query", "-l"})
 	if !ok {
-		utils.log_error("Failed to run xbps-query")
+		errors.log_error("Failed to run xbps-query")
 		return -1
 	}
 	defer delete(output)
@@ -199,7 +200,7 @@ xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
 	}
 
 	if len(upgrades) == 0 {
-		utils.log_info("All VUP packages are up to date")
+		errors.log_info("All VUP packages are up to date")
 		return 0
 	}
 
@@ -213,12 +214,12 @@ xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
 
 	// Phase 2: Fetch templates (unless --yes)
 	if !yes {
-		utils.log_info("Fetching templates for review...")
+		errors.log_info("Fetching templates for review...")
 
 		for &u in upgrades {
 			new_tmpl, tmpl_ok := template.fetch_template(u.category, u.name)
 			if !tmpl_ok {
-				utils.log_error("Failed to fetch template for %s", u.name)
+				errors.log_error("Failed to fetch template for %s", u.name)
 				return -1
 			}
 			u.new_template = new_tmpl
@@ -229,21 +230,21 @@ xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
 
 		// Phase 3: Show batch review
 		if !show_batch_review(upgrades[:]) {
-			utils.log_info("Upgrade cancelled by user")
+			errors.log_info("Upgrade cancelled by user")
 			return 0
 		}
 	}
 
 	// Phase 4: Perform upgrades
 	upgraded := 0
-	errors := 0
+	err_count := 0
 
 	for u in upgrades {
-		utils.log_info("Upgrading %s...", u.name)
+		errors.log_info("Upgrading %s...", u.name)
 
 		if run_xbps_upgrade(u.repo_url, u.name, yes) != 0 {
-			utils.log_error("Failed to upgrade %s", u.name)
-			errors += 1
+			errors.log_error("Failed to upgrade %s", u.name)
+			err_count += 1
 		} else {
 			// Verify upgrade happened
 			new_ver, ver_ok := get_installed_version(u.name, context.temp_allocator)
@@ -258,10 +259,10 @@ xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
 	}
 
 	if upgraded > 0 {
-		utils.log_info("Upgraded %d package(s)", upgraded)
-	} else if errors == 0 {
-		utils.log_info("All VUP packages are up to date")
+		errors.log_info("Upgraded %d package(s)", upgraded)
+	} else if err_count == 0 {
+		errors.log_info("All VUP packages are up to date")
 	}
 
-	return -1 if errors > 0 else 0
+	return -1 if err_count > 0 else 0
 }

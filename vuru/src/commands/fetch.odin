@@ -1,13 +1,13 @@
 package commands
 
 import utils "../utils"
+import "core:fmt"
 
 // Fetch command - wrapper around xbps-fetch
 fetch_run :: proc(args: []string, config: ^Config) -> int {
 	if len(args) == 0 {
-		utils.log_error("Usage: vuru fetch <url> [urls...]")
-		utils.log_error("Options:")
-		utils.log_error("  -v, --verbose   Verbose output")
+		fmt.println("Usage: vuru fetch <url> [urls...]")
+		fmt.println("  -v, --verbose   Verbose output")
 		return 1
 	}
 

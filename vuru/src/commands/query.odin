@@ -3,6 +3,7 @@ package commands
 import "core:fmt"
 import "core:strings"
 
+import errors "../core/errors"
 import index "../core/index"
 import resolve "../core/resolve"
 import template "../core/template"
@@ -92,7 +93,7 @@ query_info :: proc(args: []string, config: ^Config) -> int {
 	// Load VUP index
 	idx, ok := index.index_load_or_fetch(config.index_url, false)
 	if !ok {
-		utils.log_error("Failed to load package index")
+		errors.log_error("Failed to load package index")
 		return 1
 	}
 	defer index.index_free(&idx)
@@ -173,11 +174,11 @@ query_info :: proc(args: []string, config: ^Config) -> int {
 				append(&cmd, "-r", config.rootdir)
 			}
 			if utils.run_command(cmd[:]) != 0 {
-				utils.log_error("Package '%s' not found", pkg_name)
+				errors.log_error("Package '%s' not found", pkg_name)
 				return 1
 			}
 		} else {
-			utils.log_error("VUP package '%s' not found", pkg_name)
+			errors.log_error("VUP package '%s' not found", pkg_name)
 			return 1
 		}
 	}

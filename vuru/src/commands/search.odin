@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:os"
 import "core:strings"
 
+import errors "../core/errors"
 import index "../core/index"
 import utils "../utils"
 
@@ -23,14 +24,14 @@ Search_Result :: struct {
 // Search command implementation
 search_run :: proc(args: []string, config: ^Config) -> int {
 	if len(args) == 0 {
-		utils.log_error("Usage: vuru search <query>")
+		errors.log_error("Usage: vuru search <query>")
 		return 1
 	}
 
 	// Load index
 	idx, ok := index.index_load_or_fetch(config.index_url, false)
 	if !ok {
-		utils.log_error("Failed to load package index")
+		errors.log_error("Failed to load package index")
 		return 1
 	}
 	defer index.index_free(&idx)
@@ -156,9 +157,9 @@ format_search_results :: proc(
 		fmt.sbprintf(
 			&builder,
 			"%s==> VUP Packages (%d)%s\n",
-			utils.COLOR_INFO,
+			errors.COLOR_INFO,
 			len(vup_results),
-			utils.COLOR_RESET,
+			errors.COLOR_RESET,
 		)
 		fmt.sbprintf(
 			&builder,
@@ -191,9 +192,9 @@ format_search_results :: proc(
 		fmt.sbprintf(
 			&builder,
 			"%s==> Official Void Packages (%d)%s\n",
-			utils.COLOR_INFO,
+			errors.COLOR_INFO,
 			len(official_results),
-			utils.COLOR_RESET,
+			errors.COLOR_RESET,
 		)
 		fmt.sbprintf(&builder, "%-30s %-15s %s\n", "NAME", "VERSION", "DESCRIPTION")
 		strings.write_string(&builder, strings.repeat("-", 80, context.temp_allocator))

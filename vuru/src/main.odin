@@ -6,7 +6,6 @@ import "core:strings"
 
 import commands "commands"
 import errors "core/errors"
-import utils "utils"
 
 VERSION :: "0.5.0"
 INDEX_URL :: "https://vup-linux.github.io/vup/index.json"
@@ -120,7 +119,7 @@ run :: proc() -> int {
 						print_help()
 						return 0
 					case:
-						utils.log_error("Unknown option: -%c", c)
+						errors.log_error("Unknown option: -%c", c)
 						return 1
 					}
 				}
@@ -189,6 +188,10 @@ run :: proc() -> int {
 		}
 		if config.show_deps {
 			errors.print_flag_error("-x/--deps", "query", "vuru query -x <pkg>")
+			return 1
+		}
+		if config.verbose {
+			errors.print_flag_error("-v/--verbose", "a command", "vuru query -v <pkg>")
 			return 1
 		}
 		print_help()
