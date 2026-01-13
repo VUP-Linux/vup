@@ -247,9 +247,4 @@ print_help :: proc() {
 	fmt.println("  -h, --help       Show help")
 	fmt.println()
 	fmt.println("Aliases: q=query, s=search, i=install, r=remove, u=update")
-	fmt.println()
-	fmt.println("Examples:")
-	fmt.println("  vuru query -s vim      Search for vim")
-	fmt.println("  vuru install -Sy vim   Sync + install vim")
-	fmt.println("  vuru remove -o         Remove orphans")
 }

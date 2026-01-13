@@ -6,59 +6,69 @@ import "core:os"
 
 // ANSI color codes (centralized here for all of vuru)
 COLOR_RESET :: "\033[0m"
-COLOR_RED :: "\033[1;31m"
-COLOR_GREEN :: "\033[1;32m"
-COLOR_YELLOW :: "\033[1;33m"
-COLOR_BLUE :: "\033[1;34m"
-COLOR_CYAN :: "\033[1;36m"
-COLOR_DIM :: "\033[2m"
+COLOR_BOLD :: "\033[1m"
+COLOR_RED :: "\033[31m"
+COLOR_GREEN :: "\033[32m"
+COLOR_YELLOW :: "\033[33m"
+COLOR_BLUE :: "\033[34m"
+COLOR_MAGENTA :: "\033[35m"
+COLOR_CYAN :: "\033[36m"
+COLOR_WHITE :: "\033[37m"
 
-// Aliases for semantic usage
-COLOR_ERROR :: COLOR_RED
-COLOR_WARNING :: COLOR_YELLOW
-COLOR_INFO :: COLOR_BLUE
+// Detailed codes
+COLOR_ERROR_BG :: "\033[41;37;1m" // White on Red Background for heavy errors? Maybe too much.
+// Let's stick to text colors but use BOLD for emphasis.
+COLOR_ERROR :: "\033[1;31m" // Bold Red
+COLOR_WARNING :: "\033[1;33m" // Bold Yellow
+COLOR_SUCCESS :: "\033[1;32m" // Bold Green
+COLOR_INFO :: "\033[1;36m" // Bold Cyan
+COLOR_DIM :: "\033[2m"
 
 // Print error with full formatting
 print_error :: proc(err: Error) {
-	fmt.eprintf("%s[error]%s ", COLOR_RED, COLOR_RESET)
+	fmt.eprintf("%s[ERROR]%s ", COLOR_ERROR, COLOR_RESET)
 
 	if len(err.ctx) > 0 {
-		fmt.eprintf("%s: %s\n", err.message, err.ctx)
+		// Message: Context (Context is bold/white for readability)
+		fmt.eprintf("%s: %s%s%s\n", err.message, COLOR_BOLD, err.ctx, COLOR_RESET)
 	} else {
 		fmt.eprintln(err.message)
 	}
 
 	if len(err.hint) > 0 {
-		fmt.eprintf("\n%s%s%s\n", COLOR_DIM, err.hint, COLOR_RESET)
+		// Hints indented with a subtle arrow
+		fmt.eprintf("%s  -> %s%s\n", COLOR_DIM, err.hint, COLOR_RESET)
 	}
 }
 
 // Print error with just message (no hint)
 print_error_brief :: proc(err: Error) {
-	fmt.eprintf("%s[error]%s ", COLOR_RED, COLOR_RESET)
+	fmt.eprintf("%s[ERROR]%s ", COLOR_ERROR, COLOR_RESET)
 
 	if len(err.ctx) > 0 {
-		fmt.eprintf("%s: %s\n", err.message, err.ctx)
+		fmt.eprintf("%s: %s%s%s\n", err.message, COLOR_BOLD, err.ctx, COLOR_RESET)
 	} else {
 		fmt.eprintln(err.message)
 	}
 }
 
-// Print warning
-print_warning :: proc(msg: string, args: ..any) {
-	fmt.eprintf("%s[warn]%s ", COLOR_YELLOW, COLOR_RESET)
-	fmt.eprintf(msg, ..args)
+// Global log_warning (consolidated)
+log_warning :: proc(format: string, args: ..any) {
+	fmt.eprintf("%s[WARN]%s  ", COLOR_WARNING, COLOR_RESET)
+	fmt.eprintf(format, ..args)
 	fmt.eprintln()
 }
+// Alias for backward compatibility if needed, but we prefer log_warning
+print_warning :: log_warning
 
 // Print multiple errors (e.g., for dependency resolution)
 print_error_list :: proc(title: string, errs: []Error) {
-	fmt.eprintf("%s[error]%s %s\n", COLOR_RED, COLOR_RESET, title)
+	fmt.eprintf("%s[ERROR]%s %s\n", COLOR_ERROR, COLOR_RESET, title)
 
 	for err in errs {
 		fmt.eprintf("  • %s", err.message)
 		if len(err.ctx) > 0 {
-			fmt.eprintf(": %s", err.ctx)
+			fmt.eprintf(": %s%s%s", COLOR_BOLD, err.ctx, COLOR_RESET)
 		}
 		fmt.eprintln()
 	}
@@ -66,7 +76,7 @@ print_error_list :: proc(title: string, errs: []Error) {
 	// Show first hint if available
 	for err in errs {
 		if len(err.hint) > 0 {
-			fmt.eprintf("\n%s%s%s\n", COLOR_DIM, err.hint, COLOR_RESET)
+			fmt.eprintf("\n%s  -> %s%s\n", COLOR_DIM, err.hint, COLOR_RESET)
 			break
 		}
 	}
@@ -82,28 +92,28 @@ format_error :: proc(err: Error, allocator := context.allocator) -> string {
 
 // Print flag requires command error with example
 print_flag_error :: proc(flag: string, command: string, example: string) {
-	fmt.eprintf("%s[error]%s ", COLOR_RED, COLOR_RESET)
-	fmt.eprintf("%s requires '%s' command\n", flag, command)
+	fmt.eprintf("%s[ERROR]%s ", COLOR_ERROR, COLOR_RESET)
+	fmt.eprintf("%s requires '%s%s%s' command\n", flag, COLOR_BOLD, command, COLOR_RESET)
 	fmt.eprintf("%s  Example: %s%s\n", COLOR_DIM, example, COLOR_RESET)
 }
 
-// Simple error logging (replaces errors.log_error for consistency)
+// Simple error logging
 log_error :: proc(format: string, args: ..any) {
-	fmt.eprintf("%s[error]%s ", COLOR_RED, COLOR_RESET)
+	fmt.eprintf("%s[ERROR]%s ", COLOR_ERROR, COLOR_RESET)
 	fmt.eprintf(format, ..args)
 	fmt.eprintln()
 }
 
 // Simple info logging
 log_info :: proc(format: string, args: ..any) {
-	fmt.eprintf("%s[info]%s ", COLOR_CYAN, COLOR_RESET)
+	fmt.eprintf("%s[INFO]%s  ", COLOR_INFO, COLOR_RESET)
 	fmt.eprintf(format, ..args)
 	fmt.eprintln()
 }
 
-// Simple warning logging
-log_warning :: proc(format: string, args: ..any) {
-	fmt.eprintf("%s[warn]%s ", COLOR_YELLOW, COLOR_RESET)
+// Success logging (New!)
+log_success :: proc(format: string, args: ..any) {
+	fmt.eprintf("%s[OK]%s    ", COLOR_SUCCESS, COLOR_RESET)
 	fmt.eprintf(format, ..args)
 	fmt.eprintln()
 }

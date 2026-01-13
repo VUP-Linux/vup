@@ -159,177 +159,101 @@ get_hint :: proc(kind: Error_Kind, ctx: string = "") -> string {
 	#partial switch kind {
 	case .Package_Not_Found:
 		return fmt.tprintf(
-			"'%s' was not found in VUP or official Void repos.\n" +
-			"  • Check spelling: vuru search %s\n" +
-			"  • Search all repos: vuru query %s\n" +
-			"  • Request package: https://github.com/VUP-Linux/vup/issues",
-			ctx,
+			"Check spelling or search all repos:\n" +
+			"    • vuru search %s\n" +
+			"    • vuru query %s\n" +
+			"    • Request package: https://github.com/VUP-Linux/vup/issues",
 			ctx,
 			ctx,
 		)
 
 	case .Package_Not_In_Repos:
 		return fmt.tprintf(
-			"'%s' is not in official Void repos.\n" +
-			"  • Check VUP: vuru search %s\n" +
-			"  • Sync repos: sudo xbps-install -S",
-			ctx,
+			"Check VUP or sync repositories:\n" +
+			"    • vuru search %s\n" +
+			"    • sudo xbps-install -S",
 			ctx,
 		)
 
 	case .Package_Arch_Unavailable:
-		return fmt.tprintf(
-			"'%s' has no binary for your architecture.\n" +
-			"  • Try building from source: vuru -b %s\n" +
-			"  • Check available archs in VUP index",
-			ctx,
-			ctx,
-		)
+		return fmt.tprintf("Try building from source instead:\n" + "    • vuru -b %s", ctx)
 
 	case .Package_Already_Installed:
 		return fmt.tprintf(
-			"'%s' is already installed.\n" +
-			"  • Check version: xbps-query %s\n" +
-			"  • Reinstall: sudo xbps-install -f %s",
-			ctx,
-			ctx,
+			"To reinstall or force update:\n" + "    • sudo xbps-install -f %s",
 			ctx,
 		)
 
 	case .Package_Not_Installed:
-		return fmt.tprintf(
-			"'%s' is not installed.\n" + "  • Install it: vuru install %s",
-			ctx,
-			ctx,
-		)
+		return fmt.tprintf("Install it with:\n" + "    • vuru install %s", ctx)
 
 	case .Dependency_Not_Found:
 		return fmt.tprintf(
-			"Dependency '%s' could not be resolved.\n" +
-			"  • Check if it exists: vuru search %s\n" +
-			"  • Try syncing: vuru -S",
-			ctx,
+			"Try syncing or searching for the dependency:\n" +
+			"    • vuru -S\n" +
+			"    • vuru search %s",
 			ctx,
 		)
 
 	case .Dependency_Cycle:
-		return(
-			"Circular dependencies detected. This is likely a packaging bug.\n" +
-			"  • Report issue: https://github.com/VUP-Linux/vup/issues" \
-		)
+		return "Report this circular dependency issues at https://github.com/VUP-Linux/vup/issues"
 
 	case .Dependency_Conflict:
-		return(
-			"Conflicting package versions required.\n" +
-			"  • Try updating first: vuru -u\n" +
-			"  • Check for held packages: xbps-pkgdb -m" \
-		)
+		return "Try updating your system first: vuru -u"
 
 	case .Index_Fetch_Failed:
-		return(
-			"Could not download package index.\n" +
-			"  • Check internet connection\n" +
-			"  • Try again: vuru -S" \
-		)
+		return "Check your internet connection or try again with 'vuru -S'"
 
 	case .Index_Parse_Failed:
-		return(
-			"Package index is corrupted.\n" +
-			"  • Force refresh: vuru -S\n" +
-			"  • Clear cache: rm -rf ~/.cache/vup" \
-		)
+		return "Force refresh the index:\n" + "    • vuru -S\n" + "    • rm -rf ~/.cache/vup"
 
 	case .VUP_Repo_Not_Found:
-		return(
-			"VUP repository not cloned.\n" +
-			"  • Clone it: vuru clone\n" +
-			"  • Default location: ~/.local/share/vup" \
-		)
+		return "Clone it manually or run 'vuru clone'"
 
 	case .Xbps_Src_Not_Found:
 		return(
-			"xbps-src not found in current directory.\n" +
-			"  • Make sure you're in a void-packages directory\n" +
-			"  • Clone void-packages: git clone https://github.com/void-linux/void-packages" \
+			"Ensure you are in a valid void-packages directory or clone it:\n" +
+			"    • git clone https://github.com/void-linux/void-packages" \
 		)
 
 	case .Template_Not_Found:
-		return fmt.tprintf(
-			"Template '%s' not found.\n" +
-			"  • Check the package exists in srcpkgs/\n" +
-			"  • Ensure spelling is correct",
-			ctx,
-		)
+		return fmt.tprintf("Verify '%s/template' exists in srcpkgs/", ctx)
 
 	case .Arch_Not_Supported:
-		return fmt.tprintf(
-			"'%s' is not available.\n" +
-			"  • Package may only support certain architectures\n" +
-			"  • Check package template for 'archs' field",
-			ctx,
-		)
+		return "Check the 'archs' field in the package template."
 
 	case .Missing_Argument:
-		return fmt.tprintf("Missing %s.\n" + "  • Check command usage: vuru help", ctx)
+		return fmt.tprintf("See usage: vuru %s --help", ctx) // Assuming ctx is the command name if avail, or generalized
 
 	case .Build_Failed:
 		return fmt.tprintf(
-			"Build of '%s' failed.\n" +
-			"  • Check build log above\n" +
-			"  • Install build deps: vuru -b %s\n" +
-			"  • Report issue if persists",
-			ctx,
+			"Check build logs above. To install missing build deps:\n" + "    • vuru -b %s",
 			ctx,
 		)
 
 	case .Build_Deps_Missing:
-		return(
-			"Build dependencies are missing.\n" +
-			"  • Install base-devel: sudo xbps-install base-devel\n" +
-			"  • Check template for makedepends" \
-		)
+		return "Install base-devel: sudo xbps-install base-devel"
 
 	case .Network_Unavailable:
-		return(
-			"No network connection.\n" +
-			"  • Check your connection\n" +
-			"  • Cached index may still work for local operations" \
-		)
+		return "Check your connection. Cached operations may still work."
 
 	case .Permission_Denied:
-		return(
-			"Operation requires root privileges.\n" +
-			"  • Use sudo for system operations\n" +
-			"  • Check file permissions" \
-		)
+		return "Run with 'sudo' or check file permissions."
 
 	case .Home_Not_Set:
-		return(
-			"HOME environment variable is not set.\n" +
-			"  • Set it: export HOME=/home/yourusername" \
-		)
+		return "Set HOME environment variable: export HOME=/home/youruser"
 
 	case .Arch_Detection_Failed:
-		return "Could not detect system architecture.\n" + "  • Check: uname -m"
+		return "Verify 'uname -m' works."
 
 	case .Flag_Requires_Command:
-		return fmt.tprintf(
-			"'%s' needs a command to work with.\n" + "  • Check usage: vuru help",
-			ctx,
-		)
+		return "Check usage: vuru help"
 
 	case .Missing_Command:
-		return(
-			"No command specified.\n" +
-			"  • Usage: vuru <command> [options]\n" +
-			"  • See: vuru help" \
-		)
+		return "See available commands: vuru help"
 
 	case .Unknown_Command:
-		return fmt.tprintf(
-			"'%s' is not a valid command.\n" + "  • See available commands: vuru help",
-			ctx,
-		)
+		return "See available commands: vuru help"
 
 	case:
 		return ""
