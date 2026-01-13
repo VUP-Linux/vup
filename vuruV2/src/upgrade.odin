@@ -123,7 +123,7 @@ show_batch_review :: proc(upgrades: []Upgrade_Info) -> bool {
 xbps_upgrade_all :: proc(idx: ^Index, yes: bool) -> int {
 	log_info("Checking for VUP package updates...")
 
-	output, ok := run_command_output({"xbps-query", "-l", "2>/dev/null"})
+	output, ok := run_command_output({"xbps-query", "-l"})
 	if !ok {
 		log_error("Failed to run xbps-query")
 		return -1
