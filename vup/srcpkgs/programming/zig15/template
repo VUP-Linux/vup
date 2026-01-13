@@ -1,7 +1,7 @@
 # Template file for 'zig15'
 pkgname=zig15
 version=0.15.2
-revision=1
+revision=2
 archs="x86_64"
 conflicts="zig"
 short_desc="Programming language designed for robustness, optimality, and clarity"

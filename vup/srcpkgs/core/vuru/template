@@ -3,7 +3,6 @@ pkgname=vuru
 version=0.3.7
 revision=2
 archs="x86_64 aarch64"
-revision=2
 build_style=gnu-makefile
 make_install_args="PREFIX=/usr"
 depends="curl"
