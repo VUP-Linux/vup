@@ -1,9 +1,39 @@
 # Template file for 'visual-studio-code'
 pkgname=visual-studio-code
 version=1.108.0
-revision=1
+revision=3
 archs="x86_64 aarch64 armv7l"
-depends="alsa-lib at-spi2-core cairo cups dbus expat glib gtk+3 libX11 libXcomposite libXdamage libXext libXfixes libXrandr libXScrnSaver libdrm libxcb libxkbcommon libxkbfile libxshmfence mesa nspr nss pango xdg-utils libsecret lsof gnupg shared-mime-info"
+depends="
+ alsa-lib
+ at-spi2-core
+ cairo
+ cups
+ dbus
+ expat
+ glib
+ gnupg
+ gtk+3
+ libsecret
+ libX11
+ libXcomposite
+ libXdamage
+ libXext
+ libXfixes
+ libXrandr
+ libXScrnSaver
+ libdrm
+ libxcb
+ libxkbcommon
+ libxkbfile
+ libxshmfence
+ lsof
+ mesa
+ nspr
+ nss
+ pango
+ shared-mime-info
+ xdg-utils
+"
 short_desc="Visual Studio Code (vscode): Editor for building and debugging modern web and cloud applications"
 maintainer="AmarBego <begovicamar@proton.me>"
 license="custom:commercial"
@@ -64,30 +94,28 @@ EOF
 	vbin code.sh code
 
 	# Desktop files and icons
+	cp "${XBPS_SRCDISTDIR}/${pkgname}-${version}/code.desktop.in" code.desktop
+	cp "${XBPS_SRCDISTDIR}/${pkgname}-${version}/code-url-handler.desktop.in" code-url-handler.desktop
+	cp "${XBPS_SRCDISTDIR}/${pkgname}-${version}/code-workspace.xml.in" ${pkgname}-workspace.xml
+
 	# Process desktop files
-	sed -e "s/@@NAME_LONG@@/Visual Studio Code/g" \
+	vsed -i "code.desktop" \
+		-e "s/@@NAME_LONG@@/Visual Studio Code/g" \
 		-e "s/@@NAME_SHORT@@/Code/g" \
 		-e "s/@@NAME@@/code/g" \
 		-e "s#@@EXEC@@#/usr/bin/code#g" \
-		-e "s/@@ICON@@/visual-studio-code/g" \
-		-e "s/@@URLPROTOCOL@@/vscode/g" \
-		"${XBPS_SRCDISTDIR}/${pkgname}-${version}/code.desktop.in" > code.desktop
+		-e "s/@@ICON@@/visual-studio-code/g"
 
-	sed -e "s/@@NAME_LONG@@/Visual Studio Code/g" \
-		-e "s/@@NAME_SHORT@@/Code/g" \
-		-e "s/@@NAME@@/code/g" \
+	vsed -i "code-url-handler.desktop" \
+		-e "s/@@NAME_LONG@@/Visual Studio Code/g" \
 		-e "s#@@EXEC@@#/usr/bin/code#g" \
 		-e "s/@@ICON@@/visual-studio-code/g" \
-		-e "s/@@URLPROTOCOL@@/vscode/g" \
-		"${XBPS_SRCDISTDIR}/${pkgname}-${version}/code-url-handler.desktop.in" > code-url-handler.desktop
+		-e "s/@@URLPROTOCOL@@/vscode/g"
 
-	sed -e "s/@@NAME_LONG@@/Visual Studio Code/g" \
-		-e "s/@@NAME_SHORT@@/Code/g" \
-		-e "s/@@NAME@@/code/g" \
-		-e "s#@@EXEC@@#/usr/bin/code#g" \
-		-e "s/@@ICON@@/visual-studio-code/g" \
-		-e "s/@@URLPROTOCOL@@/vscode/g" \
-		"${XBPS_SRCDISTDIR}/${pkgname}-${version}/code-workspace.xml.in" > ${pkgname}-workspace.xml
+	# Process workspace xml
+	vsed -i "${pkgname}-workspace.xml" \
+		-e "s/@@NAME_LONG@@/Visual Studio Code/g" \
+		-e "s/@@NAME@@/code/g"
 
 	vinstall code.desktop 644 usr/share/applications
 	vinstall code-url-handler.desktop 644 usr/share/applications

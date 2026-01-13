@@ -1,0 +1,59 @@
+name: Auto Update Packages
+
+on:
+  schedule:
+    # Run daily at 06:00 UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-antigravity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.BOT_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run Update Script
+        id: update
+        run: |
+          sudo python3 vup/scripts/update-jobs/update_antigravity.py
+          if git diff --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            # Extract new version for PR title
+            NEW_VERSION=$(grep -m1 '^version=' vup/srcpkgs/editors/antigravity/template | cut -d= -f2)
+            echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.update.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.BOT_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
+          commit-message: "antigravity: update to ${{ steps.update.outputs.version }}"
+          title: "antigravity: update to ${{ steps.update.outputs.version }}"
+          body: |
+            Automated update for `antigravity` package.
+            
+            **New Version:** ${{ steps.update.outputs.version }}
+            
+            ---
+            *This PR was created automatically by the update bot.*
+          branch: auto-update/antigravity
+          delete-branch: true
+          labels: |
+            automated
+            package-update
