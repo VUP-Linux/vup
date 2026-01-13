@@ -33,10 +33,18 @@ run :: proc() -> int {
 
 	// Flag parsing loop
 	skip_next := false
+	src_cmd_index := -1 // Track where 'src' command appears
 	for arg, i in args {
 		if skip_next {
 			skip_next = false
 			continue
+		}
+
+		// Special case: 'src' command should receive raw args (for xbps-src flags)
+		if arg == "src" {
+			src_cmd_index = i
+			command_name = "src"
+			break
 		}
 
 		if strings.has_prefix(arg, "-") {
@@ -154,7 +162,11 @@ run :: proc() -> int {
 	case "fetch":
 		return commands.fetch_run(command_args[:], &config)
 	case "src":
-		return commands.src_run(command_args[:], &config)
+		// Pass raw args after 'src' command (bypass vuru's flag parsing)
+		if src_cmd_index >= 0 && src_cmd_index + 1 < len(args) {
+			return commands.src_run(args[src_cmd_index + 1:], &config)
+		}
+		return commands.src_run([]string{}, &config)
 	case "help":
 		print_help()
 		return 0

@@ -312,6 +312,92 @@ extract_pkg_name :: proc(cmd: string, args: []string) -> string {
 	return ""
 }
 
+// Supported cross-compilation targets for -a flag
+CROSS_TARGETS :: []string {
+	"aarch64-musl",
+	"aarch64",
+	"armv5te-musl",
+	"armv5te",
+	"armv5tel-musl",
+	"armv5tel",
+	"armv6hf-musl",
+	"armv6hf",
+	"armv6l-musl",
+	"armv6l",
+	"armv7hf-musl",
+	"armv7hf",
+	"armv7l-musl",
+	"armv7l",
+	"i686-musl",
+	"i686",
+	"mips-musl",
+	"mipsel-musl",
+	"mipselhf-musl",
+	"mipshf-musl",
+	"ppc-musl",
+	"ppc",
+	"ppc64-musl",
+	"ppc64",
+	"ppc64le-musl",
+	"ppc64le",
+	"ppcle-musl",
+	"ppcle",
+	"riscv64-musl",
+	"riscv64",
+	"x86_64-musl",
+	"x86_64",
+}
+
+is_valid_cross_target :: proc(target: string) -> bool {
+	for t in CROSS_TARGETS {
+		if t == target {
+			return true
+		}
+	}
+	return false
+}
+
+// Parse top-level flags from args, returning the cross target (if any), remaining args, and success status
+parse_top_level_flags :: proc(
+	args: []string,
+) -> (
+	cross_target: string,
+	cmd_args: []string,
+	ok: bool,
+) {
+	i := 0
+	target := ""
+
+	// Parse leading flags before the command
+	for i < len(args) {
+		arg := args[i]
+
+		if arg == "-a" {
+			// Cross-compile flag
+			if i + 1 >= len(args) {
+				errors.log_error("Option -a requires a target architecture")
+				return "", nil, false
+			}
+			target = args[i + 1]
+			if !is_valid_cross_target(target) {
+				errors.log_error("Invalid cross-compile target: %s", target)
+				errors.log_info("Run 'vuru src' to see supported targets")
+				return "", nil, false
+			}
+			i += 2
+		} else if strings.has_prefix(arg, "-") {
+			// Other top-level flags we might add later
+			errors.log_error("Unknown option: %s", arg)
+			return "", nil, false
+		} else {
+			// Found the command, return remaining args
+			break
+		}
+	}
+
+	return target, args[i:], true
+}
+
 // Main entry point for xbps-src wrapper
 xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 	if len(args) == 0 {
@@ -319,8 +405,19 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 		return false, {}
 	}
 
-	cmd := args[0]
-	remaining_args := args[1:] if len(args) > 1 else []string{}
+	// Parse top-level flags like -a <target>
+	cross_target, cmd_args, parse_ok := parse_top_level_flags(args)
+	if !parse_ok {
+		return false, {}
+	}
+
+	if len(cmd_args) == 0 {
+		xbps_src_usage()
+		return false, {}
+	}
+
+	cmd := cmd_args[0]
+	remaining_args := cmd_args[1:] if len(cmd_args) > 1 else []string{}
 
 	// Find xbps-src
 	xbps_src_path, found := find_xbps_src()
@@ -354,20 +451,35 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 		}
 	}
 
+	// Build the full xbps-src args, including -a if specified
+	xbps_args: [dynamic]string
+	defer delete(xbps_args)
+
+	if cross_target != "" {
+		append(&xbps_args, "-a")
+		append(&xbps_args, cross_target)
+	}
+	for arg in cmd_args {
+		append(&xbps_args, arg)
+	}
+
 	// Run the actual xbps-src command
-	joined_args := strings.join(args, " ", context.temp_allocator)
+	joined_args := strings.join(xbps_args[:], " ", context.temp_allocator)
 	errors.log_info("Running: xbps-src %s", joined_args)
-	if !run_xbps_src(xbps_src_path, args) {
+	if !run_xbps_src(xbps_src_path, xbps_args[:]) {
 		return false, errors.make_error(.Command_Failed, fmt.tprintf("xbps-src %s", joined_args))
 	}
 	return true, {}
 }
 
 xbps_src_usage :: proc() {
-	fmt.println("Usage: vuru src <command> [options] [package]")
+	fmt.println("Usage: vuru src [-a <target>] <command> [options] [package]")
 	fmt.println()
 	fmt.println("Wrapper for xbps-src that automatically installs VUP dependencies.")
 	fmt.println("Run this from within a void-packages checkout.")
+	fmt.println()
+	fmt.println("Options:")
+	fmt.println("  -a <target>  Cross compile packages for target architecture")
 	fmt.println()
 	fmt.println("Commands:")
 	fmt.println("  pkg <pkgname>        Build binary package for <pkgname>")
@@ -380,16 +492,22 @@ xbps_src_usage :: proc() {
 	fmt.println("  show <pkgname>       Show info about <pkgname>")
 	fmt.println("  ... and all other xbps-src commands")
 	fmt.println()
-	fmt.println("Example:")
-	fmt.println("  # In your void-packages checkout:")
-	fmt.println("  cd ~/void-packages")
-	fmt.println("  ")
-	fmt.println("  # Copy template from VUP")
-	fmt.println("  cp -r ~/vup/vup/srcpkgs/editors/antigravity srcpkgs/")
-	fmt.println("  ")
-	fmt.println("  # Build with VUP deps auto-installed")
+	fmt.println("Supported cross-compile targets:")
+	fmt.println("  aarch64-musl    aarch64       armv5te-musl   armv5te")
+	fmt.println("  armv5tel-musl   armv5tel      armv6hf-musl   armv6hf")
+	fmt.println("  armv6l-musl     armv6l        armv7hf-musl   armv7hf")
+	fmt.println("  armv7l-musl     armv7l        i686-musl      i686")
+	fmt.println("  mips-musl       mipsel-musl   mipselhf-musl  mipshf-musl")
+	fmt.println("  ppc-musl        ppc           ppc64-musl     ppc64")
+	fmt.println("  ppc64le-musl    ppc64le       ppcle-musl     ppcle")
+	fmt.println("  riscv64-musl    riscv64       x86_64-musl    x86_64")
+	fmt.println()
+	fmt.println("Examples:")
+	fmt.println("  # Build for native architecture:")
 	fmt.println("  vuru src pkg antigravity")
 	fmt.println()
-	fmt.println("This will automatically install any VUP dependencies (like vlang)")
-	fmt.println("before running 'xbps-src pkg antigravity'")
+	fmt.println("  # Cross-compile for ARM:")
+	fmt.println("  vuru src -a armv7l pkg visual-studio-code")
+	fmt.println()
+	fmt.println("VUP dependencies are automatically installed before building.")
 }
