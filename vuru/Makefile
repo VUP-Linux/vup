@@ -1,4 +1,4 @@
-# Makefile for vuruV3 (Odin version)
+# Makefile for vuru (Odin version)
 
 ODIN = odin
 ODIN_FLAGS = -o:speed

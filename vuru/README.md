@@ -1,4 +1,4 @@
-# vuruV3
+# vuru
 
 A **paru/yay-like** package manager for VUP (Void User Packages), written in [Odin](https://odin-lang.org).
 
@@ -94,40 +94,6 @@ vuru update
 vuru query visual-studio-code
 ```
 
-Examples:
-  vuru search editor           Search for packages
-  vuru install visual-studio-code
-  vuru -Sy install ferdium     Sync and install
-  vuru update                  Update all packages
-```
-
-## Project Structure
-
-```
-vuruV3/
-├── Makefile
-├── README.md
-├── build/
-│   └── vuru
-└── src/
-    ├── main.odin        # CLI entry point, argument parsing
-    ├── utils.odin       # Logging, file I/O, command execution
-    ├── index.odin       # Package index loading/parsing
-    ├── cache.odin       # Template caching
-    ├── search.odin      # Package search
-    ├── install.odin     # VUP install orchestration
-    ├── uninstall.odin   # VUP uninstall orchestration
-    ├── diff.odin        # Template diff and review
-    ├── upgrade.odin     # VUP upgrade orchestration
-    └── xbps/            # XBPS wrapper module
-        ├── common.odin  # Shared utilities (arg building, parsing)
-        ├── install.odin # xbps-install wrappers
-        ├── query.odin   # xbps-query wrappers
-        ├── remove.odin  # xbps-remove wrappers
-        ├── upgrade.odin # xbps upgrade operations
-        └── version.odin # xbps-uhelper version comparison
-```
-
 ## Architecture
 
 ### Package Structure
@@ -181,7 +147,7 @@ resolve :: proc(r: ^Resolver, targets: []string) -> ([]string, bool) {
 
 - **vuru (C)** - Original implementation (~2000 LOC)
 - **vuruV2 (V)** - First rewrite (~1050 LOC)
-- **vuruV3 (Odin)** - Current version
+- **vuru (Odin)** - Current version
 
 ## License
 

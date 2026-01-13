@@ -21,7 +21,7 @@ RUN xbps-install -Syu -y xbps && \
 
 # Build and install vuru (VUP package manager)
 # This enables installing VUP dependencies during builds
-COPY vuruV3 /tmp/vuru-build
+COPY vuru /tmp/vuru-build
 RUN cd /tmp/vuru-build && \
     make && \
     install -Dm755 build/vuru /usr/local/bin/vuru && \

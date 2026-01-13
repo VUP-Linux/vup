@@ -5,7 +5,7 @@ on:
     branches: ['main']
     paths:
       - 'docker/Dockerfile'
-      - 'vuruV3/**'
+      - 'vuru/**'
   workflow_dispatch:
   schedule:
     - cron: '0 0 * * 0' # Weekly
