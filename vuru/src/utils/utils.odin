@@ -8,6 +8,11 @@ import "core:sys/linux"
 // Define execvp since it's missing from core:c/libc sometimes or not exported commonly
 foreign import libc "system:c"
 
+foreign libc {
+	execvp :: proc(file: cstring, argv: [^]cstring) -> i32 ---
+}
+
+
 // Read entire file contents
 read_file :: proc(path: string, allocator := context.allocator) -> (string, bool) {
 	data, ok := os.read_entire_file(path, allocator)
@@ -87,6 +92,7 @@ run_command_output :: proc(args: []string, allocator := context.allocator) -> (s
 		path := strings.clone_to_cstring(args[0], context.temp_allocator)
 
 		// If execvp returns, it failed
+		execvp(path, argv)
 		os.exit(1)
 	}
 
@@ -137,6 +143,7 @@ run_command_silent :: proc(args: []string) -> int {
 		argv := make_argv(args, context.temp_allocator)
 		path := strings.clone_to_cstring(args[0], context.temp_allocator)
 
+		execvp(path, argv)
 		os.exit(127)
 	}
 
@@ -172,6 +179,7 @@ run_command :: proc(args: []string) -> int {
 		argv := make_argv(args, context.temp_allocator)
 		path := strings.clone_to_cstring(args[0], context.temp_allocator)
 
+		execvp(path, argv)
 		os.exit(127)
 	}
 

@@ -15,7 +15,7 @@ install_run :: proc(args: []string, config: ^Config) -> int {
 	// Sync repos if -S flag
 	if config.sync {
 		errors.log_info("Syncing repository index...")
-		if utils.run_command({"xbps-install", "-S"}) != 0 {
+		if utils.run_command({"sudo", "xbps-install", "-S"}) != 0 {
 			errors.log_error("Failed to sync repositories")
 			return 1
 		}
@@ -128,7 +128,7 @@ install_run :: proc(args: []string, config: ^Config) -> int {
 // System upgrade (xbps-install -u)
 install_update :: proc(config: ^Config) -> int {
 	cmd := make([dynamic]string, context.temp_allocator)
-	append(&cmd, "xbps-install", "-u")
+	append(&cmd, "sudo", "xbps-install", "-u")
 
 	if config.dry_run {
 		append(&cmd, "-n")
@@ -144,5 +144,12 @@ install_update :: proc(config: ^Config) -> int {
 	}
 
 	errors.log_info("Updating system packages...")
-	return utils.run_command(cmd[:])
+	sys_ret := utils.run_command(cmd[:])
+
+	if sys_ret != 0 {
+		return sys_ret
+	}
+
+	// Also update VUP packages
+	return update_run(nil, config)
 }

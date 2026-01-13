@@ -135,8 +135,10 @@ run :: proc() -> int {
 
 	// Dispatch
 	switch command_name {
-	case "query", "q", "search", "s", "info", "show":
+	case "query", "q", "info", "show":
 		return commands.query_run(command_args[:], &config)
+	case "search", "s":
+		return commands.search_run(command_args[:], &config)
 	case "install", "i":
 		return commands.install_run(command_args[:], &config)
 	case "remove", "r", "uninstall":
