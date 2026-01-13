@@ -1,6 +1,6 @@
 # Template file for 'vlang'
 pkgname=vlang
-version=0.4.11
+version=0.5.0
 revision=1
 # Commit hashes for the latest release in the v & vc repositories (they have to match)
 _v_commit="e3616f2db89dc76a37297963840c26f87a24a249"
@@ -52,16 +52,20 @@ do_build() {
 
 do_install() {
 	cd "v-${_v_commit}"
+	
 	vmkdir usr/lib/vlang
-	vcopy cmd usr/lib/vlang
-	vcopy thirdparty usr/lib/vlang
-	vcopy vlib usr/lib/vlang
-	vcopy v.mod usr/lib/vlang
+	for d in cmd thirdparty vlib v.mod; do
+		vcopy "$d" usr/lib/vlang
+	done
 
 	vinstall v 755 usr/lib/vlang
 
-	vmkdir usr/bin
-	ln -sf /usr/lib/vlang/v ${DESTDIR}/usr/bin/v
+	# Create wrapper script
+	cat > v-wrapper.sh <<EOF
+#!/bin/sh
+exec /usr/lib/vlang/v "\$@"
+EOF
+	vbin v-wrapper.sh v
 
 	vlicense LICENSE
 
