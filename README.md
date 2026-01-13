@@ -1,82 +1,162 @@
 # VUP – Void User Packages
 
-**The easiest way to discover and install community packages on Void Linux.**
+Community package repository for Void Linux. Prebuilt `.xbps` packages, no compiling required.
 
-VUP extends your Void Linux experience by providing a community-driven repository of extra packages, fully compatible with your existing system. It’s strictly designed to "do no harm" no overriding web of dependencies, no complex infrastructure, just pure XBPS compatibility.
+**vuru** is a package manager for VUP, similar to paru/yay for the AUR. Written in [Odin](https://odin-lang.org).
 
-
-
-## Why VUP?
-
-*   **⚡ Native Speed**: Uses your existing `xbps-install`. No slow wrappers.
-*   **📦 Prebuilt Binaries**: Think of it like Fedora's COPR. All packages are prebuilt by CI as `.xbps` files, saving you from compiling on your local machine.
-*   **📦 Community Power**: Anyone can submit a package template.
-*   **🛡️ Infrastructure Free**: Powered entirely by GitHub. No servers to go down.
-*   **🔍 Easy Discovery**: The `vuru` tool makes finding packages instant.
-
-> **Note**: VUP is an experimental, community project. It is not affiliated with the official Void Linux team.
-
-## Why Vuru?
-
-You might wonder why we use a separate tool (`vuru`) instead of just adding a repository to `xbps-install`.
-
-*   **Safety**: We want to avoid polluting your core system commands with packages of unknown quality.
-*   **Auditability**: `vuru` automatically shows you the package template (and diffs) before installation, ensuring you know exactly what you're running.
-*   **Clarity**: `vuru` makes it explicit when you are venturing into community territory.
-*   **Stability**: Official Void repositories remain untouched and pristine. `vuru` manages the "wild west" separately.
-
-## Getting Started
-
-### 1. Install VURU
-
-VURU is the magic wand that connects your system to the VUP universe.
+## Install
 
 ```bash
-# Install vuru client from the core repository
-sudo xbps-install -R https://github.com/VUP-Linux/vup/releases/download/core-current -S vuru
+sudo xbps-install -R https://github.com/VUP-Linux/vup/releases/download/core-x86_64-current -S vuru
 ```
 
-### 2. Use It
+## Quick Start
 
-Once installed, use `vuru` to manage community packages. It feels just like home.
+```bash
+vuru query -s code         # search VUP + official repos
+vuru install vlang         # install a package
+vuru install -Sy ferdium   # sync repos + install
+vuru install -Su           # full system update
+vuru remove -o             # remove orphan packages
+vuru query odin            # show package details
+```
 
-*   **Install a package**:
-    ```bash
-    vuru vscode
-    ```
-    *VURU automatically finds which category `vscode` lives in and installs it.*
+## Commands
 
-*   **Search for packages**:
-    ```bash
-    vuru search spotify
-    ```
+```
+vuru <command> [options] [arguments]
 
-*   **Update VUP packages**:
-    ```bash
-    vuru -u
-    ```
+Commands:
+  query    <pkg>         Show package info (or use modes below)
+  install  <pkg...>      Install packages (VUP + official)
+  remove   <pkg...>      Remove packages
+  update                 Update all packages
+  build    <pkg...>      Build from source
+  sync                   Sync repository index
+  fetch    <url...>      Download files from URLs
+  clone                  Clone VUP repo locally
+  src      <cmd> [args]  xbps-src wrapper
+  help                   Show help
 
-*   **Remove a package**:
-    ```bash
-    vuru remove vscode
-    ```
+Query modes:
+  -l, --list       List installed packages
+  -f, --files      Show package files
+  -x, --deps       Show dependencies
+  --ownedby        Find package owning a file
 
-*   **list all available commands**:
-    ```bash
-    vuru -h
-    ```
-> [!WARNING]
-> **Community Maintained Content**
-> Packages in VUP are submitted by users. While we verify they compile, we **do not** audit them for safety or security. Use them at your own risk, just like the AUR.
+Install/Remove flags:
+  -S, --sync         Sync repos before operation
+  -u, --update       Update mode (system upgrade)
+  -R, --recursive    Recursive remove/deps
+  -o, --orphans      Remove orphan packages
+  -O, --clean-cache  Clean package cache
+
+General options:
+  -y, --yes        Skip confirmations
+  -n, --dry-run    Show what would be done
+  -b, --build      Force build from source
+  -d, --desc       Include descriptions in search
+  -v, --verbose    Verbose output
+  -r, --rootdir    Alternate root directory
+  --vup-only       VUP packages only
+
+Aliases: q=query, s=search, i=install, r=remove, u=update
+```
+
+## Unified Search
+
+Searches VUP and official Void repos at the same time:
+
+```
+$ vuru query -s zig
+
+==> VUP Packages (1)
+NAME          VERSION    CATEGORY     DESCRIPTION
+zig15         0.15.2_1   programming  [installed]
+
+==> Official Void Packages (2)
+NAME          VERSION    DESCRIPTION
+zig           0.13.0_1   Programming language...
+zls           0.13.0_1   Zig language server
+```
+
+## Dependency Resolution
+
+Resolves dependencies across VUP and official repos automatically:
+
+```
+$ vuru install -n antigravity
+
+VUP packages (2):
+  vlang antigravity
+
+Official deps (3):
+  libX11 libGL ...
+```
+
+## Build from Source
+
+Build VUP packages locally:
+
+```bash
+vuru clone              # clone VUP repo to ~/.local/share/vup
+vuru build odin         # build package from source
+```
+
+## xbps-src Wrapper
+
+This is the main reason vuru exists. If you're writing a template that depends on a VUP package (like vlang), you can't build it with plain xbps-src because the dependency isn't in official repos.
+
+`vuru src` fixes this:
+
+```bash
+cd ~/void-packages
+
+# your template has: hostmakedepends="vlang"
+vuru src pkg v-analyzer
+```
+
+What happens:
+1. Parses template's `depends`, `makedepends`, `hostmakedepends`
+2. Finds which deps are in VUP
+3. Downloads those `.xbps` files to `hostdir/binpkgs/`
+4. Runs `xbps-rindex` to update local repo
+5. Runs `xbps-src pkg <package>`
+
+Now xbps-src can find the VUP dependency and the build works.
+
+```
+$ vuru src pkg v-analyzer
+[info] Checking VUP dependencies for 'v-analyzer'...
+
+:: VUP dependencies detected for 'v-analyzer':
+   vlang (0.4.11_1)
+
+[info] Downloading vlang to hostdir/binpkgs...
+[info] Updating local repository index...
+index: added `vlang-0.4.11_1' (x86_64).
+[info] Running: xbps-src pkg v-analyzer
+=> v-analyzer-0.0.4_1: building for x86_64...
+   [host] vlang: found (/host/binpkgs)
+   ...
+=> Creating v-analyzer-0.0.4_1.x86_64.xbps
+```
+
+## How It Works
+
+- GitHub Releases host all `.xbps` files (no servers needed)
+- Uses `xbps-install` under the hood
+- Packages built by GitHub Actions
+- RSA signed like official repos
 
 ## Contributing
 
-Want to see a package here? **Add it!**
+Add packages via PR. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-VUP is built on the principle that adding a package should be as simple as a Pull Request.
+```
+vup/srcpkgs/<category>/<pkgname>/template
+```
 
-👉 **[Read our Contributing Guide](CONTRIBUTING.md)** to learn how to add templates.
+## License
 
-## Licensing
-
-MIT License. Hack away.
+MIT

@@ -6,6 +6,7 @@ import json
 import shutil
 import glob
 import time
+import re
 
 # Import shared config
 try:
@@ -41,6 +42,12 @@ def run_command(cmd, log_file=None):
                 return False
     else:
         return subprocess.call(cmd) == 0
+
+
+def has_vuru():
+    """Check if vuru is available."""
+    return shutil.which("vuru") is not None
+
 
 def main():
     category = os.environ.get("CATEGORY")
@@ -109,11 +116,21 @@ def main():
         shutil.copytree(pkg_src, pkg_dest)
 
         print(f"[{pkg}] Building for {arch}...")
-        # Use -a flag for cross-compilation if not native arch
-        if arch == NATIVE_ARCH:
-            build_cmd = ["./xbps-src", "pkg", pkg]
+        
+        # Use vuru src if available - it handles VUP dependency resolution
+        # by downloading deps to hostdir/binpkgs before running xbps-src
+        if has_vuru():
+            if arch == NATIVE_ARCH:
+                build_cmd = ["vuru", "src", "pkg", pkg]
+            else:
+                build_cmd = ["vuru", "src", "-a", arch, "pkg", pkg]
         else:
-            build_cmd = ["./xbps-src", "-a", arch, "pkg", pkg]
+            # Fallback to plain xbps-src
+            if arch == NATIVE_ARCH:
+                build_cmd = ["./xbps-src", "pkg", pkg]
+            else:
+                build_cmd = ["./xbps-src", "-a", arch, "pkg", pkg]
+        
         success = run_command(build_cmd, log_file=log_file)
         
         result_entry["end_time"] = time.time()

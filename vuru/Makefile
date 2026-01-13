@@ -1,34 +1,42 @@
-CC = gcc
-CFLAGS = -Wall -Wextra -O2 -I./src
-LDFLAGS = 
+# Makefile for vuruV3 (Odin version)
+
+ODIN = odin
+ODIN_FLAGS = -o:speed
+DEBUG_FLAGS = -debug -o:none
 
 PREFIX ?= /usr/local
 DESTDIR ?=
 
 SRC_DIR = src
-OBJ_DIR = obj
-BIN_DIR = .
+BUILD_DIR = build
+TARGET = $(BUILD_DIR)/vuru
 
-SRCS = $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/xbps/*.c) $(wildcard $(SRC_DIR)/vendor/*.c)
-OBJS = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRCS))
-TARGET = $(BIN_DIR)/vuru
+# Collections for package imports
+COLLECTIONS = -collection:xbps=$(SRC_DIR)/xbps -collection:errors=$(SRC_DIR)/errors
+
+.PHONY: all clean install uninstall debug run check
 
 all: $(TARGET)
 
-$(TARGET): $(OBJS)
-	$(CC) $(OBJS) -o $@ $(LDFLAGS)
+$(TARGET): $(SRC_DIR)/*.odin $(SRC_DIR)/xbps/*.odin $(SRC_DIR)/errors/*.odin
+	@mkdir -p $(BUILD_DIR)
+	$(ODIN) build $(SRC_DIR) -out:$@ $(ODIN_FLAGS) $(COLLECTIONS)
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+debug: $(SRC_DIR)/*.odin $(SRC_DIR)/xbps/*.odin $(SRC_DIR)/errors/*.odin
+	@mkdir -p $(BUILD_DIR)
+	$(ODIN) build $(SRC_DIR) -out:$(TARGET) $(DEBUG_FLAGS) $(COLLECTIONS)
+
+check: $(SRC_DIR)/*.odin $(SRC_DIR)/xbps/*.odin $(SRC_DIR)/errors/*.odin
+	$(ODIN) check $(SRC_DIR) $(COLLECTIONS)
+
+run: $(TARGET)
+	./$(TARGET) $(ARGS)
 
 clean:
-	rm -rf $(OBJ_DIR) $(TARGET)
+	rm -rf $(BUILD_DIR)
 
 install: $(TARGET)
 	install -Dm755 $(TARGET) $(DESTDIR)$(PREFIX)/bin/vuru
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/vuru
-
-.PHONY: all clean install uninstall

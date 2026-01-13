@@ -1,82 +1,67 @@
 # Contributing to VUP
 
-VUP is a community-driven repository. We welcome new packages and improvements!
+VUP is a community-driven repository. Packages and improvements welcome.
 
-## Repository Layout
+## Repository Structure
 
-* **[`vup/`](vup/)**: Source repository containing package templates and policy.
-  * `srcpkgs/<category>/<pkgname>/template`
-* **[`vuru/`](vuru/)**: The utility written in C for managing VUP packages.
+```
+vup/srcpkgs/<category>/<pkgname>/template
+vuruV2/                                     # package manager (Odin)
+```
 
-## How to Add a Package
+## Adding a Package
 
-Platform packages are organized by **Category**. 
+1. Fork the repo.
 
-1.  **Fork** this repository.
+2. Pick a category: `core`, `utilities`, `editors`, `messenger`, `programming`.
+   If your package doesn't fit, open an issue first.
 
-2.  **Choose a Category**:
-    *   Currently supported categories: `core`, `utilities`, `editors`, `chat`.
-    *   *Note: If your package doesn't fit these, open an issue first.*
-3.  **Create your Template**:
-    *   Create directory: `vup/srcpkgs/<category>/<pkgname>/`
-    *   Add a standard Void `template` file.
-    *   *Note: Binary packages are NOT committed to the repo.*
-4.  **Submit a Pull Request**:
-    *   Our CI will automatically build your package if it detects changes in `vup/srcpkgs`.
-    *   The build runs `xbps-src -Q pkg <pkgname>` to verify quality and linting.
-    *   Once merged, it will be published to the `<category>-current` release suitable for `vuru`.
+3. Create your template at `vup/srcpkgs/<category>/<pkgname>/template`.
+   Follow standard [Void packaging conventions](https://github.com/void-linux/void-packages/blob/master/Manual.md).
+
+4. Open a PR. CI will check if it builds (a bot will comment incase of issues with logs), after it is merged CI will build your package automatically.
+
+That's it. Once merged, the package shows up in the VUP index.
+
+## Template Notes
+
+Follow the Void manual, but a few VUP-specific things:
+
+**Electron/prebuilt apps**: Set `noshlibprovides=yes`. This prevents the package from advertising its bundled libraries (like `libffmpeg.so`) to the system, which breaks dep resolution for other packages.
+
+**Maintainer field**: Put your name/email. You're responsible for updates.
+
+**License**: Be accurate. We don't audit this, but users should know what they're installing.
 
 ## Policy
 
-VUP has **no content guidelines** regarding what packages can be submitted, provided they build correctly.
-*   **Free for all**: If it builds, it is accepted.
-*   **User Responsibility**: We do not audit code, check for licenses, or guarantee safety.
+VUP has no content restrictions. If it builds, it's accepted.
 
-## Liability Disclaimer
+This is intentional. Like the AUR, we're a build system, not a software review board. We verify the template syntax and that the build succeeds. We don't verify if the software is safe, legal, maintained or sane.
 
-> [!CAUTION]
+## Liability
+
 > **Use at your own risk.**
 
-VUP is similar to the AUR (Arch User Repository). Packages are submitted by community members.
-*   **We only verify that the manifest builds.** We do not verify if the software is safe, non-malicious, or up-to-date.
-*   By using VUP, you assume full responsibility for your system's stability and security.
-*   Always check the template source if you are unsure.
+Packages are submitted by random people on the internet. We only check that the manifest builds. We don't:
+- Audit source code
+- Check for malware
+- Verify licenses
+- Guarantee anything works
 
-### Template Guidelines
+By using VUP, you accept responsibility for what you install. If you're paranoid (and you should be), read the template before installing.
 
-*   Follow standard [Void Linux packaging conventions](https://github.com/void-linux/void-packages/blob/master/Manual.md).
-*   Ensure `license`, `homepage`, and `maintainer` are accurate.
-*   **Electron/Prebuilt Binaries**: When packaging prebuilt binaries (especially Electron apps), you MUST set `noshlibprovides=yes`. This prevents the package from "providing" its internal bundled libraries (like `libffmpeg.so`) to the system, which would break dependency resolution for other packages.
+## Architecture
 
-## Architecture Overview
+VUP runs entirely on GitHub infrastructure:
 
-VUP uses an "All-GitHub" architecture to remain infrastructure-free:
+**Build**: GitHub Actions builds packages on push to main. Only modified categories rebuild.
 
-### 1. Source & Build
-*   GitHub Actions builds packages on `push` to `main`.
-*   Only the modified category is rebuilt.
+**Distribution**: Each category has a GitHub Release (e.g. `{category-{architecture}-current`). The `*.xbps`, `*.xbps.sig2` files and `{architecture}-repodata` are release assets. These releases act as standard XBPS repositories.
 
-### 2. Binary Distribution
-*   Each category corresponds to a **GitHub Release** tag (e.g., `editors-current`).
-*   Binaries (`.xbps`) and repository data (`repodata`) are uploaded as assets.
-*   These releases acts as standard XBPS remote repositories.
+**Index**: A `public/index.json` on GitHub Pages maps package names to categories, architectures and versions. vuru fetches this to find packages.
 
-### 3. Global Index
-*   A `public/index.json` is generated and hosted via GitHub Pages.
-*   This index maps `pkgname` -> `category` + `version`.
-*   The `vuru` client consumes this index to locate packages.
 
-## Release Workflows
+## Updating Packages
 
-### VUP (Packages)
-Packages are released continuously. 
-To update a package:
-1.  Bump version/revision in the template.
-2.  Push to `main`.
-3.  CI handles the rest.
-
-### VURU (Client)
-To release a new version of the `vuru` CLI:
-1.  Bump version in `vuru/Cargo.toml`.
-2.  Create and push a git tag (e.g., `v0.4.0`).
-3.  CI builds the binary, creates a release, AND automatically updates the `vuru` package template in VUP.
+Bump the version or revision in the template and push. CI handles the rest.

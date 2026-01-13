@@ -18,6 +18,8 @@ env:
 jobs:
   check-changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       should_run: ${{ steps.set-matrix.outputs.should_run }}
@@ -39,6 +41,9 @@ jobs:
     needs: check-changes
     if: needs.check-changes.outputs.should_run == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     container:
       image: ghcr.io/vup-linux/vup-builder:latest
       options: --privileged
@@ -113,6 +118,7 @@ jobs:
           name: binpkgs-${{ matrix.category }}-${{ matrix.arch }}
           path: dist-out
           if-no-files-found: ignore
+          retention-days: 1
 
       - name: Upload Build Logs
         uses: actions/upload-artifact@v4
@@ -120,11 +126,14 @@ jobs:
           name: build-logs-${{ matrix.category }}-${{ matrix.arch }}
           path: logs-out
           if-no-files-found: ignore
+          retention-days: 1
 
   release:
     needs: [check-changes, build]
     if: needs.check-changes.outputs.should_run == 'true' && always() && needs.build.result == 'success'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     strategy:
       matrix: ${{ fromJson(needs.check-changes.outputs.matrix) }}
       fail-fast: false
@@ -224,6 +233,8 @@ jobs:
     needs: [build, release]
     if: always() && needs.build.result != 'skipped'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -245,6 +256,13 @@ jobs:
     needs: [check-changes, release]
     if: needs.check-changes.outputs.should_run == 'true' && always() && needs.release.result == 'success'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     concurrency:
       group: vup-deploy-index
       cancel-in-progress: false

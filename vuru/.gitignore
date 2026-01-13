@@ -1,3 +1,16 @@
-vuru
-obj
-target
+# Build output
+build/
+
+# Odin compiler output
+*.o
+*.obj
+
+# Editor files
+*.swp
+*~
+.vscode/
+
+# Cache
+.cache/
+
+/vuru

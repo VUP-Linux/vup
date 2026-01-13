@@ -3,7 +3,9 @@ name: Build Builder Image
 on:
   push:
     branches: ['main']
-    paths: ['docker/Dockerfile']
+    paths:
+      - 'docker/Dockerfile'
+      - 'vuruV3/**'
   workflow_dispatch:
   schedule:
     - cron: '0 0 * * 0' # Weekly
