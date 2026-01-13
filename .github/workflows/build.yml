@@ -128,6 +128,9 @@ jobs:
     strategy:
       matrix: ${{ fromJson(needs.check-changes.outputs.matrix) }}
       fail-fast: false
+    concurrency:
+      group: vup-release-${{ matrix.category }}-${{ matrix.arch }}
+      cancel-in-progress: false
     
     steps:
       - name: Set up QEMU
@@ -242,6 +245,9 @@ jobs:
     needs: [check-changes, release]
     if: needs.check-changes.outputs.should_run == 'true' && always() && needs.release.result == 'success'
     runs-on: ubuntu-latest
+    concurrency:
+      group: vup-deploy-index
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
