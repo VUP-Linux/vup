@@ -2,7 +2,6 @@ FROM ghcr.io/void-linux/void-glibc:latest
 
 # Update and install dependencies
 # We install all tools required by the CI workflows to avoid repeated installations
-# Odin needs llvm and clang for building itself as well as building .odin files on *Nix systems
 RUN xbps-install -Syu -y xbps && \
     xbps-install -Sy -y \
     git \
@@ -18,22 +17,11 @@ RUN xbps-install -Syu -y xbps && \
     libstdc++ \
     ca-certificates \
     make \
-    clang \
-    llvm \
     && rm -rf /var/cache/xbps/*
 
-# Build Odin from source
-WORKDIR /Odin-install
-RUN git clone https://github.com/odin-lang/Odin.git /Odin-install \
-    && git checkout dev-2024-12 \
-    && make
-
-RUN mkdir /opt/Odin \
-    && cp -R ./base ./core ./shared ./vendor ./odin /opt/Odin/
-WORKDIR /
-RUN rm -rf /Odin-install
-
-ENV PATH="/opt/Odin:${PATH}"
+# Install Odin from VUP repository (install public key first for signature verification)
+COPY keys/pubkey.pem /var/db/xbps/keys/vup-pubkey.pem
+RUN xbps-install -y -R https://github.com/VUP-Linux/vup/releases/download/programming-x86_64-current -S odin
 
 # Build and install vuru (VUP package manager)
 # This enables installing VUP dependencies during builds
