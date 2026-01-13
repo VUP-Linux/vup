@@ -1,7 +1,7 @@
 # Makefile for vuru (Odin version)
 
 ODIN = odin
-ODIN_FLAGS = -o:speed
+ODIN_FLAGS = -o:speed -reloc-mode:pic -extra-linker-flags="-pie"
 DEBUG_FLAGS = -debug -o:none
 
 PREFIX ?= /usr/local
