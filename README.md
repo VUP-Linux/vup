@@ -13,12 +13,12 @@ sudo xbps-install -R https://github.com/VUP-Linux/vup/releases/download/core-x86
 ## Quick Start
 
 ```bash
-vuru query -s code         # search VUP + official repos
+vuru search code           # search VUP + official repos
 vuru install vlang         # install a package
-vuru install -Sy ferdium   # sync repos + install
-vuru install -Su           # full system update
+vuru install -Su           # Sync && update
+vuru remove vlang          # Remove vlang
 vuru remove -o             # remove orphan packages
-vuru query odin            # show package details
+vuru query odin            # show package details (template)
 ```
 
 ## Commands
@@ -27,12 +27,12 @@ vuru query odin            # show package details
 vuru <command> [options] [arguments]
 
 Commands:
-  query    <pkg>         Show package info (or use modes below)
   install  <pkg...>      Install packages (VUP + official)
   remove   <pkg...>      Remove packages
   update                 Update all packages
   build    <pkg...>      Build from source
   sync                   Sync repository index
+  query    <pkg>         Show package info (or use modes below)
   fetch    <url...>      Download files from URLs
   clone                  Clone VUP repo locally
   src      <cmd> [args]  xbps-src wrapper
