@@ -3,9 +3,11 @@ __pycache__/
 *.py[cod]
 
 # XBPS / VUP
-vup/binpkgs/*
-!vup/binpkgs/.keep
-vup/hostdir/
+vup/hostdir/*
+!vup/hostdir/.keep
+!vup/hostdir/*/
+vup/hostdir/*/*
+!vup/hostdir/*/.keep
 dist/
 
 # IDEs
@@ -14,8 +16,4 @@ dist/
 *.swp
 
 # Misc
-index.json
 *.log
-
-/keys/privkey.pem
-packaging.md
