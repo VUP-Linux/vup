@@ -3,8 +3,9 @@ package main
 import "core:fmt"
 import "core:os"
 import "core:strings"
+import "errors"
 
-VERSION :: "0.4.0"
+VERSION :: "0.5.0"
 INDEX_URL :: "https://vup-linux.github.io/vup/index.json"
 
 Command :: enum {
@@ -13,21 +14,21 @@ Command :: enum {
 	Install,
 	Remove,
 	Update,
-	Query,    // Show package info
+	Info,     // Show package info (renamed from Query)
 	Build,    // Build from source only
 	Clone,    // Clone/update VUP repo
 	Src,      // xbps-src wrapper
+	Sync,     // Sync index (explicit command)
+	Help,     // Show help
 }
 
 Args :: struct {
 	command:       Command,
 	packages:      []string,
-	sync:          bool,
-	yes:           bool,
-	vup_only:      bool,  // Search VUP only
-	show_deps:     bool,  // Show dependencies
-	build_source:  bool,  // Force build from source
-	all_repos:     bool,  // Search all repos (including official)
+	yes:           bool,      // Skip confirmations
+	dry_run:       bool,      // Show what would happen
+	force_build:   bool,      // Force build from source
+	vup_only:      bool,      // Search VUP only
 }
 
 main :: proc() {
@@ -38,47 +39,37 @@ main :: proc() {
 run :: proc() -> int {
 	args := parse_args()
 
-	// Handle clone command (doesn't need index)
-	if args.command == .Clone {
-		return cmd_clone()
-	}
-
-	// Handle src command (xbps-src wrapper)
-	if args.command == .Src {
-		return cmd_src(&args)
-	}
-
-	// Handle -u flag without explicit command
-	if args.command == .Update || (args.command == .None && len(args.packages) == 0) {
-		if args.command == .None && !args.sync {
-			print_help()
-			return 1
-		}
-
-		idx, ok := index_load_or_fetch(INDEX_URL, args.sync)
-		if !ok {
-			log_error("Failed to load package index")
-			return 1
-		}
-		defer index_free(&idx)
-
-		if args.command == .Update {
-			return cmd_update(&idx, &args)
-		} else {
-			log_info("Package index synchronized")
-		}
+	// Commands that don't need the index
+	#partial switch args.command {
+	case .None:
+		print_help()
+		return 1
+	
+	case .Help:
+		print_help()
 		return 0
+	
+	case .Clone:
+		return cmd_clone()
+	
+	case .Src:
+		return cmd_src(&args)
+	
+	case .Sync:
+		return cmd_sync()
 	}
 
-	// Load index
-	idx, ok := index_load_or_fetch(INDEX_URL, args.sync)
+	// Load index (force sync for update command)
+	force_sync := args.command == .Update
+	idx, ok := index_load_or_fetch(INDEX_URL, force_sync)
 	if !ok {
 		log_error("Failed to load package index")
+		log_error("Try: vuru sync")
 		return 1
 	}
 	defer index_free(&idx)
 
-	switch args.command {
+	#partial switch args.command {
 	case .Search:
 		return cmd_search(&idx, &args)
 
@@ -91,21 +82,11 @@ run :: proc() -> int {
 	case .Update:
 		return cmd_update(&idx, &args)
 
-	case .Query:
-		return cmd_query(&idx, &args)
+	case .Info:
+		return cmd_info(&idx, &args)
 
 	case .Build:
 		return cmd_build(&idx, &args)
-
-	case .Clone:
-		return cmd_clone()
-
-	case .Src:
-		return cmd_src(&args)
-
-	case .None:
-		// Packages specified without command = install
-		return cmd_install(&idx, &args)
 	}
 
 	return 0
@@ -113,9 +94,19 @@ run :: proc() -> int {
 
 // --- Command implementations ---
 
+cmd_sync :: proc() -> int {
+	_, ok := index_load_or_fetch(INDEX_URL, true)
+	if !ok {
+		log_error("Failed to sync package index")
+		return 1
+	}
+	log_info("Package index synchronized")
+	return 0
+}
+
 cmd_search :: proc(idx: ^Index, args: ^Args) -> int {
 	if len(args.packages) == 0 {
-		log_error("search requires a query argument")
+		log_error("Usage: vuru search <query>")
 		return 1
 	}
 
@@ -129,7 +120,7 @@ cmd_search :: proc(idx: ^Index, args: ^Args) -> int {
 
 cmd_install :: proc(idx: ^Index, args: ^Args) -> int {
 	if len(args.packages) == 0 {
-		log_error("install requires at least one package name")
+		log_error("Usage: vuru install <package> [packages...]")
 		return 1
 	}
 
@@ -137,9 +128,17 @@ cmd_install :: proc(idx: ^Index, args: ^Args) -> int {
 
 	for pkg_name in args.packages {
 		// Resolve dependencies
-		res, ok := resolve_deps(pkg_name, idx, args.build_source)
+		res, ok := resolve_deps(pkg_name, idx, args.force_build)
 		if !ok {
-			log_error("Failed to resolve dependencies for %s", pkg_name)
+			// Print detailed errors if available
+			if len(res.errors) > 0 {
+				for err in res.errors {
+					errors.print_error(err)
+				}
+			} else {
+				log_error("Failed to resolve dependencies for %s", pkg_name)
+			}
+			resolution_free(&res)
 			exit_code = 1
 			continue
 		}
@@ -147,13 +146,20 @@ cmd_install :: proc(idx: ^Index, args: ^Args) -> int {
 
 		// Check for missing packages
 		if len(res.missing) > 0 {
-			log_error("Cannot resolve: %s", strings.join(res.missing[:], ", ", context.temp_allocator))
+			// Use detailed errors if available
+			if len(res.errors) > 0 {
+				for err in res.errors {
+					errors.print_error(err)
+				}
+			} else {
+				log_error("Cannot resolve: %s", strings.join(res.missing[:], ", ", context.temp_allocator))
+			}
 			exit_code = 1
 			continue
 		}
 
-		// Show what will happen
-		if args.show_deps {
+		// Dry run - just show what would happen
+		if args.dry_run {
 			resolution_print(&res)
 			continue
 		}
@@ -201,7 +207,7 @@ cmd_install :: proc(idx: ^Index, args: ^Args) -> int {
 
 cmd_remove :: proc(args: ^Args) -> int {
 	if len(args.packages) == 0 {
-		log_error("remove requires at least one package name")
+		log_error("Usage: vuru remove <package> [packages...]")
 		return 1
 	}
 
@@ -219,9 +225,9 @@ cmd_update :: proc(idx: ^Index, args: ^Args) -> int {
 	return xbps_upgrade_all(idx, args.yes)
 }
 
-cmd_query :: proc(idx: ^Index, args: ^Args) -> int {
+cmd_info :: proc(idx: ^Index, args: ^Args) -> int {
 	if len(args.packages) == 0 {
-		log_error("query requires a package name")
+		log_error("Usage: vuru info <package>")
 		return 1
 	}
 
@@ -270,7 +276,7 @@ cmd_query :: proc(idx: ^Index, args: ^Args) -> int {
 
 cmd_build :: proc(idx: ^Index, args: ^Args) -> int {
 	if len(args.packages) == 0 {
-		log_error("build requires a package name")
+		log_error("Usage: vuru build <package> [packages...]")
 		return 1
 	}
 
@@ -330,130 +336,139 @@ cmd_clone :: proc() -> int {
 
 parse_args :: proc() -> Args {
 	args := Args{}
+	argv := os.args[1:]
 
-	argv := os.args[1:] // Skip program name
+	if len(argv) == 0 {
+		return args  // .None command
+	}
 
-	i := 0
-	for i < len(argv) {
+	packages: [dynamic]string
+	defer delete(packages)
+
+	for i := 0; i < len(argv); i += 1 {
 		arg := argv[i]
-
+		
+		// Check for options (can appear anywhere)
 		if arg == "-h" || arg == "--help" {
-			print_help()
-			os.exit(0)
+			args.command = .Help
+			return args
 		} else if arg == "-v" || arg == "--version" {
 			fmt.printf("vuru %s\n", VERSION)
 			os.exit(0)
-		} else if arg == "-S" || arg == "--sync" {
-			args.sync = true
-		} else if arg == "-u" || arg == "--update" {
-			args.command = .Update
 		} else if arg == "-y" || arg == "--yes" {
 			args.yes = true
-		} else if arg == "-d" || arg == "--deps" {
-			args.show_deps = true
+		} else if arg == "-n" || arg == "--dry-run" {
+			args.dry_run = true
 		} else if arg == "-b" || arg == "--build" {
-			args.build_source = true
-		} else if arg == "-a" || arg == "--all" {
-			args.all_repos = true
+			args.force_build = true
 		} else if arg == "--vup-only" {
 			args.vup_only = true
 		} else if strings.has_prefix(arg, "-") {
-			// Handle combined flags like -Sy
+			// Handle combined flags like -yn
 			for c in arg[1:] {
 				switch c {
-				case 'S':
-					args.sync = true
-				case 'u':
-					args.command = .Update
 				case 'y':
 					args.yes = true
-				case 'd':
-					args.show_deps = true
+				case 'n':
+					args.dry_run = true
 				case 'b':
-					args.build_source = true
-				case 'a':
-					args.all_repos = true
+					args.force_build = true
 				case:
-					log_error(fmt.tprintf("Unknown option: -%c", c))
+					log_error("Unknown option: -%c", c)
+					log_error("Try: vuru help")
 					os.exit(1)
 				}
 			}
-		} else {
-			// Positional argument
-			if args.command == .None {
-				switch arg {
-				case "search", "s":
-					args.command = .Search
-				case "install", "i":
-					args.command = .Install
-				case "remove", "r":
-					args.command = .Remove
-				case "update", "u":
-					args.command = .Update
-				case "query", "q":
-					args.command = .Query
-				case "build", "b":
-					args.command = .Build
-				case "clone":
-					args.command = .Clone
-				case "src":
-					args.command = .Src
-					// For src, remaining args go straight to xbps-src
-					if i + 1 < len(argv) {
-						args.packages = argv[i + 1:]
-					}
-					return args
-				case:
-					// Not a command, treat as package name
-					args.packages = argv[i:]
-					return args
+		} else if args.command == .None {
+			// First non-option is the command
+			switch arg {
+			case "search", "s":
+				args.command = .Search
+			case "install", "i":
+				args.command = .Install
+			case "remove", "r", "uninstall":
+				args.command = .Remove
+			case "update", "upgrade", "u":
+				args.command = .Update
+			case "info", "show", "query", "q":
+				args.command = .Info
+			case "build":
+				args.command = .Build
+			case "clone":
+				args.command = .Clone
+			case "sync":
+				args.command = .Sync
+			case "help":
+				args.command = .Help
+			case "src":
+				args.command = .Src
+				// For src, remaining args go straight to xbps-src
+				if i + 1 < len(argv) {
+					args.packages = argv[i + 1:]
 				}
-			} else {
-				// Remaining args are packages
-				args.packages = argv[i:]
 				return args
+			case:
+				log_error("Unknown command: %s", arg)
+				log_error("Try: vuru help")
+				os.exit(1)
 			}
+		} else {
+			// After command, collect as package arguments
+			append(&packages, arg)
 		}
-		i += 1
+	}
+
+	// Convert dynamic to slice
+	if len(packages) > 0 {
+		result := make([]string, len(packages))
+		for pkg, i in packages {
+			result[i] = pkg
+		}
+		args.packages = result
 	}
 
 	return args
 }
 
 print_help :: proc() {
-	fmt.println("Usage: vuru [OPTIONS] [COMMAND] [ARGS...]")
+	fmt.println("Usage: vuru <command> [options] [arguments]")
 	fmt.println()
-	fmt.println("A paru/yay-like AUR helper for VUP (Void User Packages).")
+	fmt.println("VUP package manager - AUR-like helper for Void Linux")
 	fmt.println()
 	fmt.println("Commands:")
-	fmt.println("  search, s  <query>    Search packages (VUP + official)")
-	fmt.println("  install, i <pkgs...>  Install packages (resolves dependencies)")
-	fmt.println("  remove, r  <pkgs...>  Remove packages")
-	fmt.println("  update, u             Update all VUP packages")
-	fmt.println("  query, q   <pkg>      Show package information")
-	fmt.println("  build, b   <pkgs...>  Build packages from source")
-	fmt.println("  clone                 Clone/update VUP repository")
-	fmt.println("  src <cmd> [args]      Run xbps-src with VUP deps resolved")
+	fmt.println("  search   <query>       Search packages (VUP + official)")
+	fmt.println("  install  <pkg...>      Install packages")
+	fmt.println("  remove   <pkg...>      Remove packages")
+	fmt.println("  update                 Update all VUP packages")
+	fmt.println("  info     <pkg>         Show package information")
+	fmt.println("  build    <pkg...>      Build packages from source")
+	fmt.println("  sync                   Refresh the package index")
+	fmt.println("  clone                  Clone/update VUP repository")
+	fmt.println("  src      <cmd> [args]  Run xbps-src with VUP deps")
+	fmt.println("  help                   Show this help message")
 	fmt.println()
 	fmt.println("Options:")
-	fmt.println("  -S, --sync       Force sync/refresh the package index")
-	fmt.println("  -y, --yes        Assume yes to prompts")
-	fmt.println("  -d, --deps       Show resolved dependencies (dry-run)")
+	fmt.println("  -y, --yes        Skip confirmation prompts")
+	fmt.println("  -n, --dry-run    Show what would be done")
 	fmt.println("  -b, --build      Force build from source")
-	fmt.println("  -a, --all        Search all repos (including official)")
 	fmt.println("  --vup-only       Search VUP packages only")
-	fmt.println("  -v, --version    Show version information")
-	fmt.println("  -h, --help       Show this help message")
+	fmt.println("  -v, --version    Show version")
+	fmt.println("  -h, --help       Show help")
+	fmt.println()
+	fmt.println("Aliases:")
+	fmt.println("  s = search,  i = install,  r = remove")
+	fmt.println("  u = update,  q = info")
 	fmt.println()
 	fmt.println("Examples:")
-	fmt.println("  vuru search code        # Search VUP + official repos")
-	fmt.println("  vuru visual-studio-code # Install (implicit)")
-	fmt.println("  vuru -Sy ferdium        # Sync index and install")
-	fmt.println("  vuru -d ferdium         # Show what would be installed")
-	fmt.println("  vuru build odin         # Build odin from source")
-	fmt.println("  vuru clone              # Clone VUP repo for building")
-	fmt.println("  vuru update             # Update all VUP packages")
-	fmt.println("  vuru src pkg myapp      # Build template with VUP deps")
+	fmt.println("  vuru search code           Search for 'code'")
+	fmt.println("  vuru install vlang         Install vlang")
+	fmt.println("  vuru install -n ferdium    Dry-run install")
+	fmt.println("  vuru remove zig15          Remove zig15")
+	fmt.println("  vuru update                Update VUP packages")
+	fmt.println("  vuru info odin             Show package info")
+	fmt.println("  vuru build odin            Build from source")
+	fmt.println("  vuru sync                  Refresh package index")
+	fmt.println("  vuru src pkg myapp         Build with xbps-src")
 }
 
 // --- src command (xbps-src wrapper) ---
@@ -471,8 +486,12 @@ cmd_src :: proc(args: ^Args) -> int {
 		repo_url = "https://github.com/VUP-Linux/vup/releases/download",
 	}
 
-	if xbps_src_main(args.packages, &cfg) {
-		return 0
+	ok, err := xbps_src_main(args.packages, &cfg)
+	if !ok {
+		if err.kind != nil {
+			errors.print_error(err)
+		}
+		return 1
 	}
-	return 1
+	return 0
 }

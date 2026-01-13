@@ -3,6 +3,7 @@ package main
 import "core:fmt"
 import "core:mem"
 import "core:strings"
+import "errors"
 
 // Package source - where a package comes from
 Package_Source :: enum {
@@ -34,8 +35,11 @@ Resolution :: struct {
 	// Already satisfied
 	satisfied:   [dynamic]string,
 
-	// Unresolvable
+	// Unresolvable - names only (legacy)
 	missing:     [dynamic]string,
+
+	// Detailed errors for each failure
+	errors:      [dynamic]errors.Error,
 
 	allocator:   mem.Allocator,
 }
@@ -65,6 +69,9 @@ resolution_free :: proc(r: ^Resolution) {
 
 	for s in r.missing {delete(s, r.allocator)}
 	delete(r.missing)
+
+	for e in r.errors {delete(e.ctx, r.allocator)}
+	delete(r.errors)
 }
 
 // Check if a package is installed (silently)
@@ -150,12 +157,13 @@ resolve_deps :: proc(
 		to_build = make([dynamic]Resolved_Package, allocator),
 		satisfied = make([dynamic]string, allocator),
 		missing = make([dynamic]string, allocator),
+		errors = make([dynamic]errors.Error, allocator),
 		allocator = allocator,
 	}
 
 	arch, arch_ok := get_arch()
 	if !arch_ok {
-		log_error("Failed to detect architecture")
+		append(&res.errors, errors.make_error(.Arch_Detection_Failed, "", allocator))
 		return res, false
 	}
 	defer delete(arch)
@@ -183,6 +191,12 @@ resolve_deps :: proc(
 		pkg, ok := resolve_package(name, idx, arch, depth, allocator)
 		if !ok {
 			append(&res.missing, strings.clone(name, allocator))
+			// Add detailed error - different message for target vs dependency
+			if depth == 0 {
+				append(&res.errors, errors.make_error(.Package_Not_Found, name, allocator))
+			} else {
+				append(&res.errors, errors.make_error(.Dependency_Not_Found, name, allocator))
+			}
 			continue
 		}
 
