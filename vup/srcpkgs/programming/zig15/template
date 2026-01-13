@@ -16,10 +16,14 @@ nocross=yes
 do_install() {
 	vmkdir usr/lib/zig
 	vcopy lib usr/lib/zig
-	vcopy zig usr/lib/zig
+	vinstall zig 755 usr/lib/zig
 	
-	vmkdir usr/bin
-	ln -sf /usr/lib/zig/zig ${DESTDIR}/usr/bin/zig
+	# Create wrapper script
+	cat > zig.sh <<EOF
+#!/bin/sh
+exec /usr/lib/zig/zig "\$@"
+EOF
+	vbin zig.sh zig
 	
 	vlicense LICENSE
 }
