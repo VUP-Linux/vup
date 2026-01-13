@@ -6,6 +6,7 @@ import json
 import shutil
 import glob
 import time
+import re
 
 # Import shared config
 try:
@@ -41,6 +42,86 @@ def run_command(cmd, log_file=None):
                 return False
     else:
         return subprocess.call(cmd) == 0
+
+
+def parse_template_depends(template_path):
+    """Parse depends and makedepends from a template file."""
+    deps = set()
+    
+    try:
+        with open(template_path, 'r') as f:
+            content = f.read()
+        
+        # Match depends="..." or makedepends="..."
+        for field in ['depends', 'makedepends', 'hostmakedepends']:
+            match = re.search(rf'^{field}=["\']([^"\']+)["\']', content, re.MULTILINE)
+            if match:
+                # Split on whitespace and extract base package name (strip version constraints)
+                for dep in match.group(1).split():
+                    # Remove version constraints like >=1.0
+                    base_dep = re.split(r'[<>=]', dep)[0]
+                    if base_dep:
+                        deps.add(base_dep)
+    except Exception as e:
+        print(f"Warning: Could not parse template {template_path}: {e}")
+    
+    return deps
+
+
+def install_vup_deps(pkg_name, template_path, category, arch):
+    """
+    Check if package has dependencies that exist in VUP and install them.
+    This enables building packages that depend on other VUP packages.
+    """
+    # Check if vuru is available
+    if not shutil.which("vuru"):
+        print(f"[{pkg_name}] vuru not found, skipping VUP dependency resolution")
+        return True
+    
+    deps = parse_template_depends(template_path)
+    if not deps:
+        return True
+    
+    print(f"[{pkg_name}] Checking {len(deps)} dependencies against VUP index...")
+    
+    # Sync vuru index
+    subprocess.run(["vuru", "-S"], capture_output=True)
+    
+    # Check each dep against VUP index using vuru query
+    vup_deps = []
+    for dep in deps:
+        result = subprocess.run(
+            ["vuru", "query", dep],
+            capture_output=True,
+            text=True
+        )
+        # If vuru finds it and it says "Source: VUP", it's a VUP package
+        if result.returncode == 0 and "Source: VUP" in result.stdout:
+            # Check if already installed
+            installed_check = subprocess.run(
+                ["xbps-query", dep],
+                capture_output=True
+            )
+            if installed_check.returncode != 0:
+                vup_deps.append(dep)
+    
+    if not vup_deps:
+        print(f"[{pkg_name}] No VUP dependencies to install")
+        return True
+    
+    print(f"[{pkg_name}] Installing VUP dependencies: {', '.join(vup_deps)}")
+    
+    # Install each VUP dependency
+    for dep in vup_deps:
+        result = subprocess.run(
+            ["vuru", "-y", dep],
+            capture_output=False  # Show output for debugging
+        )
+        if result.returncode != 0:
+            print(f"[{pkg_name}] Warning: Failed to install VUP dep {dep}")
+            # Continue anyway - the dep might be optional or satisfied another way
+    
+    return True
 
 def main():
     category = os.environ.get("CATEGORY")
@@ -107,6 +188,9 @@ def main():
         
         # Copy new template
         shutil.copytree(pkg_src, pkg_dest)
+
+        # Install any VUP dependencies before building
+        install_vup_deps(pkg, template_path, category, arch)
 
         print(f"[{pkg}] Building for {arch}...")
         # Use -a flag for cross-compilation if not native arch

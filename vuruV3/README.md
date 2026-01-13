@@ -1,6 +1,15 @@
 # vuruV3
 
-A package manager frontend for VUP repository, written in [Odin](https://odin-lang.org).
+A **paru/yay-like** package manager for VUP (Void User Packages), written in [Odin](https://odin-lang.org).
+
+## Features
+
+- 🔍 **Unified Search** - Search VUP and official Void repos together
+- 📦 **Dependency Resolution** - Automatically resolves and installs dependencies
+- 🏗️ **Build from Source** - Build VUP packages locally via xbps-src
+- 📋 **Template Review** - Review package templates before install (like paru)
+- ⚡ **Transaction Planning** - See exactly what will be installed/built
+- 🔄 **Smart Updates** - Update all VUP packages with one command
 
 ## Why Odin?
 
@@ -26,12 +35,6 @@ For a debug build:
 make debug
 ```
 
-To check for errors without building:
-
-```bash
-make check
-```
-
 ## Installation
 
 ```bash
@@ -43,20 +46,53 @@ sudo make install
 ```
 Usage: vuru [OPTIONS] [COMMAND] [ARGS...]
 
-A package manager frontend for VUP repository.
+A paru/yay-like AUR helper for VUP (Void User Packages).
 
 Commands:
-  search  <query>     Search for packages
-  install <pkgs...>   Install one or more packages
-  remove  <pkgs...>   Remove one or more packages
-  update              Update all installed packages
+  search, s  <query>    Search packages (VUP + official)
+  install, i <pkgs...>  Install packages (resolves dependencies)
+  remove, r  <pkgs...>  Remove packages
+  update, u             Update all VUP packages
+  query, q   <pkg>      Show package information
+  build, b   <pkgs...>  Build packages from source
+  clone                 Clone/update VUP repository
 
 Options:
-  -S, --sync          Force sync/refresh the package index
-  -u, --update        Update all packages
-  -y, --yes           Assume yes to prompts
-  -v, --version       Show version information
-  -h, --help          Show this help message
+  -S, --sync       Force sync/refresh the package index
+  -y, --yes        Assume yes to prompts
+  -d, --deps       Show resolved dependencies (dry-run)
+  -b, --build      Force build from source
+  -a, --all        Search all repos (including official)
+  --vup-only       Search VUP packages only
+  -v, --version    Show version information
+  -h, --help       Show this help message
+```
+
+## Examples
+
+```bash
+# Search for packages (VUP + official repos)
+vuru search code
+
+# Install a VUP package (resolves deps automatically)
+vuru visual-studio-code
+
+# Show what would be installed
+vuru -d ferdium
+
+# Force sync index and install
+vuru -Sy vlang
+
+# Build a package from source
+vuru clone              # First time: clone VUP repo
+vuru build odin         # Build odin locally
+
+# Update all VUP packages
+vuru update
+
+# Query package info
+vuru query visual-studio-code
+```
 
 Examples:
   vuru search editor           Search for packages

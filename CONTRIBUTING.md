@@ -75,8 +75,4 @@ To update a package:
 2.  Push to `main`.
 3.  CI handles the rest.
 
-### VURU (Client)
-To release a new version of the `vuru` CLI:
-1.  Bump version in `vuru/Cargo.toml`.
-2.  Create and push a git tag (e.g., `v0.4.0`).
-3.  CI builds the binary, creates a release, AND automatically updates the `vuru` package template in VUP.
+### VURU guide coming soon

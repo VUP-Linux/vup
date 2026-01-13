@@ -16,12 +16,20 @@ foreign libc {
 COLOR_RESET :: "\033[0m"
 COLOR_INFO :: "\033[1;34m"
 COLOR_ERROR :: "\033[1;31m"
+COLOR_WARNING :: "\033[1;33m"
 
 // Log an informational message to stdout
 log_info :: proc(msg: string, args: ..any) {
 	fmt.printf("%s[info]%s ", COLOR_INFO, COLOR_RESET)
 	fmt.printf(msg, ..args)
 	fmt.println()
+}
+
+// Log a warning message to stderr
+log_warning :: proc(msg: string, args: ..any) {
+	fmt.eprintf("%s[warn]%s ", COLOR_WARNING, COLOR_RESET)
+	fmt.eprintf(msg, ..args)
+	fmt.eprintln()
 }
 
 // Log an error message to stderr
@@ -123,19 +131,66 @@ run_command_output :: proc(args: []string, allocator := context.allocator) -> (s
 	buf: [1024]u8
 
 	for {
-		// read returns (int, error)
-		// Linux read syscall returns plain int result (size or -errno) wrapped by Odin core:sys/linux?
-		// Actually core:sys/linux read returns (int, Errno)
 		n, read_err := linux.read(fds[0], buf[:])
 		if n <= 0 || read_err != nil {break}
 		strings.write_bytes(&builder, buf[:n])
 	}
 
 	status: u32
-	// waitpid(pid, status, options, rusage)
 	linux.waitpid(pid, &status, {}, nil)
 
-	return strings.to_string(builder), true
+	// Check exit status
+	success := (status & 0x7f) == 0 && ((status & 0xff00) >> 8) == 0
+
+	return strings.to_string(builder), success
+}
+
+// Run a command silently (capture output, return exit code)
+run_command_silent :: proc(args: []string) -> int {
+	if len(args) == 0 {return 127}
+
+	fds: [2]linux.Fd
+	if linux.pipe2(&fds, {}) != nil {
+		return -1
+	}
+	defer linux.close(fds[0])
+
+	pid, err := linux.fork()
+	if err != nil {
+		linux.close(fds[1])
+		return -1
+	}
+
+	if pid == 0 {
+		// Child - redirect both stdout and stderr to pipe
+		linux.close(fds[0])
+		linux.dup2(fds[1], linux.STDOUT_FILENO)
+		linux.dup2(fds[1], linux.STDERR_FILENO)
+		linux.close(fds[1])
+
+		argv := make_argv(args, context.temp_allocator)
+		path := strings.clone_to_cstring(args[0], context.temp_allocator)
+
+		execvp(path, argv)
+		os.exit(127)
+	}
+
+	// Parent - drain the pipe to avoid blocking
+	linux.close(fds[1])
+	buf: [1024]u8
+	for {
+		n, _ := linux.read(fds[0], buf[:])
+		if n <= 0 {break}
+	}
+
+	status: u32
+	linux.waitpid(pid, &status, {}, nil)
+
+	if (status & 0x7f) == 0 {
+		return int((status & 0xff00) >> 8)
+	}
+
+	return -1
 }
 
 // Run a command and return exit code
@@ -161,9 +216,6 @@ run_command :: proc(args: []string) -> int {
 	linux.waitpid(pid, &status, {}, nil)
 
 	// Decode status
-	// WEXITSTATUS(status) = (status & 0xff00) >> 8
-	// In linux, status is int (i32), but here we use u32 to match signature.
-	// If WIFEXITED(status) -> status & 0x7f == 0
 	if (status & 0x7f) == 0 {
 		return int((status & 0xff00) >> 8)
 	}
