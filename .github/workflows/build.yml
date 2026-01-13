@@ -118,6 +118,7 @@ jobs:
           name: binpkgs-${{ matrix.category }}-${{ matrix.arch }}
           path: dist-out
           if-no-files-found: ignore
+          retention-days: 1
 
       - name: Upload Build Logs
         uses: actions/upload-artifact@v4
@@ -125,6 +126,7 @@ jobs:
           name: build-logs-${{ matrix.category }}-${{ matrix.arch }}
           path: logs-out
           if-no-files-found: ignore
+          retention-days: 1
 
   release:
     needs: [check-changes, build]
