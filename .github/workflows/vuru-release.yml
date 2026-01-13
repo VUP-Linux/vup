@@ -64,25 +64,30 @@ jobs:
           # Verify change
           cat "$TEMPLATE"
           
-          # Push changes to new branch
+          # Push changes to bot's fork and create PR
+          VERSION=${GITHUB_REF_NAME#v}
           BRANCH="release/vuru-$VERSION"
           cd vup
           git config user.name "vup-bot"
           git config user.email "vup-bot.jzdyf@mailer.me"
           
-          # Make workflow idempotent
-          git push origin --delete "$BRANCH" || true
+          # Add bot's fork as remote
+          git remote add fork https://x-access-token:${{ secrets.BOT_ACCESS_TOKEN }}@github.com/vup-bot/vup.git
+          
+          # Make workflow idempotent - delete branch from fork if exists
+          git push fork --delete "$BRANCH" || true
           
           git checkout -b "$BRANCH"
           git add vup/srcpkgs/core/vuru/template
           git commit -m "auto: update vuru to $VERSION"
-          git push -u origin "$BRANCH"
+          git push -u fork "$BRANCH"
           
-          # Create Pull Request
+          # Create Pull Request from fork to main repo
           gh pr create \
+            --repo VUP-Linux/vup \
             --title "auto: update vuru to $VERSION" \
             --body "Automated update containing checksum changes for vuru v$VERSION." \
-            --head "$BRANCH" \
+            --head "vup-bot:$BRANCH" \
             --base main
         env:
           GH_TOKEN: ${{ secrets.BOT_ACCESS_TOKEN }}
