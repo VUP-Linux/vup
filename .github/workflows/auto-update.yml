@@ -28,7 +28,7 @@ jobs:
       - name: Run Update Script
         id: update
         run: |
-          python3 vup/scripts/update-jobs/update_antigravity.py
+          sudo python3 vup/scripts/update-jobs/update_antigravity.py
           if git diff --quiet; then
             echo "changed=false" >> $GITHUB_OUTPUT
           else

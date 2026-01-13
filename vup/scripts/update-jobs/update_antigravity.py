@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
 """
 Auto-updater for antigravity package.
-Fetches version info from the APT repository metadata.
+Uses apt tools to fetch the latest version info from the APT repository.
 """
 
+import os
 import re
 import sys
-import gzip
+import tempfile
+import subprocess
+import hashlib
 import urllib.request
 from pathlib import Path
 
 TEMPLATE_PATH = Path(__file__).parent.parent.parent / "srcpkgs/editors/antigravity/template"
 
 # APT repository configuration
-REPO_BASE = "https://us-central1-apt.pkg.dev/projects/antigravity-auto-updater-dev"
+REPO_URL = "https://us-central1-apt.pkg.dev/projects/antigravity-auto-updater-dev"
+REPO_KEY_URL = "https://us-central1-apt.pkg.dev/doc/repo-signing-key.gpg"
 DIST = "antigravity-debian"
-COMPONENT = "main"
 PACKAGE_NAME = "antigravity"
 
 # Map void arch to debian arch
@@ -25,97 +28,163 @@ ARCH_MAP = {
 }
 
 
-def fetch_packages_file(arch: str) -> str:
-    """Fetch and decompress the Packages file for an architecture."""
+def version_tuple(v: str) -> tuple:
+    """Convert version string to comparable tuple."""
+    return tuple(map(int, v.split(".")))
+
+
+def setup_apt_repo(temp_dir: str, arch: str) -> bool:
+    """Set up the APT repository for querying."""
     deb_arch = ARCH_MAP[arch]
-    # Try gzipped first, fall back to plain
-    for ext, decompress in [(".gz", True), ("", False)]:
-        url = f"{REPO_BASE}/dists/{DIST}/{COMPONENT}/binary-{deb_arch}/Packages{ext}"
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                data = resp.read()
-                if decompress:
-                    return gzip.decompress(data).decode("utf-8")
-                return data.decode("utf-8")
-        except urllib.error.HTTPError:
-            continue
-    raise ValueError(f"Could not fetch Packages file for {arch}")
-
-
-def parse_packages_file(content: str, package_name: str) -> dict | None:
-    """
-    Parse APT Packages file and extract info for the specified package.
-    Returns dict with version, filename, sha256.
-    """
-    # Split into package entries
-    entries = content.split("\n\n")
+    keyring_path = f"{temp_dir}/antigravity.gpg"
+    sources_path = f"{temp_dir}/sources.list"
     
-    for entry in entries:
-        lines = entry.strip().split("\n")
-        pkg_data = {}
-        for line in lines:
-            if ": " in line:
-                key, value = line.split(": ", 1)
-                pkg_data[key] = value
+    # Download and dearmor the key
+    try:
+        subprocess.run(
+            f'curl -fsSL "{REPO_KEY_URL}" | gpg --batch --yes --dearmor -o "{keyring_path}"',
+            shell=True, check=True, capture_output=True
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"  Failed to download repo key: {e}")
+        return False
+    
+    # Create sources list
+    with open(sources_path, "w") as f:
+        f.write(f"deb [signed-by={keyring_path} arch={deb_arch}] {REPO_URL}/ {DIST} main\n")
+    
+    # Update apt cache for this repo
+    try:
+        subprocess.run(
+            ["apt-get", "update", 
+             "-o", f"Dir::Etc::sourcelist={sources_path}",
+             "-o", "Dir::Etc::sourceparts=-",
+             "-o", f"Dir::State={temp_dir}/state",
+             "-o", f"Dir::Cache={temp_dir}/cache"],
+            check=True, capture_output=True
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"  Failed to update apt cache: {e.stderr.decode()}")
+        return False
+    
+    return True
+
+
+def get_package_info_apt(temp_dir: str, arch: str) -> dict | None:
+    """Get package info using apt-cache."""
+    deb_arch = ARCH_MAP[arch]
+    sources_path = f"{temp_dir}/sources.list"
+    keyring_path = f"{temp_dir}/antigravity.gpg"
+    
+    apt_opts = [
+        "-o", f"Dir::Etc::sourcelist={sources_path}",
+        "-o", "Dir::Etc::sourceparts=-",
+        "-o", f"Dir::State={temp_dir}/state",
+        "-o", f"Dir::Cache={temp_dir}/cache",
+    ]
+    
+    # Get version using apt-cache madison
+    try:
+        result = subprocess.run(
+            ["apt-cache", *apt_opts, "madison", PACKAGE_NAME],
+            capture_output=True, text=True, check=True
+        )
+        if not result.stdout.strip():
+            return None
         
-        if pkg_data.get("Package") == package_name:
-            version_full = pkg_data.get("Version", "")
-            # Version format: 1.13.3-1766182170 (version-buildid)
-            version = version_full.split("-")[0] if "-" in version_full else version_full
-            build_id = version_full.split("-")[1] if "-" in version_full else ""
-            
-            # Extract the file hash from filename
-            # Format: antigravity_1.13.3-1766182170_amd64_365061c50063f9bd47a9ff88432261b8.deb
-            filename = pkg_data.get("Filename", "")
-            file_hash_match = re.search(r'_([a-f0-9]+)\.deb$', filename)
-            file_hash = file_hash_match.group(1) if file_hash_match else ""
-            
-            # Extract deb arch from filename
-            deb_arch_match = re.search(r'_(amd64|arm64)_', filename)
-            deb_arch = deb_arch_match.group(1) if deb_arch_match else ""
-            
-            return {
-                "version": version,
-                "build_id": build_id,
-                "file_hash": file_hash,
-                "deb_arch": deb_arch,
-                "sha256": pkg_data.get("SHA256", ""),
-            }
+        # Parse: antigravity | 1.13.3-1766182170 | https://... antigravity-debian/main amd64 Packages
+        line = result.stdout.strip().split("\n")[0]
+        parts = [p.strip() for p in line.split("|")]
+        version_full = parts[1]  # e.g., "1.13.3-1766182170"
+        version = version_full.split("-")[0]
+        build_id = version_full.split("-")[1] if "-" in version_full else ""
+        
+    except subprocess.CalledProcessError:
+        return None
     
-    return None
+    # Get download URL using apt-get download --print-uris
+    try:
+        result = subprocess.run(
+            ["apt-get", *apt_opts, "download", "--print-uris", f"{PACKAGE_NAME}:{deb_arch}"],
+            capture_output=True, text=True, check=True
+        )
+        # Parse: 'https://...antigravity_1.13.3-123_amd64_hash.deb' antigravity_1.13.3_amd64.deb 12345 SHA256:abc
+        match = re.search(r"'([^']+)'", result.stdout)
+        if not match:
+            return None
+        deb_url = match.group(1)
+        
+        # Extract filename from URL
+        filename = deb_url.split("/")[-1]
+        
+        # Extract file hash from filename: antigravity_1.13.3-123_amd64_HASH.deb
+        hash_match = re.search(r'_([a-f0-9]+)\.deb$', filename)
+        file_hash = hash_match.group(1) if hash_match else ""
+        
+    except subprocess.CalledProcessError:
+        return None
+    
+    return {
+        "version": version,
+        "build_id": build_id,
+        "file_hash": file_hash,
+        "deb_url": deb_url,
+        "deb_arch": deb_arch,
+    }
+
+
+def download_and_checksum(url: str) -> str:
+    """Download file and compute SHA256."""
+    print(f"  Downloading for checksum...")
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    sha256 = hashlib.sha256()
+    with urllib.request.urlopen(req, timeout=300) as resp:
+        while chunk := resp.read(8192):
+            sha256.update(chunk)
+    return sha256.hexdigest()
 
 
 def get_latest_info() -> dict:
-    """Fetch latest package info for all architectures from APT repo."""
+    """Fetch latest package info for all architectures."""
     result = {"version": None, "archs": {}}
     
-    for void_arch in ARCH_MAP:
-        print(f"Fetching package info for {void_arch}...")
-        try:
-            packages_content = fetch_packages_file(void_arch)
-            pkg_info = parse_packages_file(packages_content, PACKAGE_NAME)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create required directories
+        os.makedirs(f"{temp_dir}/state/lists/partial", exist_ok=True)
+        os.makedirs(f"{temp_dir}/cache/archives/partial", exist_ok=True)
+        
+        for void_arch in ARCH_MAP:
+            print(f"Fetching package info for {void_arch}...")
             
-            if pkg_info:
-                # Construct debfile using template variables for pkgname and version
-                # Format: ${pkgname}_${version}-BUILDID_ARCH_HASH.deb
-                debfile = '${pkgname}_${version}-' + f'{pkg_info["build_id"]}_{pkg_info["deb_arch"]}_{pkg_info["file_hash"]}.deb'
-                
-                result["archs"][void_arch] = {
-                    "debfile": debfile,
-                    "checksum": pkg_info["sha256"],
-                }
-                
-                # Use version from first successful arch
-                if result["version"] is None:
-                    result["version"] = pkg_info["version"]
-                
-                print(f"  {void_arch}: v{pkg_info['version']} build {pkg_info['build_id']}")
-            else:
-                print(f"  {void_arch}: Package not found in repo")
-                
-        except Exception as e:
-            print(f"  {void_arch}: Error - {e}")
+            if not setup_apt_repo(temp_dir, void_arch):
+                continue
+            
+            pkg_info = get_package_info_apt(temp_dir, void_arch)
+            if not pkg_info:
+                print(f"  {void_arch}: Package not found")
+                continue
+            
+            # Get checksum by downloading
+            try:
+                checksum = download_and_checksum(pkg_info["deb_url"])
+            except Exception as e:
+                print(f"  {void_arch}: Failed to get checksum: {e}")
+                continue
+            
+            # Construct debfile using template variables
+            debfile = '${pkgname}_${version}-' + f'{pkg_info["build_id"]}_{pkg_info["deb_arch"]}_{pkg_info["file_hash"]}.deb'
+            
+            result["archs"][void_arch] = {
+                "debfile": debfile,
+                "checksum": checksum,
+                "build_id": pkg_info["build_id"],
+            }
+            
+            # Use version from first successful arch
+            if result["version"] is None:
+                result["version"] = pkg_info["version"]
+            
+            print(f"  {void_arch}: v{pkg_info['version']} build {pkg_info['build_id']}")
     
     if not result["version"]:
         raise ValueError("Could not find package in any architecture")
@@ -197,18 +266,28 @@ def main():
     current = parse_template(template_content)
     print(f"Current version: {current['version']}")
     
-    # Compare - check both version and build_id (in case of rebuild)
-    if new_info["version"] == current["version"]:
-        # Extract build_id from the new info for comparison
-        new_build = new_info["archs"].get("x86_64", {}).get("debfile", "")
-        new_build_match = re.search(r'-(\d+)_amd64', new_build)
-        new_build_id = new_build_match.group(1) if new_build_match else ""
-        cur_build_id = current["x86_64"].get("build_id", "")
+    # Compare versions - only update if new version is actually NEWER
+    new_ver = version_tuple(new_info["version"])
+    cur_ver = version_tuple(current["version"])
+    
+    if new_ver < cur_ver:
+        print(f"\nRemote version {new_info['version']} is OLDER than current {current['version']}. Skipping.")
+        return 0
+    
+    if new_ver == cur_ver:
+        # Same version - check if build ID changed
+        new_build = new_info["archs"].get("x86_64", {}).get("build_id", "")
+        cur_build = current["x86_64"].get("build_id", "")
         
-        if new_build_id == cur_build_id:
+        if new_build == cur_build:
             print("\nAlready up to date!")
             return 0
-        print(f"Same version but new build detected ({cur_build_id} -> {new_build_id})")
+        
+        if new_build and cur_build and int(new_build) <= int(cur_build):
+            print(f"\nRemote build {new_build} is not newer than current {cur_build}. Skipping.")
+            return 0
+        
+        print(f"Same version but new build detected ({cur_build} -> {new_build})")
     
     print(f"\nUpdating: {current['version']} -> {new_info['version']}")
     
