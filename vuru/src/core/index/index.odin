@@ -1,9 +1,12 @@
-package main
+package index
 
 import "core:encoding/json"
 import "core:fmt"
+import "core:mem"
 import "core:os"
 import "core:strings"
+
+import "../../utils"
 
 // Package metadata from index
 Package_Info :: struct {
@@ -18,8 +21,6 @@ Index :: struct {
 	packages:  map[string]Package_Info,
 	allocator: mem.Allocator,
 }
-
-import "core:mem"
 
 // Free index and all its allocations
 index_free :: proc(idx: ^Index) {
@@ -46,7 +47,7 @@ is_valid_url :: proc(url: string) -> bool {
 	}
 
 	// Check for shell metacharacters
-	dangerous := ";|&$`'\"\\>\n\r<(){}"
+	dangerous :: ";|&$`'\"\\>\n\r<(){}"
 	for c in url {
 		if strings.contains_rune(dangerous, c) {
 			return false
@@ -66,13 +67,13 @@ parse_index :: proc(content: string, allocator := context.allocator) -> (Index, 
 	// Parse JSON
 	parsed, err := json.parse(transmute([]u8)content, allocator = context.temp_allocator)
 	if err != .None {
-		log_error("Failed to parse index JSON")
+		utils.log_error("Failed to parse index JSON")
 		return idx, false
 	}
 
 	root, ok := parsed.(json.Object)
 	if !ok {
-		log_error("Invalid index format")
+		utils.log_error("Invalid index format")
 		return idx, false
 	}
 
@@ -123,7 +124,7 @@ parse_index :: proc(content: string, allocator := context.allocator) -> (Index, 
 
 // Load index from file
 load_index_from_file :: proc(path: string, allocator := context.allocator) -> (Index, bool) {
-	content, ok := read_file(path, context.temp_allocator)
+	content, ok := utils.read_file(path, context.temp_allocator)
 	if !ok {
 		return {}, false
 	}
@@ -141,24 +142,24 @@ index_load_or_fetch :: proc(
 	bool,
 ) {
 	if !is_valid_url(url) {
-		log_error("Invalid or unsafe URL provided")
+		utils.log_error("Invalid or unsafe URL provided")
 		return {}, false
 	}
 
-	cache_dir, cache_ok := get_cache_dir(context.temp_allocator)
+	cache_dir, cache_ok := utils.get_cache_dir(context.temp_allocator)
 	if !cache_ok {
-		log_error("Could not determine cache directory")
+		utils.log_error("Could not determine cache directory")
 		return {}, false
 	}
 
-	if !mkdir_p(cache_dir) {
-		log_error("Failed to create cache directory: %s", cache_dir)
+	if !utils.mkdir_p(cache_dir) {
+		utils.log_error("Failed to create cache directory: %s", cache_dir)
 		return {}, false
 	}
 
-	index_path := path_join(cache_dir, "index.json", allocator = context.temp_allocator)
-	etag_path := path_join(cache_dir, "index.json.etag", allocator = context.temp_allocator)
-	temp_path := path_join(cache_dir, "index.json.tmp", allocator = context.temp_allocator)
+	index_path := utils.path_join(cache_dir, "index.json", allocator = context.temp_allocator)
+	etag_path := utils.path_join(cache_dir, "index.json.etag", allocator = context.temp_allocator)
+	temp_path := utils.path_join(cache_dir, "index.json.tmp", allocator = context.temp_allocator)
 
 	// Try to load from cache if not forced
 	if !force_update && os.exists(index_path) {
@@ -171,12 +172,12 @@ index_load_or_fetch :: proc(
 	// Read existing ETag
 	old_etag := ""
 	if !force_update && os.exists(etag_path) {
-		if content, ok := read_file(etag_path, context.temp_allocator); ok {
+		if content, ok := utils.read_file(etag_path, context.temp_allocator); ok {
 			old_etag = strings.trim_space(content)
 		}
 	}
 
-	log_info("Fetching index...")
+	utils.log_info("Fetching index...")
 
 	// Build curl command
 	curl_args: [dynamic]string
@@ -190,16 +191,16 @@ index_load_or_fetch :: proc(
 
 	append(&curl_args, "-o", temp_path, url)
 
-	output, ok := run_command_output(curl_args[:])
+	output, ok := utils.run_command_output(curl_args[:])
 	defer delete(output)
 
 	if !ok {
-		log_error("Failed to fetch index")
+		utils.log_error("Failed to fetch index")
 		os.remove(temp_path)
 
 		// Fallback to cache
 		if os.exists(index_path) {
-			log_info("Using cached index")
+			utils.log_info("Using cached index")
 			return load_index_from_file(index_path, allocator)
 		}
 		return {}, false
@@ -208,18 +209,18 @@ index_load_or_fetch :: proc(
 	status := strings.trim_space(output)
 
 	if status == "304" {
-		log_info("Index not modified (cached)")
+		utils.log_info("Index not modified (cached)")
 		os.remove(temp_path)
 		return load_index_from_file(index_path, allocator)
 	}
 
 	if status == "200" {
-		log_info("Index updated")
+		utils.log_info("Index updated")
 
 		// Move temp to index
 		os.remove(index_path)
 		if os.rename(temp_path, index_path) != os.ERROR_NONE {
-			log_error("Failed to save index")
+			utils.log_error("Failed to save index")
 			os.remove(temp_path)
 			return {}, false
 		}
@@ -228,12 +229,12 @@ index_load_or_fetch :: proc(
 	}
 
 	// Unexpected status
-	log_error("Unexpected HTTP status: %s", status)
+	utils.log_error("Unexpected HTTP status: %s", status)
 	os.remove(temp_path)
 
 	// Fallback to cache
 	if os.exists(index_path) {
-		log_info("Using cached index as fallback")
+		utils.log_info("Using cached index as fallback")
 		return load_index_from_file(index_path, allocator)
 	}
 

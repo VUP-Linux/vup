@@ -13,12 +13,12 @@ sudo xbps-install -R https://github.com/VUP-Linux/vup/releases/download/core-x86
 ## Quick Start
 
 ```bash
-vuru search code           # search VUP + official repos
+vuru query -s code         # search VUP + official repos
 vuru install vlang         # install a package
-vuru install -n ferdium    # dry-run (show what would happen)
-vuru update                # update all VUP packages
-vuru remove zig15          # remove a package
-vuru info odin             # show package details
+vuru install -Sy ferdium   # sync repos + install
+vuru install -Su           # full system update
+vuru remove -o             # remove orphan packages
+vuru query odin            # show package details
 ```
 
 ## Commands
@@ -27,24 +27,40 @@ vuru info odin             # show package details
 vuru <command> [options] [arguments]
 
 Commands:
-  search   <query>       Search packages
-  install  <pkg...>      Install packages
+  query    <pkg>         Show package info (or use modes below)
+  install  <pkg...>      Install packages (VUP + official)
   remove   <pkg...>      Remove packages
-  update                 Update VUP packages
-  info     <pkg>         Show package info
+  update                 Update all packages
   build    <pkg...>      Build from source
-  sync                   Refresh package index
+  sync                   Sync repository index
+  fetch    <url...>      Download files from URLs
   clone                  Clone VUP repo locally
   src      <cmd> [args]  xbps-src wrapper
   help                   Show help
 
-Options:
+Query modes:
+  -l, --list       List installed packages
+  -f, --files      Show package files
+  -x, --deps       Show dependencies
+  --ownedby        Find package owning a file
+
+Install/Remove flags:
+  -S, --sync         Sync repos before operation
+  -u, --update       Update mode (system upgrade)
+  -R, --recursive    Recursive remove/deps
+  -o, --orphans      Remove orphan packages
+  -O, --clean-cache  Clean package cache
+
+General options:
   -y, --yes        Skip confirmations
   -n, --dry-run    Show what would be done
   -b, --build      Force build from source
-  --vup-only       Search VUP only
+  -d, --desc       Include descriptions in search
+  -v, --verbose    Verbose output
+  -r, --rootdir    Alternate root directory
+  --vup-only       VUP packages only
 
-Aliases: s=search, i=install, r=remove, u=update, q=info
+Aliases: q=query, s=search, i=install, r=remove, u=update
 ```
 
 ## Unified Search
@@ -52,7 +68,7 @@ Aliases: s=search, i=install, r=remove, u=update, q=info
 Searches VUP and official Void repos at the same time:
 
 ```
-$ vuru search zig
+$ vuru query -s zig
 
 ==> VUP Packages (1)
 NAME          VERSION    CATEGORY     DESCRIPTION

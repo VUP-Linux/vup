@@ -1,7 +1,8 @@
-package main
+package utils
 
 import "core:c"
 import "core:fmt"
+import "core:mem"
 import "core:os"
 import "core:strings"
 import "core:sys/linux"
@@ -311,4 +312,62 @@ parent_dir :: proc(path: string) -> string {
 // Join paths
 path_join :: proc(parts: ..string, allocator := context.allocator) -> string {
 	return strings.join(parts[:], "/", allocator)
+}
+
+// Helper functions extracted from template.odin to avoid cyclic deps and duplication
+
+strip_quotes :: proc(s: string) -> string {
+	if len(s) < 2 {
+		return s
+	}
+
+	if (s[0] == '"' && s[len(s) - 1] == '"') || (s[0] == '\'' && s[len(s) - 1] == '\'') {
+		return s[1:len(s) - 1]
+	}
+	return s
+}
+
+split_and_clone :: proc(s: string, allocator: mem.Allocator) -> []string {
+	if len(s) == 0 {
+		return nil
+	}
+
+	parts := strings.fields(s, context.temp_allocator)
+	result := make([]string, len(parts), allocator)
+
+	for p, i in parts {
+		result[i] = strings.clone(p, allocator)
+	}
+
+	return result
+}
+
+parse_int :: proc(s: string) -> int {
+	result := 0
+	for c in s {
+		if c >= '0' && c <= '9' {
+			result = result * 10 + int(c - '0')
+		} else {
+			break
+		}
+	}
+	return result
+}
+
+int_to_string :: proc(n: int, allocator := context.allocator) -> string {
+	if n == 0 {
+		return strings.clone("0", allocator)
+	}
+
+	buf: [20]u8
+	i := len(buf)
+	v := n
+
+	for v > 0 {
+		i -= 1
+		buf[i] = u8('0' + (v % 10))
+		v /= 10
+	}
+
+	return strings.clone(string(buf[i:]), allocator)
 }

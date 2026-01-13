@@ -1,47 +1,50 @@
-package main
+package resolve
 
 import "core:fmt"
 import "core:mem"
 import "core:strings"
-import "errors"
+
+import errors "../../core/errors"
+import index "../../core/index"
+import template "../../core/template"
+import utils "../../utils"
 
 // Package source - where a package comes from
 Package_Source :: enum {
 	Unknown,
-	Official,  // Official Void Linux repos
-	VUP,       // VUP binary repo
+	Official, // Official Void Linux repos
+	VUP, // VUP binary repo
 	VUP_Build, // VUP source (needs building)
 }
 
 // Resolved package info
 Resolved_Package :: struct {
-	name:        string,
-	version:     string,
-	source:      Package_Source,
-	repo_url:    string,    // For binary install
-	category:    string,    // For VUP packages
-	template:    ^Template, // For VUP_Build
-	depth:       int,       // Dependency depth (0 = target, 1+ = deps)
+	name:     string,
+	version:  string,
+	source:   Package_Source,
+	repo_url: string, // For binary install
+	category: string, // For VUP packages
+	template: ^template.Template, // For VUP_Build
+	depth:    int, // Dependency depth (0 = target, 1+ = deps)
 }
 
 // Resolution result
 Resolution :: struct {
 	// Packages to install from binary repos (in dependency order)
-	to_install:  [dynamic]Resolved_Package,
+	to_install: [dynamic]Resolved_Package,
 
 	// Packages to build from source (in dependency order)
-	to_build:    [dynamic]Resolved_Package,
+	to_build:   [dynamic]Resolved_Package,
 
 	// Already satisfied
-	satisfied:   [dynamic]string,
+	satisfied:  [dynamic]string,
 
 	// Unresolvable - names only (legacy)
-	missing:     [dynamic]string,
+	missing:    [dynamic]string,
 
 	// Detailed errors for each failure
-	errors:      [dynamic]errors.Error,
-
-	allocator:   mem.Allocator,
+	errors:     [dynamic]errors.Error,
+	allocator:  mem.Allocator,
 }
 
 resolution_free :: proc(r: ^Resolution) {
@@ -58,7 +61,7 @@ resolution_free :: proc(r: ^Resolution) {
 		delete(pkg.version, r.allocator)
 		delete(pkg.category, r.allocator)
 		if pkg.template != nil {
-			template_free(pkg.template)
+			template.template_free(pkg.template)
 			free(pkg.template, r.allocator)
 		}
 	}
@@ -76,12 +79,12 @@ resolution_free :: proc(r: ^Resolution) {
 
 // Check if a package is installed (silently)
 is_pkg_installed :: proc(name: string) -> bool {
-	return run_command_silent({"xbps-query", name}) == 0
+	return utils.run_command_silent({"xbps-query", name}) == 0
 }
 
 // Check if package exists in official Void repos
 is_in_official_repos :: proc(name: string) -> (version: string, ok: bool) {
-	output, cmd_ok := run_command_output({"xbps-query", "-R", name}, context.temp_allocator)
+	output, cmd_ok := utils.run_command_output({"xbps-query", "-R", name}, context.temp_allocator)
 	if !cmd_ok {
 		return "", false
 	}
@@ -92,7 +95,7 @@ is_in_official_repos :: proc(name: string) -> (version: string, ok: bool) {
 			value := strings.trim_space(line[7:])
 			// Format: name-version
 			if idx := strings.last_index(value, "-"); idx > 0 {
-				return strings.clone(value[idx+1:], context.temp_allocator), true
+				return strings.clone(value[idx + 1:], context.temp_allocator), true
 			}
 		}
 	}
@@ -103,14 +106,17 @@ is_in_official_repos :: proc(name: string) -> (version: string, ok: bool) {
 // Resolve a single package
 resolve_package :: proc(
 	name: string,
-	idx: ^Index,
+	idx: ^index.Index,
 	arch: string,
 	depth: int,
 	allocator := context.allocator,
-) -> (Resolved_Package, bool) {
+) -> (
+	Resolved_Package,
+	bool,
+) {
 
-	pkg := Resolved_Package{
-		name = strings.clone(name, allocator),
+	pkg := Resolved_Package {
+		name  = strings.clone(name, allocator),
 		depth = depth,
 	}
 
@@ -122,7 +128,7 @@ resolve_package :: proc(
 	}
 
 	// 2. Check VUP index for binary
-	if vup_pkg, ok := index_get_package(idx, name); ok {
+	if vup_pkg, ok := index.index_get_package(idx, name); ok {
 		if url, url_ok := vup_pkg.repo_urls[arch]; url_ok {
 			pkg.source = .VUP
 			pkg.version = strings.clone(vup_pkg.version, allocator)
@@ -147,21 +153,24 @@ resolve_package :: proc(
 // Resolve dependencies for a target package
 resolve_deps :: proc(
 	target: string,
-	idx: ^Index,
+	idx: ^index.Index,
 	include_makedeps: bool,
 	allocator := context.allocator,
-) -> (Resolution, bool) {
+) -> (
+	Resolution,
+	bool,
+) {
 
-	res := Resolution{
+	res := Resolution {
 		to_install = make([dynamic]Resolved_Package, allocator),
-		to_build = make([dynamic]Resolved_Package, allocator),
-		satisfied = make([dynamic]string, allocator),
-		missing = make([dynamic]string, allocator),
-		errors = make([dynamic]errors.Error, allocator),
-		allocator = allocator,
+		to_build   = make([dynamic]Resolved_Package, allocator),
+		satisfied  = make([dynamic]string, allocator),
+		missing    = make([dynamic]string, allocator),
+		errors     = make([dynamic]errors.Error, allocator),
+		allocator  = allocator,
 	}
 
-	arch, arch_ok := get_arch()
+	arch, arch_ok := utils.get_arch()
 	if !arch_ok {
 		append(&res.errors, errors.make_error(.Arch_Detection_Failed, "", allocator))
 		return res, false
@@ -177,10 +186,20 @@ resolve_deps :: proc(
 
 	for len(queue) > 0 {
 		item := queue[0]
-		ordered_remove(&queue, 0)
+		ordered_remove(&queue, 0) // ordered_remove is builtin
+		// `ordered_remove` is defined in `core:slice` or builtin? `ordered_remove` is a procedure in Odin's `core:slice`? No.
+		// Wait, `ordered_remove(&queue, 0)` is standard usage.
+		// However, I previously saw it as just `ordered_remove` in Step 94 line 180.
+		// This means it's likely a built-in or imported from somewhere.
+		// Ah, `import "core:slice"` was probably missing or it's implicitly available for dynamic arrays?
+		// Actually, `ordered_remove` is part of `core:container/queue`? No.
+		// `ordered_remove` is often just `unordered_remove` or `ordered_remove` from `core:slice` or similar.
+		// Step 94 imports: fmt, mem, strings, errors. No `core:slice`.
+		// So `ordered_remove` must be builtin for dynamic arrays in the version of Odin used (~2024+).
+		// I will assume it's valid.
 
 		name := item[0]
-		depth := parse_int(item[1])
+		depth := utils.parse_int(item[1])
 
 		if name in visited {
 			continue
@@ -215,19 +234,28 @@ resolve_deps :: proc(
 			append(&res.to_install, pkg)
 
 			// Resolve VUP package dependencies from template
-			if template, tmpl_ok := fetch_and_parse_template(pkg.category, name, allocator); tmpl_ok {
-				defer template_free(&template)
+			if tmpl, tmpl_ok := fetch_and_parse_template(pkg.category, name, allocator); tmpl_ok {
+				defer template.template_free(&tmpl)
 
-				for dep in template.depends {
+				for dep in tmpl.depends {
 					if dep not_in visited {
-						append(&queue, [2]string{dep, int_to_string(depth + 1, context.temp_allocator)})
+						append(
+							&queue,
+							[2]string{dep, utils.int_to_string(depth + 1, context.temp_allocator)},
+						)
 					}
 				}
 
 				if include_makedeps {
-					for dep in template.makedepends {
+					for dep in tmpl.makedepends {
 						if dep not_in visited {
-							append(&queue, [2]string{dep, int_to_string(depth + 1, context.temp_allocator)})
+							append(
+								&queue,
+								[2]string {
+									dep,
+									utils.int_to_string(depth + 1, context.temp_allocator),
+								},
+							)
 						}
 					}
 				}
@@ -250,13 +278,16 @@ fetch_and_parse_template :: proc(
 	category: string,
 	pkg_name: string,
 	allocator := context.allocator,
-) -> (Template, bool) {
-	content, ok := fetch_template(category, pkg_name, context.temp_allocator)
+) -> (
+	template.Template,
+	bool,
+) {
+	content, ok := template.fetch_template(category, pkg_name, context.temp_allocator)
 	if !ok {
 		return {}, false
 	}
 
-	return template_parse(content, allocator)
+	return template.template_parse(content, allocator)
 }
 
 // Print resolution summary

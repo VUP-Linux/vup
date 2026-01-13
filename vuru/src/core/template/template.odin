@@ -1,4 +1,6 @@
-package main
+package template
+
+import utils "../../utils"
 
 import "core:mem"
 import "core:os"
@@ -7,39 +9,39 @@ import "core:strings"
 // Parsed template information from xbps-src template file
 Template :: struct {
 	// Core fields
-	pkgname:     string,
-	version:     string,
-	revision:    int,
-	short_desc:  string,
-	maintainer:  string,
-	license:     string,
-	homepage:    string,
+	pkgname:       string,
+	version:       string,
+	revision:      int,
+	short_desc:    string,
+	maintainer:    string,
+	license:       string,
+	homepage:      string,
 
 	// Dependencies
-	depends:      []string, // Runtime dependencies
-	makedepends:  []string, // Build-time dependencies
-	hostmakedeps: []string, // Host build dependencies (for cross-compile)
-	checkdepends: []string, // Test dependencies
+	depends:       []string, // Runtime dependencies
+	makedepends:   []string, // Build-time dependencies
+	hostmakedeps:  []string, // Host build dependencies (for cross-compile)
+	checkdepends:  []string, // Test dependencies
 
 	// Build info
-	archs:        []string, // Supported architectures ("x86_64 aarch64" etc)
-	build_style:  string,   // gnu-configure, cmake, meson, etc.
+	archs:         []string, // Supported architectures ("x86_64 aarch64" etc)
+	build_style:   string, // gnu-configure, cmake, meson, etc.
 	create_wrksrc: bool,
 
 	// Restrictions
-	restricted:   bool,
-	nostrip:      bool,
-	nopie:        bool,
+	restricted:    bool,
+	nostrip:       bool,
+	nopie:         bool,
 
 	// Source
-	distfiles:    []string,
-	checksum:     []string,
+	distfiles:     []string,
+	checksum:      []string,
 
 	// Raw content for display/diff
-	raw_content:  string,
+	raw_content:   string,
 
 	// Allocator used for this template
-	allocator:    mem.Allocator,
+	allocator:     mem.Allocator,
 }
 
 // Free all memory associated with a template
@@ -81,7 +83,7 @@ template_free :: proc(t: ^Template) {
 
 // Parse a template file from disk
 template_parse_file :: proc(path: string, allocator := context.allocator) -> (Template, bool) {
-	content, ok := read_file(path, allocator)
+	content, ok := utils.read_file(path, allocator)
 	if !ok {
 		return {}, false
 	}
@@ -91,8 +93,8 @@ template_parse_file :: proc(path: string, allocator := context.allocator) -> (Te
 
 // Parse template content string
 template_parse :: proc(content: string, allocator := context.allocator) -> (Template, bool) {
-	t := Template{
-		allocator = allocator,
+	t := Template {
+		allocator   = allocator,
 		raw_content = strings.clone(content, allocator),
 	}
 
@@ -167,7 +169,10 @@ template_parse :: proc(content: string, allocator := context.allocator) -> (Temp
 // Get full version string (version_revision)
 template_full_version :: proc(t: ^Template, allocator := context.allocator) -> string {
 	if t.revision > 0 {
-		return strings.concatenate({t.version, "_", int_to_string(t.revision, context.temp_allocator)}, allocator)
+		return strings.concatenate(
+			{t.version, "_", int_to_string(t.revision, context.temp_allocator)},
+			allocator,
+		)
 	}
 	return strings.clone(t.version, allocator)
 }
@@ -210,8 +215,8 @@ strip_quotes :: proc(s: string) -> string {
 		return s
 	}
 
-	if (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'') {
-		return s[1:len(s)-1]
+	if (s[0] == '"' && s[len(s) - 1] == '"') || (s[0] == '\'' && s[len(s) - 1] == '\'') {
+		return s[1:len(s) - 1]
 	}
 	return s
 }

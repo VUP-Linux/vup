@@ -1,12 +1,10 @@
-package main
+package utils
 
 import "core:fmt"
 import "core:math/rand"
 import "core:os"
 import "core:strings"
 import "core:sys/linux"
-
-TEMPLATE_URL_BASE :: "https://raw.githubusercontent.com/VUP-Linux/vup/main/vup/srcpkgs"
 
 // Generate random string for temp file names
 rand_string :: proc(length: int, allocator := context.allocator) -> string {
@@ -76,36 +74,6 @@ diff_generate :: proc(
 // Show content in less pager
 diff_show_pager :: proc(path: string) {
 	run_command({"less", "-R", path})
-}
-
-// Fetch the template for a package
-fetch_template :: proc(
-	category: string,
-	pkg_name: string,
-	allocator := context.allocator,
-) -> (
-	string,
-	bool,
-) {
-	if !is_valid_identifier(category) || !is_valid_identifier(pkg_name) {
-		log_error("Invalid category or package name")
-		return "", false
-	}
-
-	url := fmt.tprintf("%s/%s/%s/template", TEMPLATE_URL_BASE, category, pkg_name)
-
-	tmpdir := get_tmpdir()
-	tmp_path := fmt.tprintf("%s/vuru_tmpl_%s_%d", tmpdir, pkg_name, linux.getpid())
-	defer os.remove(tmp_path)
-
-	// curl to fetch
-	if run_command({"curl", "-s", "-f", "-L", "-o", tmp_path, url}) != 0 {
-		log_error("Failed to fetch template from %s", url)
-		return "", false
-	}
-
-	content, ok := read_file(tmp_path, allocator)
-	return content, ok
 }
 
 // Review changes between current and previous template

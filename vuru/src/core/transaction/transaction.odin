@@ -1,17 +1,22 @@
-package main
+package transaction
 
 import "core:fmt"
 import "core:mem"
 import "core:os"
 import "core:strings"
 
+import builder "../../core/builder"
+import resolve "../../core/resolve"
+import xbps "../../core/xbps"
+import utils "../../utils"
+
 // Transaction operation type
 Transaction_Op :: enum {
 	Install_Official, // Install from official Void repos
-	Install_VUP,      // Install from VUP binary repo
-	Build_Install,    // Build from source then install
-	Remove,           // Remove package
-	Upgrade,          // Upgrade package
+	Install_VUP, // Install from VUP binary repo
+	Build_Install, // Build from source then install
+	Remove, // Remove package
+	Upgrade, // Upgrade package
 }
 
 // Single transaction item
@@ -45,21 +50,21 @@ transaction_free :: proc(t: ^Transaction) {
 
 // Create a transaction from resolution
 transaction_from_resolution :: proc(
-	res: ^Resolution,
+	res: ^resolve.Resolution,
 	allocator := context.allocator,
 ) -> Transaction {
-	tx := Transaction{
-		items = make([dynamic]Transaction_Item, allocator),
+	tx := Transaction {
+		items     = make([dynamic]Transaction_Item, allocator),
 		allocator = allocator,
 	}
 
 	// Add items in dependency order (deps first)
 	// Sort by depth descending so deps come first
 	for pkg in res.to_install {
-		item := Transaction_Item{
-			name = strings.clone(pkg.name, allocator),
+		item := Transaction_Item {
+			name        = strings.clone(pkg.name, allocator),
 			new_version = strings.clone(pkg.version, allocator),
-			reason = "explicit" if pkg.depth == 0 else "dependency",
+			reason      = "explicit" if pkg.depth == 0 else "dependency",
 		}
 
 		if pkg.source == .VUP {
@@ -74,13 +79,16 @@ transaction_from_resolution :: proc(
 	}
 
 	for pkg in res.to_build {
-		append(&tx.items, Transaction_Item{
-			op = .Build_Install,
-			name = strings.clone(pkg.name, allocator),
-			new_version = strings.clone(pkg.version, allocator),
-			category = strings.clone(pkg.category, allocator),
-			reason = "explicit" if pkg.depth == 0 else "dependency",
-		})
+		append(
+			&tx.items,
+			Transaction_Item {
+				op = .Build_Install,
+				name = strings.clone(pkg.name, allocator),
+				new_version = strings.clone(pkg.version, allocator),
+				category = strings.clone(pkg.category, allocator),
+				reason = "explicit" if pkg.depth == 0 else "dependency",
+			},
+		)
 	}
 
 	return tx
@@ -107,7 +115,7 @@ transaction_print :: proc(t: ^Transaction) {
 		case .Build_Install:
 			build += 1
 		case .Remove, .Upgrade:
-			// Count if needed
+		// Count if needed
 		}
 	}
 
@@ -146,7 +154,7 @@ transaction_print :: proc(t: ^Transaction) {
 }
 
 // Execute a transaction
-transaction_execute :: proc(t: ^Transaction, cfg: ^Build_Config, yes: bool) -> bool {
+transaction_execute :: proc(t: ^Transaction, cfg: ^builder.Build_Config, yes: bool) -> bool {
 	if len(t.items) == 0 {
 		return true
 	}
@@ -155,39 +163,39 @@ transaction_execute :: proc(t: ^Transaction, cfg: ^Build_Config, yes: bool) -> b
 	for item in t.items {
 		switch item.op {
 		case .Install_Official:
-			log_info("Installing %s from official repos...", item.name)
-			if run_command(build_official_install_args(item.name, yes)[:]) != 0 {
-				log_error("Failed to install %s", item.name)
+			utils.log_info("Installing %s from official repos...", item.name)
+			if utils.run_command(build_official_install_args(item.name, yes)[:]) != 0 {
+				utils.log_error("Failed to install %s", item.name)
 				return false
 			}
 
 		case .Install_VUP:
-			log_info("Installing %s from VUP...", item.name)
-			if run_xbps_install(item.repo_url, item.name, yes) != 0 {
-				log_error("Failed to install %s", item.name)
+			utils.log_info("Installing %s from VUP...", item.name)
+			if xbps.install_from_repo(item.repo_url, item.name, yes, utils.run_command) != 0 {
+				utils.log_error("Failed to install %s", item.name)
 				return false
 			}
 
 		case .Build_Install:
-			log_info("Building %s...", item.name)
-			if !build_package(cfg, item.name, item.category) {
-				log_error("Failed to build %s", item.name)
+			utils.log_info("Building %s...", item.name)
+			if !builder.build_package(cfg, item.name, item.category) {
+				utils.log_error("Failed to build %s", item.name)
 				return false
 			}
-			if !install_local_package(cfg, item.name, yes) {
-				log_error("Failed to install built package %s", item.name)
+			if !builder.install_local_package(cfg, item.name, yes) {
+				utils.log_error("Failed to install built package %s", item.name)
 				return false
 			}
 
 		case .Remove:
-			log_info("Removing %s...", item.name)
-			if xbps_uninstall(item.name, yes) != 0 {
-				log_error("Failed to remove %s", item.name)
+			utils.log_info("Removing %s...", item.name)
+			if xbps.remove_package(item.name, yes, utils.run_command) != 0 {
+				utils.log_error("Failed to remove %s", item.name)
 				return false
 			}
 
 		case .Upgrade:
-			// Handled by install with newer version
+		// Handled by install with newer version
 		}
 	}
 

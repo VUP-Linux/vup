@@ -1,24 +1,54 @@
-package main
+package commands
 
 import "core:fmt"
 import "core:os"
 import "core:strings"
+
+import index "../core/index"
+import utils "../utils"
 
 // Threshold for using pager
 PAGER_THRESHOLD :: 5
 
 // Search result entry
 Search_Result :: struct {
-	name:       string,
-	version:    string,
-	desc:       string,
-	source:     string, // "vup", "official", "installed"
-	installed:  bool,
-	category:   string, // For VUP packages
+	name:      string,
+	version:   string,
+	desc:      string,
+	source:    string, // "vup", "official", "installed"
+	installed: bool,
+	category:  string, // For VUP packages
+}
+
+// Search command implementation
+search_run :: proc(args: []string, config: ^Config) -> int {
+	if len(args) == 0 {
+		utils.log_error("Usage: vuru search <query>")
+		return 1
+	}
+
+	// Load index
+	idx, ok := index.index_load_or_fetch(config.index_url, false)
+	if !ok {
+		utils.log_error("Failed to load package index")
+		return 1
+	}
+	defer index.index_free(&idx)
+
+	for query, i in args {
+		if i > 0 {fmt.println()}
+		unified_search(&idx, query, config.vup_only, config.description_search)
+	}
+
+	return 0
 }
 
 // Search VUP index for packages matching a query
-search_vup :: proc(idx: ^Index, query: string) -> [dynamic]Search_Result {
+search_vup :: proc(
+	idx: ^index.Index,
+	query: string,
+	description_search: bool,
+) -> [dynamic]Search_Result {
 	results := make([dynamic]Search_Result, context.temp_allocator)
 	query_lower := strings.to_lower(query, context.temp_allocator)
 
@@ -26,15 +56,23 @@ search_vup :: proc(idx: ^Index, query: string) -> [dynamic]Search_Result {
 		name_lower := strings.to_lower(name, context.temp_allocator)
 		desc_lower := strings.to_lower(pkg.short_desc, context.temp_allocator)
 
-		if strings.contains(name_lower, query_lower) || strings.contains(desc_lower, query_lower) {
-			append(&results, Search_Result{
-				name = name,
-				version = pkg.version,
-				desc = pkg.short_desc,
-				source = "vup",
-				installed = is_pkg_installed(name),
-				category = pkg.category,
-			})
+		match_name := strings.contains(name_lower, query_lower)
+		match_desc := description_search && strings.contains(desc_lower, query_lower)
+
+		if match_name || match_desc {
+			installed := utils.run_command_silent({"xbps-query", name}) == 0
+
+			append(
+				&results,
+				Search_Result {
+					name = name,
+					version = pkg.version,
+					desc = pkg.short_desc,
+					source = "vup",
+					installed = installed,
+					category = pkg.category,
+				},
+			)
 		}
 	}
 
@@ -42,10 +80,10 @@ search_vup :: proc(idx: ^Index, query: string) -> [dynamic]Search_Result {
 }
 
 // Search official Void repos
-search_official :: proc(query: string) -> [dynamic]Search_Result {
+search_official :: proc(query: string, description_search: bool) -> [dynamic]Search_Result {
 	results := make([dynamic]Search_Result, context.temp_allocator)
 
-	output, ok := run_command_output({"xbps-query", "-Rs", query}, context.temp_allocator)
+	output, ok := utils.run_command_output({"xbps-query", "-Rs", query}, context.temp_allocator)
 	if !ok {
 		return results
 	}
@@ -75,13 +113,28 @@ search_official :: proc(query: string) -> [dynamic]Search_Result {
 
 		// Parse pkgname-version
 		if idx := strings.last_index(pkgver, "-"); idx > 0 {
-			append(&results, Search_Result{
-				name = pkgver[:idx],
-				version = pkgver[idx+1:],
-				desc = desc,
-				source = "official",
-				installed = installed,
-			})
+			name := pkgver[:idx]
+
+			// Filter by name if not searching descriptions
+			// xbps-query -Rs searches both, so we manually filter if needed
+			if !description_search {
+				name_lower := strings.to_lower(name, context.temp_allocator)
+				query_lower := strings.to_lower(query, context.temp_allocator)
+				if !strings.contains(name_lower, query_lower) {
+					continue
+				}
+			}
+
+			append(
+				&results,
+				Search_Result {
+					name = name,
+					version = pkgver[idx + 1:],
+					desc = desc,
+					source = "official",
+					installed = installed,
+				},
+			)
 		}
 	}
 
@@ -100,14 +153,29 @@ format_search_results :: proc(
 
 	// Format VUP results
 	if len(vup_results) > 0 {
-		fmt.sbprintf(&builder, "%s==> VUP Packages (%d)%s\n", COLOR_INFO, len(vup_results), COLOR_RESET)
-		fmt.sbprintf(&builder, "%-30s %-15s %-12s %s\n", "NAME", "VERSION", "CATEGORY", "DESCRIPTION")
+		fmt.sbprintf(
+			&builder,
+			"%s==> VUP Packages (%d)%s\n",
+			utils.COLOR_INFO,
+			len(vup_results),
+			utils.COLOR_RESET,
+		)
+		fmt.sbprintf(
+			&builder,
+			"%-30s %-15s %-12s %s\n",
+			"NAME",
+			"VERSION",
+			"CATEGORY",
+			"DESCRIPTION",
+		)
 		strings.write_string(&builder, strings.repeat("-", 80, context.temp_allocator))
 		strings.write_string(&builder, "\n")
 
 		for r in vup_results {
 			status := "[installed]" if r.installed else ""
-			fmt.sbprintf(&builder, "%-30s %-15s %-12s %s %s\n",
+			fmt.sbprintf(
+				&builder,
+				"%-30s %-15s %-12s %s %s\n",
 				r.name,
 				r.version if len(r.version) > 0 else "?",
 				r.category if len(r.category) > 0 else "?",
@@ -120,14 +188,22 @@ format_search_results :: proc(
 
 	// Format official results
 	if len(official_results) > 0 {
-		fmt.sbprintf(&builder, "%s==> Official Void Packages (%d)%s\n", COLOR_INFO, len(official_results), COLOR_RESET)
+		fmt.sbprintf(
+			&builder,
+			"%s==> Official Void Packages (%d)%s\n",
+			utils.COLOR_INFO,
+			len(official_results),
+			utils.COLOR_RESET,
+		)
 		fmt.sbprintf(&builder, "%-30s %-15s %s\n", "NAME", "VERSION", "DESCRIPTION")
 		strings.write_string(&builder, strings.repeat("-", 80, context.temp_allocator))
 		strings.write_string(&builder, "\n")
 
 		for r in official_results {
 			status := "[installed]" if r.installed else ""
-			fmt.sbprintf(&builder, "%-30s %-15s %s %s\n",
+			fmt.sbprintf(
+				&builder,
+				"%-30s %-15s %s %s\n",
 				r.name,
 				r.version,
 				truncate(r.desc, 40),
@@ -144,12 +220,17 @@ format_search_results :: proc(
 }
 
 // Unified search across VUP and official repos
-unified_search :: proc(idx: ^Index, query: string, vup_only: bool) {
-	vup_results := search_vup(idx, query)
+unified_search :: proc(
+	idx: ^index.Index,
+	query: string,
+	vup_only: bool,
+	description_search: bool,
+) {
+	vup_results := search_vup(idx, query, description_search)
 
 	official_results: [dynamic]Search_Result
 	if !vup_only {
-		official_results = search_official(query)
+		official_results = search_official(query, description_search)
 	}
 
 	total := len(vup_results) + len(official_results)
@@ -165,10 +246,10 @@ unified_search :: proc(idx: ^Index, query: string, vup_only: bool) {
 	// Use pager if more than threshold
 	if total > PAGER_THRESHOLD {
 		// Write to temp file and show in less
-		path, ok := diff_write_temp_file(output, context.temp_allocator)
+		path, ok := utils.diff_write_temp_file(output, context.temp_allocator)
 		if ok {
 			defer os.remove(path)
-			run_command({"less", "-R", path})
+			utils.run_command({"less", "-R", path})
 		} else {
 			// Fallback to direct print
 			fmt.print(output)
@@ -176,11 +257,6 @@ unified_search :: proc(idx: ^Index, query: string, vup_only: bool) {
 	} else {
 		fmt.print(output)
 	}
-}
-
-// Legacy search function for backwards compatibility
-xbps_search :: proc(idx: ^Index, query: string) {
-	unified_search(idx, query, true)
 }
 
 // Truncate string with ellipsis
@@ -191,5 +267,5 @@ truncate :: proc(s: string, max_len: int) -> string {
 	if max_len < 4 {
 		return s[:max_len]
 	}
-	return strings.concatenate({s[:max_len-3], "..."}, context.temp_allocator)
+	return strings.concatenate({s[:max_len - 3], "..."}, context.temp_allocator)
 }

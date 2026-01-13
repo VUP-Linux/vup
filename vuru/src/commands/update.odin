@@ -1,9 +1,13 @@
-package main
+package commands
 
 import "core:fmt"
 import "core:os"
 import "core:strings"
-import "xbps"
+
+import index "../core/index"
+import template "../core/template"
+import xbps "../core/xbps"
+import utils "../utils"
 
 MAX_UPGRADES :: 64
 
@@ -17,19 +21,35 @@ Upgrade_Info :: struct {
 	cached_template: string,
 }
 
+// Update command implementation
+update_run :: proc(args: []string, config: ^Config) -> int {
+	// args ignored for update (except maybe specific packages, but update usually means all)
+	// cmd_update in main.odin called xbps_upgrade_all(idx, args.yes)
+
+	// Load index (force sync)
+	idx, ok := index.index_load_or_fetch(config.index_url, true)
+	if !ok {
+		utils.log_error("Failed to load package index")
+		return 1
+	}
+	defer index.index_free(&idx)
+
+	return xbps_upgrade_all(&idx, config.yes)
+}
+
 // Compare versions using xbps-uhelper
 version_gt :: proc(v1: string, v2: string) -> bool {
-	return xbps.version_greater_than(v1, v2, run_command)
+	return xbps.version_greater_than(v1, v2, utils.run_command)
 }
 
 // Get the currently installed version of a package
 get_installed_version :: proc(pkg_name: string, allocator := context.allocator) -> (string, bool) {
-	return xbps.get_installed_version(pkg_name, run_command_output, allocator)
+	return xbps.get_installed_version(pkg_name, utils.run_command_output, allocator)
 }
 
 // Run xbps-install for upgrade
 run_xbps_upgrade :: proc(repo_url: string, pkg_name: string, yes: bool) -> int {
-	return xbps.upgrade_from_repo(repo_url, pkg_name, yes, run_command)
+	return xbps.upgrade_from_repo(repo_url, pkg_name, yes, utils.run_command)
 }
 
 // Parse installed package line from xbps-query -l
@@ -75,7 +95,7 @@ show_batch_review :: proc(upgrades: []Upgrade_Info) -> bool {
 		)
 
 		if len(u.cached_template) > 0 {
-			diff, diff_ok := diff_generate(
+			diff, diff_ok := utils.diff_generate(
 				u.cached_template,
 				u.new_template,
 				context.temp_allocator,
@@ -93,15 +113,15 @@ show_batch_review :: proc(upgrades: []Upgrade_Info) -> bool {
 	}
 
 	content := strings.to_string(builder)
-	review_path, path_ok := diff_write_temp_file(content, context.temp_allocator)
+	review_path, path_ok := utils.diff_write_temp_file(content, context.temp_allocator)
 	if !path_ok {
-		log_error("Failed to create review file")
+		utils.log_error("Failed to create review file")
 		return false
 	}
 	defer os.remove(review_path)
 
 	// Show in less
-	diff_show_pager(review_path)
+	utils.diff_show_pager(review_path)
 
 	// Prompt for confirmation
 	fmt.printf("Proceed with %d upgrade(s)? [Y/n] ", len(upgrades))
@@ -120,12 +140,12 @@ show_batch_review :: proc(upgrades: []Upgrade_Info) -> bool {
 }
 
 // Upgrade all VUP packages
-xbps_upgrade_all :: proc(idx: ^Index, yes: bool) -> int {
-	log_info("Checking for VUP package updates...")
+xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
+	utils.log_info("Checking for VUP package updates...")
 
-	output, ok := run_command_output({"xbps-query", "-l"})
+	output, ok := utils.run_command_output({"xbps-query", "-l"})
 	if !ok {
-		log_error("Failed to run xbps-query")
+		utils.log_error("Failed to run xbps-query")
 		return -1
 	}
 	defer delete(output)
@@ -149,7 +169,7 @@ xbps_upgrade_all :: proc(idx: ^Index, yes: bool) -> int {
 		name, installed_ver, parse_ok := parse_installed_pkg(line)
 		if !parse_ok {continue}
 
-		pkg, pkg_ok := index_get_package(idx, name)
+		pkg, pkg_ok := index.index_get_package(idx, name)
 		if !pkg_ok {continue}
 
 		if len(pkg.version) == 0 || len(pkg.repo_urls) == 0 || len(pkg.category) == 0 {
@@ -157,7 +177,7 @@ xbps_upgrade_all :: proc(idx: ^Index, yes: bool) -> int {
 		}
 
 		// Get architecture-specific repo URL
-		arch, arch_ok := get_arch()
+		arch, arch_ok := utils.get_arch()
 		if !arch_ok {continue}
 		defer delete(arch)
 
@@ -179,7 +199,7 @@ xbps_upgrade_all :: proc(idx: ^Index, yes: bool) -> int {
 	}
 
 	if len(upgrades) == 0 {
-		log_info("All VUP packages are up to date")
+		utils.log_info("All VUP packages are up to date")
 		return 0
 	}
 
@@ -193,23 +213,23 @@ xbps_upgrade_all :: proc(idx: ^Index, yes: bool) -> int {
 
 	// Phase 2: Fetch templates (unless --yes)
 	if !yes {
-		log_info("Fetching templates for review...")
+		utils.log_info("Fetching templates for review...")
 
 		for &u in upgrades {
-			new_tmpl, tmpl_ok := fetch_template(u.category, u.name)
+			new_tmpl, tmpl_ok := template.fetch_template(u.category, u.name)
 			if !tmpl_ok {
-				log_error("Failed to fetch template for %s", u.name)
+				utils.log_error("Failed to fetch template for %s", u.name)
 				return -1
 			}
 			u.new_template = new_tmpl
 
-			cached, cached_ok := cache_get_template(u.name)
+			cached, cached_ok := template.cache_get_template(u.name)
 			u.cached_template = cached if cached_ok else ""
 		}
 
 		// Phase 3: Show batch review
 		if !show_batch_review(upgrades[:]) {
-			log_info("Upgrade cancelled by user")
+			utils.log_info("Upgrade cancelled by user")
 			return 0
 		}
 	}
@@ -219,10 +239,10 @@ xbps_upgrade_all :: proc(idx: ^Index, yes: bool) -> int {
 	errors := 0
 
 	for u in upgrades {
-		log_info("Upgrading %s...", u.name)
+		utils.log_info("Upgrading %s...", u.name)
 
 		if run_xbps_upgrade(u.repo_url, u.name, yes) != 0 {
-			log_error("Failed to upgrade %s", u.name)
+			utils.log_error("Failed to upgrade %s", u.name)
 			errors += 1
 		} else {
 			// Verify upgrade happened
@@ -231,16 +251,16 @@ xbps_upgrade_all :: proc(idx: ^Index, yes: bool) -> int {
 				upgraded += 1
 				// Update template cache
 				if len(u.new_template) > 0 {
-					cache_save_template(u.name, u.new_template)
+					template.cache_save_template(u.name, u.new_template)
 				}
 			}
 		}
 	}
 
 	if upgraded > 0 {
-		log_info("Upgraded %d package(s)", upgraded)
+		utils.log_info("Upgraded %d package(s)", upgraded)
 	} else if errors == 0 {
-		log_info("All VUP packages are up to date")
+		utils.log_info("All VUP packages are up to date")
 	}
 
 	return -1 if errors > 0 else 0

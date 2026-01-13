@@ -13,4 +13,4 @@ build/
 # Cache
 .cache/
 
-vuru
+/vuru
