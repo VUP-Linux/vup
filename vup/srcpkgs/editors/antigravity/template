@@ -1,10 +1,35 @@
-# Template file for 'antigravity'
+# Template file for 'antigravity' 
 pkgname=antigravity
 version=1.13.3
-_build=4533425205018624
-revision=7
-archs="x86_64"
-depends="alsa-lib at-spi2-core cairo cups dbus expat glib gtk+3 libX11 libXcomposite libXdamage libXext libXfixes libXrandr libXScrnSaver libdrm libxcb libxkbcommon libxkbfile libxshmfence mesa nspr nss pango xdg-utils libsecret"
+revision=3
+archs="x86_64 aarch64"
+create_wrksrc=yes
+hostmakedepends="tar"
+depends="
+ alsa-lib
+ at-spi2-core
+ cairo
+ dbus
+ expat
+ libgcc
+ glib
+ glibc
+ gtk+3
+ libX11
+ libXcomposite
+ libXdamage
+ libXext
+ libXfixes
+ libxkbcommon
+ libxkbfile
+ libXrandr
+ libxcb
+ mesa
+ nspr
+ nss
+ pango
+ cups
+"
 short_desc="An agentic development platform from Google"
 maintainer="AmarBego <begovicamar@proton.me>"
 license="custom:Google-Antigravity"
@@ -13,55 +38,80 @@ restricted=yes
 nopie=yes
 nostrip=yes
 noshlibprovides=yes
-create_wrksrc=yes
-hostmakedepends="tar"
 
-distfiles="https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/stable/${version}-${_build}/linux-x64/Antigravity.tar.gz"
-checksum=084dfbedf1049b363aa3ad7ba679eec8b80feaf29585accb90b5910ebb270048
+case "${XBPS_TARGET_MACHINE}" in
+	x86_64)
+		_debfile="${pkgname}_${version}-1766182170_amd64_365061c50063f9bd47a9ff88432261b8.deb"
+		checksum="d9920f9e0788245b1dab0f73a607b4eea00605bfb70e16795da1c1ac89eabd4b"
+		;;
+	aarch64)
+		_debfile="${pkgname}_${version}-1766182168_arm64_940bc88042cadeaee51d9b1eedf6a506.deb"
+		checksum="9d4d5a0f4dc39514a8841e726bf032e19f8baf42310ed11531cd95d43922c14e"
+		;;
+esac
+
+distfiles="https://us-central1-apt.pkg.dev/projects/${pkgname}-auto-updater-dev/pool/${pkgname}-debian/${_debfile}"
 
 do_install() {
-	# Install app to /opt
-	vmkdir opt/${pkgname}
-	vcopy "Antigravity/*" opt/${pkgname}
+	# deb contents are extracted to $wrksrc by do_extract
+	vcopy usr .
 
-	# Helper script with flags config support
+	# Fix zsh completions
+	if [ -d ${DESTDIR}/usr/share/zsh/vendor-completions ]; then
+		vmkdir usr/share/zsh/site-functions
+		mv ${DESTDIR}/usr/share/zsh/vendor-completions/* ${DESTDIR}/usr/share/zsh/site-functions/
+		rm -rf ${DESTDIR}/usr/share/zsh/vendor-completions
+	fi
+
+	# Move /usr/share/antigravity to /opt/Antigravity
+	vmkdir opt
+	mv ${DESTDIR}/usr/share/antigravity ${DESTDIR}/opt/Antigravity
+
+	for f in ${DESTDIR}/usr/share/applications/*.desktop; do
+		vsed -i "$f" -e 's|/usr/share/antigravity|/opt/Antigravity|g'
+		vsed -i "$f" -e 's|Exec=/opt/Antigravity/antigravity|Exec=/usr/bin/antigravity|g'
+	done
+
+	# Helper script with flags config support and workarounds for known issues
 	cat > antigravity.sh <<EOF
 #!/bin/bash
 XDG_CONFIG_HOME=\${XDG_CONFIG_HOME:-~/.config}
+
+# Disable core dumps to prevent disk space issues (upstream bug causes crash loops)
+ulimit -c 0
 
 # Allow users to override command-line options
 if [[ -f \$XDG_CONFIG_HOME/antigravity-flags.conf ]]; then
    ANTIGRAVITY_USER_FLAGS="\$(sed 's/#.*//' \$XDG_CONFIG_HOME/antigravity-flags.conf | tr '\n' ' ')"
 fi
 
-# Wayland native support
+# Wayland native support (use proper flag format)
 if [[ \$XDG_SESSION_TYPE == "wayland" ]]; then
-   WAYLAND_FLAGS="--enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform=wayland --enable-wayland-ime"
+   WAYLAND_FLAGS="--ozone-platform-hint=auto"
 fi
 
+# Flags to help with service worker and sandbox issues
+STABILITY_FLAGS="--disable-gpu-sandbox --no-sandbox"
+
+# Cleanup function for orphaned processes
+cleanup() {
+    pkill -P \$\$ 2>/dev/null
+}
+trap cleanup EXIT
+
 # Launch
-exec /opt/${pkgname}/bin/antigravity "\$@" \$WAYLAND_FLAGS \$ANTIGRAVITY_USER_FLAGS
+/opt/Antigravity/bin/antigravity "\$@" \$WAYLAND_FLAGS \$STABILITY_FLAGS \$ANTIGRAVITY_USER_FLAGS
+EXIT_CODE=\$?
+
+# Extra cleanup for any lingering child processes
+sleep 1
+pkill -9 -f "/opt/Antigravity/bin/antigravity" 2>/dev/null || true
+
+exit \$EXIT_CODE
 EOF
 	vbin antigravity.sh antigravity
 
-	# Desktop file
-	cat > antigravity.desktop <<EOF
-[Desktop Entry]
-Name=Antigravity
-Comment=An agentic development platform from Google
-Exec=/usr/bin/antigravity %F
-Icon=antigravity
-Type=Application
-Categories=Development;IDE;
-StartupNotify=true
-StartupWMClass=Antigravity
-MimeType=text/plain;
-EOF
-	vinstall antigravity.desktop 644 usr/share/applications
-
-	# Icon
-	vinstall Antigravity/resources/app/resources/linux/code.png 644 usr/share/pixmaps ${pkgname}.png
-
 	# License
-	vlicense Antigravity/resources/app/LICENSE.txt
+	vlicense ${DESTDIR}/opt/Antigravity/resources/app/LICENSE.txt
+	vlicense ${DESTDIR}/opt/Antigravity/LICENSES.chromium.html
 }
