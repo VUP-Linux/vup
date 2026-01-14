@@ -1,7 +1,7 @@
 # Template file for 'ferdium'
 pkgname=ferdium
 version=7.1.1
-revision=2
+revision=3
 archs="x86_64 aarch64"
 create_wrksrc=yes
 depends="
@@ -76,10 +76,22 @@ do_install() {
 		vcopy usr/share usr
 	fi
 	
-	# Create wrapper script
+	# Create wrapper script with Wayland support and user flags config
 	cat > ferdium.sh <<EOF
-#!/bin/sh
-exec /opt/Ferdium/ferdium "\$@"
+#!/bin/bash
+XDG_CONFIG_HOME=\${XDG_CONFIG_HOME:-~/.config}
+
+# Allow users to override command-line options
+if [[ -f \$XDG_CONFIG_HOME/ferdium-flags.conf ]]; then
+   FERDIUM_USER_FLAGS="\$(sed 's/#.*//' \$XDG_CONFIG_HOME/ferdium-flags.conf | tr '\n' ' ')"
+fi
+
+# Wayland native support
+if [[ \$XDG_SESSION_TYPE == "wayland" ]]; then
+   WAYLAND_FLAGS="--ozone-platform=wayland --enable-features=WaylandWindowDecorations"
+fi
+
+exec /opt/Ferdium/ferdium "\$@" \$WAYLAND_FLAGS \$FERDIUM_USER_FLAGS
 EOF
 	vbin ferdium.sh ferdium
 	

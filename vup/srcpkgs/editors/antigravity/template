@@ -1,7 +1,7 @@
 # Template file for 'antigravity' 
 pkgname=antigravity
 version=1.14.2
-revision=1
+revision=2
 archs="x86_64 aarch64"
 create_wrksrc=yes
 hostmakedepends="tar"
@@ -87,7 +87,7 @@ fi
 
 # Wayland native support (use proper flag format)
 if [[ \$XDG_SESSION_TYPE == "wayland" ]]; then
-   WAYLAND_FLAGS="--ozone-platform-hint=auto"
+   WAYLAND_FLAGS="--ozone-platform=wayland"
 fi
 
 # Flags to help with service worker and sandbox issues
