@@ -4,6 +4,16 @@ ODIN = odin
 ODIN_FLAGS = -o:speed -reloc-mode:pic -extra-linker-flags="-pie"
 DEBUG_FLAGS = -debug -o:none
 
+# Cross-compilation support for xbps-src
+# XBPS_TARGET_MACHINE is set by xbps-src when cross-compiling
+ifdef XBPS_TARGET_MACHINE
+  ifeq ($(XBPS_TARGET_MACHINE),aarch64)
+    ODIN_TARGET = -target:linux_arm64
+  else ifeq ($(XBPS_TARGET_MACHINE),x86_64)
+    ODIN_TARGET = -target:linux_amd64
+  endif
+endif
+
 PREFIX ?= /usr/local
 DESTDIR ?=
 
@@ -24,7 +34,7 @@ all: clean $(TARGET)
 
 $(TARGET): $(SRCS)
 	@mkdir -p $(BUILD_DIR)
-	$(ODIN) build $(SRC_DIR) -out:$@ $(ODIN_FLAGS) $(COLLECTIONS)
+	$(ODIN) build $(SRC_DIR) -out:$@ $(ODIN_FLAGS) $(ODIN_TARGET) $(COLLECTIONS)
 
 debug: $(SRCS)
 	@mkdir -p $(BUILD_DIR)
