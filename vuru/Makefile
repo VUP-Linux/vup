@@ -1,8 +1,11 @@
 # Makefile for vuru (Odin version)
 
 ODIN = odin
-ODIN_FLAGS = -o:speed -reloc-mode:pic -extra-linker-flags="-pie"
+ODIN_FLAGS = -o:speed -reloc-mode:pic
 DEBUG_FLAGS = -debug -o:none
+
+# Linker flags (combined into single -extra-linker-flags for Odin)
+LINKER_FLAGS = -pie
 
 # Cross-compilation support for xbps-src
 # XBPS_TARGET_MACHINE is set by xbps-src when cross-compiling
@@ -11,12 +14,14 @@ ifdef XBPS_TARGET_MACHINE
     ODIN_TARGET = -target:linux_arm64
     # Use the cross-linker provided by xbps-src
     ifdef LD
-      ODIN_FLAGS += -extra-linker-flags="-fuse-ld=$(LD)"
+      LINKER_FLAGS += -fuse-ld=$(LD)
     endif
   else ifeq ($(XBPS_TARGET_MACHINE),x86_64)
     ODIN_TARGET = -target:linux_amd64
   endif
 endif
+
+ODIN_FLAGS += -extra-linker-flags="$(LINKER_FLAGS)"
 
 PREFIX ?= /usr/local
 DESTDIR ?=
