@@ -12,6 +12,10 @@ LINKER_FLAGS = -pie
 ifdef XBPS_TARGET_MACHINE
   ifeq ($(XBPS_TARGET_MACHINE),aarch64)
     ODIN_TARGET = -target:linux_arm64
+    # Use the cross-linker provided by xbps-src via --ld-path (accepts full path)
+    ifdef LD
+      LINKER_FLAGS += --ld-path=$(LD)
+    endif
   else ifeq ($(XBPS_TARGET_MACHINE),x86_64)
     ODIN_TARGET = -target:linux_amd64
   endif
