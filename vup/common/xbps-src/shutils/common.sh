@@ -463,6 +463,26 @@ setup_pkg() {
 
     setup_env "$cross"
 
+    # Category-aware template resolution for VUP's categorized srcpkgs structure
+    _template_path="${XBPS_SRCPKGDIR}/${basepkg}/template"
+    if [ ! -f "$_template_path" ]; then
+        # Search in category subdirectories: srcpkgs/<category>/<pkg>/template
+        for _cat_dir in "${XBPS_SRCPKGDIR}"/*/; do
+            if [ -f "${_cat_dir}${basepkg}/template" ]; then
+                _template_path="${_cat_dir}${basepkg}/template"
+                export XBPS_PKG_CATEGORY="${_cat_dir%/}"
+                XBPS_PKG_CATEGORY="${XBPS_PKG_CATEGORY##*/}"
+                break
+            fi
+        done
+    fi
+    if [ ! -f "$_template_path" ]; then
+        msg_error "xbps-src: nonexistent file: ${XBPS_SRCPKGDIR}/${basepkg}/template\n"
+    fi
+
+    # Derive source package dir from resolved template path (supports categories)
+    _srcpkg_dir="${_template_path%/template}"
+
     # Source all sourcepkg environment setup snippets.
     # Source all subpkg environment setup snippets.
     for f in ${XBPS_COMMONDIR}/environment/setup-subpkg/*.sh; do
@@ -472,15 +492,13 @@ setup_pkg() {
         source_file "$f"
     done
 
-    if [ ! -f ${XBPS_SRCPKGDIR}/${basepkg}/template ]; then
-        msg_error "xbps-src: nonexistent file: ${XBPS_SRCPKGDIR}/${basepkg}/template\n"
-    fi
+
     if [ -n "$cross" ]; then
         export CROSS_BUILD="$cross"
-        source_file ${XBPS_SRCPKGDIR}/${basepkg}/template
+        source_file "$_template_path"
     else
         unset CROSS_BUILD
-        source_file ${XBPS_SRCPKGDIR}/${basepkg}/template
+        source_file "$_template_path"
     fi
 
 
@@ -544,8 +562,8 @@ setup_pkg() {
         fi
     done
 
-    FILESDIR=$XBPS_SRCPKGDIR/$sourcepkg/files
-    PATCHESDIR=$XBPS_SRCPKGDIR/$sourcepkg/patches
+    FILESDIR=$_srcpkg_dir/files
+    PATCHESDIR=$_srcpkg_dir/patches
     DESTDIR=${XBPS_DESTDIR}/${XBPS_CROSS_TRIPLET:+${XBPS_CROSS_TRIPLET}/}/${sourcepkg}-${version}
     PKGDESTDIR=${XBPS_DESTDIR}/${XBPS_CROSS_TRIPLET:+$XBPS_CROSS_TRIPLET/}${pkg}-${version}
 

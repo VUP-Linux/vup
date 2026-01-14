@@ -14,8 +14,9 @@ elif [ -z "${SOURCE_DATE_EPOCH}" ]; then
 		msg_error "xbps-src's BUG: SOURCE_DATE_EPOCH is undefined\n"
 	fi
 	# check if the template is under version control:
-	if [ -n "$basepkg" -a -z "$($XBPS_GIT_CMD -C ${XBPS_SRCPKGDIR}/${basepkg} ls-files template)" ]; then
-		export SOURCE_DATE_EPOCH="$(stat_mtime ${XBPS_SRCPKGDIR}/${basepkg}/template)"
+	_pkg_dir="${_srcpkg_dir:-${XBPS_SRCPKGDIR}/${basepkg}}"
+	if [ -n "$basepkg" -a -z "$($XBPS_GIT_CMD -C ${_pkg_dir} ls-files template)" ]; then
+		export SOURCE_DATE_EPOCH="$(stat_mtime ${_pkg_dir}/template)"
 	else
 		export SOURCE_DATE_EPOCH=$($XBPS_GIT_CMD -C ${XBPS_DISTDIR} cat-file commit HEAD |
 			sed -n '/^committer /{s/.*> \([0-9][0-9]*\) [-+][0-9].*/\1/p;q;}')

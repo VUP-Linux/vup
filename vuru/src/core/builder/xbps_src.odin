@@ -164,6 +164,147 @@ update_binpkgs_index :: proc(binpkgs_dir: string) -> (bool, errors.Error) {
 	return true, {}
 }
 
+// Find package template, checking for categories
+find_package_template :: proc(srcpkgs_dir: string, pkg_name: string) -> string {
+	// 1. Check flat structure: srcpkgs/pkgname/template
+	flat_path := utils.path_join(
+		srcpkgs_dir,
+		pkg_name,
+		"template",
+		allocator = context.temp_allocator,
+	)
+	if os.exists(flat_path) {
+		return flat_path
+	}
+
+	// 2. Check categorized: srcpkgs/*/pkgname/template
+	// Open srcpkgs directory
+	d, err := os.open(srcpkgs_dir)
+	if err != os.ERROR_NONE {
+		return ""
+	}
+	defer os.close(d)
+
+	// Read all entries
+	// Note: We use context.temp_allocator for file infos to avoid leaks
+	file_infos, _ := os.read_dir(d, -1, context.temp_allocator)
+	// We don't need to free file_infos explicitly as it uses temp_allocator,
+	// but os.read_dir docs say "The caller must free the returned slice and the strings inside it".
+	// Since we use temp_allocator, it will be freed at end of frame/scope.
+
+	for fi in file_infos {
+		if fi.is_dir {
+			// Check srcpkgs/<category>/<pkgname>/template
+			cat_path := utils.path_join(
+				srcpkgs_dir,
+				fi.name,
+				pkg_name,
+				"template",
+				allocator = context.temp_allocator,
+			)
+			if os.exists(cat_path) {
+				return cat_path
+			}
+		}
+	}
+
+	return ""
+}
+
+// Cleanup VUP dependencies from hostdir/binpkgs
+cleanup_vup_deps :: proc(binpkgs_dir: string, installed_pkgs: []string) {
+	if len(installed_pkgs) == 0 {
+		return
+	}
+
+	errors.log_info("Cleaning up VUP dependencies from hostdir/binpkgs...")
+
+	for name in installed_pkgs {
+		path := utils.path_join(binpkgs_dir, name, allocator = context.temp_allocator)
+		if os.exists(path) {
+			os.remove(path)
+		}
+
+		// Also remove signature if exists
+		sig_path := fmt.tprintf("%s.sig", path)
+		if os.exists(sig_path) {
+			os.remove(sig_path)
+		}
+	}
+
+	if arch, ok := utils.get_arch(); ok {
+		repodata := fmt.tprintf("%s/%s-repodata", binpkgs_dir, arch)
+		if os.exists(repodata) {
+			os.remove(repodata)
+		}
+		delete(arch)
+	}
+}
+
+// Appends installed filename to the list if successful
+download_vup_pkg_to_binpkgs_and_get_filename :: proc(
+	idx: ^index.Index,
+	pkg_name: string,
+	binpkgs_dir: string,
+) -> (
+	bool,
+	errors.Error,
+	string, // Filename (empty if failed or skipped)
+) {
+	pkg, ok := index.index_get_package(idx, pkg_name)
+	if !ok {
+		return false, errors.make_error(.Package_Not_Found, pkg_name), ""
+	}
+
+	// Get architecture
+	arch, arch_ok := utils.get_arch()
+	defer delete(arch)
+	if !arch_ok {
+		return false, errors.make_error(.Arch_Detection_Failed), ""
+	}
+
+	// Get repo URL for this arch
+	repo_url, url_ok := pkg.repo_urls[arch]
+	if !url_ok {
+		return false,
+			errors.make_error(.Arch_Not_Supported, fmt.tprintf("%s for %s", pkg_name, arch)),
+			""
+	}
+
+	// Build the .xbps filename (pkgname-version.arch.xbps)
+	xbps_filename := fmt.tprintf("%s-%s.%s.xbps", pkg_name, pkg.version, arch)
+
+	// Full URL to the .xbps file
+	full_url := fmt.tprintf("%s/%s", repo_url, xbps_filename)
+
+	// Destination path
+	dest_path := utils.path_join(binpkgs_dir, xbps_filename, allocator = context.temp_allocator)
+
+	// Check if already exists
+	if os.exists(dest_path) {
+		errors.log_info("%s already in binpkgs", pkg_name)
+		return true, {}, "" // Skipped, so don't mark for cleanup
+	}
+
+	// Create binpkgs dir if needed
+	if !utils.mkdir_p(binpkgs_dir) {
+		return false, errors.make_error(.Cache_Dir_Failed, binpkgs_dir), ""
+	}
+
+	// Download the package
+	errors.log_info("Downloading %s to hostdir/binpkgs...", pkg_name)
+
+	// Use curl to download (-L to follow redirects)
+	curl_args := []string{"curl", "-fsSL", "-o", dest_path, full_url}
+	if utils.run_command(curl_args) != 0 {
+		return false,
+			errors.make_error(.Download_Failed, fmt.tprintf("%s from %s", pkg_name, full_url)),
+			""
+	}
+
+	return true, {}, xbps_filename
+}
+
 // Install VUP dependencies for a package before building
 install_vup_deps_for_pkg :: proc(
 	pkg_name: string,
@@ -172,25 +313,25 @@ install_vup_deps_for_pkg :: proc(
 ) -> (
 	bool,
 	errors.Error,
+	[dynamic]string,
 ) {
+	installed_files: [dynamic]string
 	srcpkgs := get_srcpkgs_dir(xbps_src_path, context.temp_allocator)
 
-	template_path := utils.path_join(
-		srcpkgs,
-		pkg_name,
-		"template",
-		allocator = context.temp_allocator,
-	)
 
-	if !os.exists(template_path) {
-		return false, errors.make_error(.Template_Not_Found, template_path)
+	template_path := find_package_template(srcpkgs, pkg_name)
+
+	if template_path == "" {
+		return false,
+			errors.make_error(.Template_Not_Found, fmt.tprintf("template for %s", pkg_name)),
+			installed_files
 	}
 
 	// Parse the template
 	tmpl, ok := template.template_parse_file(template_path)
 	if !ok {
 		errors.log_warning("Could not parse template for %s", pkg_name)
-		return true, {} // Continue anyway, let xbps-src handle the error
+		return true, {}, installed_files // Continue anyway, let xbps-src handle the error
 	}
 	defer template.template_free(&tmpl)
 
@@ -210,7 +351,7 @@ install_vup_deps_for_pkg :: proc(
 
 	if len(all_deps) == 0 {
 		errors.log_info("No dependencies in template")
-		return true, {}
+		return true, {}, installed_files
 	}
 
 	// Find VUP dependencies
@@ -226,7 +367,7 @@ install_vup_deps_for_pkg :: proc(
 
 	if len(vup_deps) == 0 {
 		errors.log_info("No VUP dependencies found")
-		return true, {}
+		return true, {}, installed_files
 	}
 
 	fmt.printf(
@@ -252,20 +393,23 @@ install_vup_deps_for_pkg :: proc(
 	errors.log_info("Downloading VUP dependencies to %s...", binpkgs)
 
 	for dep in vup_deps {
-		dl_ok, dl_err := download_vup_pkg_to_binpkgs(idx, dep, binpkgs)
+		dl_ok, dl_err, filename := download_vup_pkg_to_binpkgs_and_get_filename(idx, dep, binpkgs)
 		if !dl_ok {
-			return false, dl_err
+			return false, dl_err, installed_files
+		}
+		if filename != "" {
+			append(&installed_files, strings.clone(filename))
 		}
 	}
 
 	// Update the local repo index so xbps-src can find them
 	idx_ok, idx_err := update_binpkgs_index(binpkgs)
 	if !idx_ok {
-		return false, idx_err
+		return false, idx_err, installed_files
 	}
 
 	errors.log_info("VUP dependencies ready in hostdir/binpkgs")
-	return true, {}
+	return true, {}, installed_files
 }
 
 // Run xbps-src with the given arguments
@@ -425,6 +569,18 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 		return false, errors.make_error(.Xbps_Src_Not_Found)
 	}
 
+	// Track installed packages for cleanup
+	installed_pkgs: [dynamic]string
+	defer delete(installed_pkgs)
+
+	// Schedule cleanup of installed dependencies at the end of the program
+	defer {
+		if len(installed_pkgs) > 0 {
+			binpkgs := get_binpkgs_dir(xbps_src_path, context.temp_allocator)
+			cleanup_vup_deps(binpkgs, installed_pkgs[:])
+		}
+	}
+
 	// If this is a package command, try to install VUP deps first
 	if is_package_command(cmd) {
 		pkg_name := extract_pkg_name(cmd, remaining_args)
@@ -444,7 +600,14 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 		} else {
 			defer index.index_free(&idx)
 
-			ok, err := install_vup_deps_for_pkg(pkg_name, xbps_src_path, &idx)
+			ok, err, deps := install_vup_deps_for_pkg(pkg_name, xbps_src_path, &idx)
+
+			// Transfer dependencies to the main list
+			for d in deps {
+				append(&installed_pkgs, d)
+			}
+			delete(deps) // We copied them, free the temporary list
+
 			if !ok {
 				return false, err
 			}

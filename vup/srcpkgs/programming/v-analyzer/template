@@ -1,0 +1,27 @@
+# Template file for 'v-analyzer'
+pkgname=v-analyzer
+version=0.0.4
+_beta=beta.1
+revision=1
+archs="x86_64"
+hostmakedepends="unzip vlang"
+depends="vlang"
+short_desc="IDE features for V programming language in VS Code, Vim and other editors"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="MIT"
+homepage="https://github.com/vlang/v-analyzer"
+distfiles="https://github.com/vlang/v-analyzer/releases/download/${version}-${_beta}/v-analyzer-linux-x86_64.zip
+ https://raw.githubusercontent.com/vlang/v-analyzer/${version}-${_beta}/LICENSE>LICENSE.txt"
+checksum="25be4134b51ca747f132f16c64cdba49960757933899116f73adcbf764a13125
+ 45571798141f7d5d25302a5ba329de124c65b1cd7ce35ad9d1048891b3b17b1b"
+skip_extraction="LICENSE.txt"
+nopie=yes
+
+do_extract() {
+	unzip -q "${XBPS_SRCDISTDIR}/${pkgname}-${version}/v-analyzer-linux-x86_64.zip" -d "${wrksrc}"
+}
+
+do_install() {
+	vbin v-analyzer
+	vlicense "${XBPS_SRCDISTDIR}/${pkgname}-${version}/LICENSE.txt" LICENSE
+}

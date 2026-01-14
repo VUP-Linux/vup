@@ -9,6 +9,8 @@ vup/hostdir/*
 vup/hostdir/*/*
 !vup/hostdir/*/.keep
 dist/
+vup/masterdir-x86_64/
+vup/.xbps*
 
 # IDEs
 .vscode/

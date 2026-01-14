@@ -616,7 +616,11 @@ fi
 readonly XBPS_SRCPKGDIR=$XBPS_DISTDIR/srcpkgs
 readonly XBPS_COMMONDIR=$XBPS_DISTDIR/common
 readonly XBPS_SHUTILSDIR=$XBPS_COMMONDIR/xbps-src/shutils
-readonly XBPS_TRIGGERSDIR=$XBPS_SRCPKGDIR/xbps-triggers/files
+if [ -d "$XBPS_SRCPKGDIR/core/xbps-triggers/files" ]; then
+    readonly XBPS_TRIGGERSDIR=$XBPS_SRCPKGDIR/core/xbps-triggers/files
+else
+    readonly XBPS_TRIGGERSDIR=$XBPS_SRCPKGDIR/xbps-triggers/files
+fi
 readonly XBPS_CROSSPFDIR=$XBPS_COMMONDIR/cross-profiles
 readonly XBPS_BUILDSTYLEDIR=$XBPS_COMMONDIR/build-style
 readonly XBPS_LIBEXECDIR=$XBPS_COMMONDIR/xbps-src/libexec
