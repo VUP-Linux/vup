@@ -17,9 +17,10 @@ COLLECTIONS = -collection:xbps=$(SRC_DIR)/core/xbps -collection:errors=$(SRC_DIR
 # Find all .odin source files
 SRCS = $(shell find $(SRC_DIR) -name '*.odin')
 
+
 .PHONY: all clean install uninstall debug run check
 
-all: $(TARGET)
+all: clean $(TARGET)
 
 $(TARGET): $(SRCS)
 	@mkdir -p $(BUILD_DIR)
