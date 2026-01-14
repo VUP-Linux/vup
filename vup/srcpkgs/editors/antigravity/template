@@ -1,6 +1,6 @@
 # Template file for 'antigravity' 
 pkgname=antigravity
-version=1.13.3
+version=1.14.2
 revision=1
 archs="x86_64 aarch64"
 create_wrksrc=yes
@@ -41,12 +41,12 @@ noshlibprovides=yes
 
 case "${XBPS_TARGET_MACHINE}" in
 	x86_64)
-		_debfile="${pkgname}_${version}-1766182170_amd64_365061c50063f9bd47a9ff88432261b8.deb"
-		checksum="d9920f9e0788245b1dab0f73a607b4eea00605bfb70e16795da1c1ac89eabd4b"
+		_debfile="${pkgname}_${version}-1768287740_amd64_5527204873323b09e7e6bc003cf22f91.deb"
+		checksum="770f440b025afba6d140a0791e91f16e957456f501c766948710c939eff09206"
 		;;
 	aarch64)
-		_debfile="${pkgname}_${version}-1766182168_arm64_940bc88042cadeaee51d9b1eedf6a506.deb"
-		checksum="9d4d5a0f4dc39514a8841e726bf032e19f8baf42310ed11531cd95d43922c14e"
+		_debfile="${pkgname}_${version}-1768287742_arm64_fa871f81c5b4e1b343589341d279a64c.deb"
+		checksum="75f25a8db8e656b78a780e6a95ed5f6d11ed32461c324d6a7e8abe847b9af5ab"
 		;;
 esac
 
