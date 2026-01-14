@@ -1,6 +1,6 @@
 # Template file for 'odin'
 pkgname=odin
-version=2025.11
+version=2026.01
 revision=2
 _tag="dev-${version//./-}"
 archs="x86_64"
