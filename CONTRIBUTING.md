@@ -6,7 +6,7 @@ VUP is a community-driven repository. Packages and improvements welcome.
 
 ```
 vup/srcpkgs/<category>/<pkgname>/template
-vuruV2/                                     # package manager (Odin)
+vuru/                                     # package manager (Odin)
 ```
 
 ## Adding a Package

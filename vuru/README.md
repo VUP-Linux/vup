@@ -145,8 +145,7 @@ resolve :: proc(r: ^Resolver, targets: []string) -> ([]string, bool) {
 
 ## Version History
 
-- **vuru (C)** - Original implementation (~2000 LOC)
-- **vuruV2 (V)** - First rewrite (~1050 LOC)
+- **vuru (C)** - Original implementation
 - **vuru (Odin)** - Current version
 
 ## License
