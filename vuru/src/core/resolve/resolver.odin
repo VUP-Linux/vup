@@ -199,25 +199,22 @@ resolve_deps :: proc(
 
 	for len(queue) > 0 {
 		item := queue[0]
-		ordered_remove(&queue, 0) // ordered_remove is builtin
-		// `ordered_remove` is defined in `core:slice` or builtin? `ordered_remove` is a procedure in Odin's `core:slice`? No.
-		// Wait, `ordered_remove(&queue, 0)` is standard usage.
-		// However, I previously saw it as just `ordered_remove` in Step 94 line 180.
-		// This means it's likely a built-in or imported from somewhere.
-		// Ah, `import "core:slice"` was probably missing or it's implicitly available for dynamic arrays?
-		// Actually, `ordered_remove` is part of `core:container/queue`? No.
-		// `ordered_remove` is often just `unordered_remove` or `ordered_remove` from `core:slice` or similar.
-		// Step 94 imports: fmt, mem, strings, errors. No `core:slice`.
-		// So `ordered_remove` must be builtin for dynamic arrays in the version of Odin used (~2024+).
-		// I will assume it's valid.
+		ordered_remove(&queue, 0)
 
 		name := item[0]
 		depth := utils.parse_int(item[1])
 
+		// Free the depth string immediately (we've parsed it)
+		delete(item[1], allocator)
+
 		if name in visited {
+			// Free item[0] since we won't use it
+			delete(name, allocator)
 			continue
 		}
+		// Clone name for visited map, then free the queue item's copy
 		visited[strings.clone(name, allocator)] = true
+		defer delete(name, allocator)
 
 		// Resolve this package
 		pkg, ok := resolve_package(name, idx, arch, depth, allocator)
