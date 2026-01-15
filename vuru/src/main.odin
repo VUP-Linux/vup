@@ -28,8 +28,10 @@ run :: proc() -> int {
 	// Parse global flags and find command
 	args := os.args[1:]
 	config := commands.Config {
-		index_url = INDEX_URL,
+		index_url = strings.clone(INDEX_URL),
+		allocator = context.allocator,
 	}
+	defer commands.config_free(&config)
 
 	command_name := ""
 	command_args: [dynamic]string
@@ -94,7 +96,7 @@ run :: proc() -> int {
 				config.ownedby = true
 			} else if arg == "-r" || arg == "--rootdir" {
 				if i + 1 < len(args) {
-					config.rootdir = args[i + 1]
+					config.rootdir = strings.clone(args[i + 1])
 					skip_next = true
 				}
 			} else if strings.has_prefix(arg, "-") && len(arg) > 1 && arg[1] != '-' {
