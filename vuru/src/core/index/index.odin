@@ -37,13 +37,15 @@ parse_index :: proc(content: string, allocator := context.allocator) -> (Index, 
 	parsed, err := json.parse(transmute([]u8)content, allocator = context.temp_allocator)
 	if err != .None {
 		errors.log_error("Failed to parse index JSON")
-		return idx, false
+		index_free(&idx)
+		return {}, false
 	}
 
 	root, ok := parsed.(json.Object)
 	if !ok {
 		errors.log_error("Invalid index format")
-		return idx, false
+		index_free(&idx)
+		return {}, false
 	}
 
 	// Iterate packages
