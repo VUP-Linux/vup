@@ -1,0 +1,11 @@
+# INSTALL
+case "$ACTION" in
+post)
+	# Enable and start the mullvad-daemon runit service
+	if [ ! -L /etc/runit/runsvdir/default/mullvad-daemon ]; then
+		ln -s /etc/sv/mullvad-daemon /etc/runit/runsvdir/default/
+	fi
+	# Set SUID on mullvad-exclude for split tunneling
+	chmod u+s /usr/bin/mullvad-exclude
+	;;
+esac

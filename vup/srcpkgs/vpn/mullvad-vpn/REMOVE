@@ -1,0 +1,15 @@
+# REMOVE
+case "$ACTION" in
+pre)
+	# Stop and remove the mullvad-daemon runit service
+	if [ -L /etc/runit/runsvdir/default/mullvad-daemon ]; then
+		sv stop mullvad-daemon 2>/dev/null || true
+		rm -f /etc/runit/runsvdir/default/mullvad-daemon
+	fi
+	# Reset firewall if tool available
+	if [ -x "/opt/Mullvad VPN/resources/mullvad-setup" ]; then
+		"/opt/Mullvad VPN/resources/mullvad-setup" reset-firewall 2>/dev/null || true
+	fi
+	;;
+esac
+
