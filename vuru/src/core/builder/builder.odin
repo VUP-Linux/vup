@@ -46,6 +46,14 @@ default_build_config :: proc(allocator := context.allocator) -> (Build_Config, b
 	return {}, false
 }
 
+// Free resources in Build_Config
+build_config_free :: proc(cfg: ^Build_Config, allocator := context.allocator) {
+	if cfg == nil do return
+	if len(cfg.vup_dir) > 0 do delete(cfg.vup_dir, allocator)
+	if len(cfg.masterdir) > 0 do delete(cfg.masterdir, allocator)
+	if len(cfg.hostdir) > 0 do delete(cfg.hostdir, allocator)
+}
+
 // Clone or update VUP repository
 vup_clone_or_update :: proc(target_dir: string) -> bool {
 	VUP_REPO :: "https://github.com/VUP-Linux/vup.git"

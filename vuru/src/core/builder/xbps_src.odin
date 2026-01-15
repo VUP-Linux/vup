@@ -81,71 +81,6 @@ get_binpkgs_dir :: proc(xbps_src_path: string, allocator := context.allocator) -
 	return strings.clone("hostdir/binpkgs", allocator)
 }
 
-// Download VUP package to hostdir/binpkgs for xbps-src to find
-download_vup_pkg_to_binpkgs :: proc(
-	idx: ^index.Index,
-	pkg_name: string,
-	binpkgs_dir: string,
-) -> (
-	bool,
-	errors.Error,
-) {
-	pkg, ok := index.index_get_package(idx, pkg_name)
-	if !ok {
-		return false, errors.make_error(.Package_Not_Found, pkg_name)
-	}
-
-	// Get architecture
-	arch, arch_ok := utils.get_arch()
-	defer delete(arch)
-	if !arch_ok {
-		return false, errors.make_error(.Arch_Detection_Failed)
-	}
-
-	// Get repo URL for this arch
-	repo_url, url_ok := pkg.repo_urls[arch]
-	if !url_ok {
-		return false, errors.make_error(
-			.Arch_Not_Supported,
-			fmt.tprintf("%s for %s", pkg_name, arch),
-		)
-	}
-
-	// Build the .xbps filename (pkgname-version.arch.xbps)
-	// e.g. vlang-0.4.11_1.x86_64.xbps
-	xbps_filename := fmt.tprintf("%s-%s.%s.xbps", pkg_name, pkg.version, arch)
-
-	// Full URL to the .xbps file
-	full_url := fmt.tprintf("%s/%s", repo_url, xbps_filename)
-
-	// Destination path
-	dest_path := utils.path_join(binpkgs_dir, xbps_filename, allocator = context.temp_allocator)
-
-	// Check if already exists
-	if os.exists(dest_path) {
-		errors.log_info("%s already in binpkgs", pkg_name)
-		return true, {}
-	}
-
-	// Create binpkgs dir if needed
-	if !utils.mkdir_p(binpkgs_dir) {
-		return false, errors.make_error(.Cache_Dir_Failed, binpkgs_dir)
-	}
-
-	// Download the package
-	errors.log_info("Downloading %s to hostdir/binpkgs...", pkg_name)
-
-	// Use curl to download (-L to follow redirects)
-	curl_args := []string{"curl", "-fsSL", "-o", dest_path, full_url}
-	if utils.run_command(curl_args) != 0 {
-		return false, errors.make_error(
-			.Download_Failed,
-			fmt.tprintf("%s from %s", pkg_name, full_url),
-		)
-	}
-
-	return true, {}
-}
 
 // Update the local repo index after adding packages
 update_binpkgs_index :: proc(binpkgs_dir: string) -> (bool, errors.Error) {
@@ -571,7 +506,12 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 
 	// Track installed packages for cleanup
 	installed_pkgs: [dynamic]string
-	defer delete(installed_pkgs)
+	defer {
+		for s in installed_pkgs {
+			delete(s)
+		}
+		delete(installed_pkgs)
+	}
 
 	// Schedule cleanup of installed dependencies at the end of the program
 	defer {
