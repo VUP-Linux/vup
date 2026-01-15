@@ -3,6 +3,7 @@ pkgname=deno
 version=2.6.4
 revision=1
 archs="x86_64 aarch64"
+hostmakedepends="unzip"
 create_wrksrc=yes
 short_desc="Secure JavaScript and TypeScript runtime"
 maintainer="AmarBego <begovicamar@proton.me>"
@@ -23,6 +24,11 @@ case "$XBPS_TARGET_MACHINE" in
 		checksum=dafb54c5454d7fcca81305215442e832e0c34e90b76a2e9a31d0676cbb06bfc6
 		;;
 esac
+
+do_extract() {
+	mkdir -p ${wrksrc}
+	unzip -q -o ${XBPS_SRCDISTDIR}/${pkgname}-${version}/${distfiles##*/} -d ${wrksrc}
+}
 
 do_install() {
 	vbin deno
