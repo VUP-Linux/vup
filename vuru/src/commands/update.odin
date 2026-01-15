@@ -154,6 +154,11 @@ xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
 	upgrades: [dynamic]Upgrade_Info
 	defer {
 		for u in upgrades {
+			delete(u.name)
+			delete(u.installed_ver)
+			delete(u.new_ver)
+			delete(u.repo_url)
+			delete(u.category)
 			delete(u.new_template)
 			delete(u.cached_template)
 		}
