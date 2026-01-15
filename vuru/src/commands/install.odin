@@ -114,6 +114,7 @@ install_run :: proc(args: []string, config: ^Config) -> int {
 				continue
 			}
 			build_cfg = cfg_result
+			defer builder.build_config_free(&build_cfg)
 		}
 
 		// Execute
