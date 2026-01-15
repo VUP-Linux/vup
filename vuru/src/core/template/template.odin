@@ -3,7 +3,6 @@ package template
 import utils "../../utils"
 
 import "core:mem"
-import "core:os"
 import "core:strings"
 
 // Parsed template information from xbps-src template file
@@ -118,7 +117,7 @@ template_parse :: proc(content: string, allocator := context.allocator) -> (Temp
 		value_raw := trimmed[eq_idx + 1:]
 
 		// Strip quotes if present
-		value := strip_quotes(value_raw)
+		value := utils.strip_quotes(value_raw)
 
 		switch name {
 		case "pkgname":
@@ -126,7 +125,7 @@ template_parse :: proc(content: string, allocator := context.allocator) -> (Temp
 		case "version":
 			t.version = strings.clone(value, allocator)
 		case "revision":
-			t.revision = parse_int(value)
+			t.revision = utils.parse_int(value)
 		case "short_desc":
 			t.short_desc = strings.clone(value, allocator)
 		case "maintainer":
@@ -138,15 +137,15 @@ template_parse :: proc(content: string, allocator := context.allocator) -> (Temp
 		case "build_style":
 			t.build_style = strings.clone(value, allocator)
 		case "archs":
-			t.archs = split_and_clone(value, allocator)
+			t.archs = utils.split_and_clone(value, allocator)
 		case "depends":
-			t.depends = split_and_clone(value, allocator)
+			t.depends = utils.split_and_clone(value, allocator)
 		case "makedepends":
-			t.makedepends = split_and_clone(value, allocator)
+			t.makedepends = utils.split_and_clone(value, allocator)
 		case "hostmakedepends":
-			t.hostmakedeps = split_and_clone(value, allocator)
+			t.hostmakedeps = utils.split_and_clone(value, allocator)
 		case "checkdepends":
-			t.checkdepends = split_and_clone(value, allocator)
+			t.checkdepends = utils.split_and_clone(value, allocator)
 		case "restricted":
 			t.restricted = value == "yes"
 		case "nostrip":
@@ -171,7 +170,7 @@ template_parse :: proc(content: string, allocator := context.allocator) -> (Temp
 template_full_version :: proc(t: ^Template, allocator := context.allocator) -> string {
 	if t.revision > 0 {
 		return strings.concatenate(
-			{t.version, "_", int_to_string(t.revision, context.temp_allocator)},
+			{t.version, "_", utils.int_to_string(t.revision, context.temp_allocator)},
 			allocator,
 		)
 	}
@@ -207,62 +206,4 @@ template_all_deps :: proc(t: ^Template, allocator := context.allocator) -> []str
 	}
 
 	return result[:]
-}
-
-// --- Helper functions ---
-
-strip_quotes :: proc(s: string) -> string {
-	if len(s) < 2 {
-		return s
-	}
-
-	if (s[0] == '"' && s[len(s) - 1] == '"') || (s[0] == '\'' && s[len(s) - 1] == '\'') {
-		return s[1:len(s) - 1]
-	}
-	return s
-}
-
-split_and_clone :: proc(s: string, allocator: mem.Allocator) -> []string {
-	if len(s) == 0 {
-		return nil
-	}
-
-	parts := strings.fields(s, context.temp_allocator)
-	result := make([]string, len(parts), allocator)
-
-	for p, i in parts {
-		result[i] = strings.clone(p, allocator)
-	}
-
-	return result
-}
-
-parse_int :: proc(s: string) -> int {
-	result := 0
-	for c in s {
-		if c >= '0' && c <= '9' {
-			result = result * 10 + int(c - '0')
-		} else {
-			break
-		}
-	}
-	return result
-}
-
-int_to_string :: proc(n: int, allocator := context.allocator) -> string {
-	if n == 0 {
-		return strings.clone("0", allocator)
-	}
-
-	buf: [20]u8
-	i := len(buf)
-	v := n
-
-	for v > 0 {
-		i -= 1
-		buf[i] = u8('0' + (v % 10))
-		v /= 10
-	}
-
-	return strings.clone(string(buf[i:]), allocator)
 }
