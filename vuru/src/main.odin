@@ -7,7 +7,7 @@ import "core:strings"
 import commands "commands"
 import errors "core/errors"
 
-VERSION :: "0.5.0"
+VERSION :: "0.5.1"
 INDEX_URL :: "https://vup-linux.github.io/vup/index.json"
 
 main :: proc() {

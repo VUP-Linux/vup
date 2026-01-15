@@ -178,11 +178,24 @@ resolve_deps :: proc(
 	defer delete(arch)
 
 	// Track visited packages to avoid cycles
-	visited := make(map[string]bool, allocator = context.temp_allocator)
+	visited := make(map[string]bool, allocator = allocator)
+	defer {
+		for key in visited {
+			delete(key, allocator)
+		}
+		delete(visited)
+	}
 
 	// Queue of packages to process: (name, depth)
-	queue := make([dynamic][2]string, context.temp_allocator)
-	append(&queue, [2]string{target, "0"})
+	queue := make([dynamic][2]string, allocator)
+	defer {
+		for item in queue {
+			delete(item[0], allocator)
+			delete(item[1], allocator)
+		}
+		delete(queue)
+	}
+	append(&queue, [2]string{strings.clone(target, allocator), strings.clone("0", allocator)})
 
 	for len(queue) > 0 {
 		item := queue[0]
@@ -204,7 +217,7 @@ resolve_deps :: proc(
 		if name in visited {
 			continue
 		}
-		visited[name] = true
+		visited[strings.clone(name, allocator)] = true
 
 		// Resolve this package
 		pkg, ok := resolve_package(name, idx, arch, depth, allocator)
@@ -241,7 +254,10 @@ resolve_deps :: proc(
 					if dep not_in visited {
 						append(
 							&queue,
-							[2]string{dep, utils.int_to_string(depth + 1, context.temp_allocator)},
+							[2]string {
+								strings.clone(dep, allocator),
+								utils.int_to_string(depth + 1, allocator),
+							},
 						)
 					}
 				}
@@ -252,8 +268,8 @@ resolve_deps :: proc(
 							append(
 								&queue,
 								[2]string {
-									dep,
-									utils.int_to_string(depth + 1, context.temp_allocator),
+									strings.clone(dep, allocator),
+									utils.int_to_string(depth + 1, allocator),
 								},
 							)
 						}
