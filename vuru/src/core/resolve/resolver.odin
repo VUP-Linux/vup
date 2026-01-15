@@ -49,35 +49,37 @@ resolve_package :: proc(
 	// 1. Check if already installed
 	if is_pkg_installed(name) {
 		return Resolved_Package {
-			name    = strings.clone(name, allocator),
-			source  = .Official, // Treat as satisfied (empty version = already installed)
-			version = "",
-			depth   = depth,
-		}, true
+				name    = strings.clone(name, allocator),
+				source  = .Official, // Treat as satisfied (empty version = already installed)
+				version = "",
+				depth   = depth,
+			}, true
 	}
 
 	// 2. Check VUP index for binary
 	if vup_pkg, ok := index.index_get_package(idx, name); ok {
 		if url, url_ok := vup_pkg.repo_urls[arch]; url_ok {
 			return Resolved_Package {
-				name     = strings.clone(name, allocator),
-				source   = .VUP,
-				version  = strings.clone(vup_pkg.version, allocator),
-				repo_url = strings.clone(url, allocator),
-				category = strings.clone(vup_pkg.category, allocator),
-				depth    = depth,
-			}, true
+					name = strings.clone(name, allocator),
+					source = .VUP,
+					version = strings.clone(vup_pkg.version, allocator),
+					repo_url = strings.clone(url, allocator),
+					category = strings.clone(vup_pkg.category, allocator),
+					depth = depth,
+				},
+				true
 		}
 	}
 
 	// 3. Check official Void repos
 	if version, ok := is_in_official_repos(name); ok {
 		return Resolved_Package {
-			name    = strings.clone(name, allocator),
-			source  = .Official,
-			version = strings.clone(version, allocator),
-			depth   = depth,
-		}, true
+				name = strings.clone(name, allocator),
+				source = .Official,
+				version = strings.clone(version, allocator),
+				depth = depth,
+			},
+			true
 	}
 
 	// 4. Not found anywhere - return false, no allocations made
@@ -98,7 +100,7 @@ resolve_deps :: proc(
 
 	arch, arch_ok := utils.get_arch()
 	if !arch_ok {
-		append(&res.errors, errors.make_error(.Arch_Detection_Failed, "", allocator))
+		append(&res.errors, errors.make_error(.Arch_Detection_Failed))
 		return res, false
 	}
 	defer delete(arch)
@@ -147,9 +149,9 @@ resolve_deps :: proc(
 
 			// Add detailed error
 			if item.depth == 0 {
-				append(&res.errors, errors.make_error(.Package_Not_Found, item.name, allocator))
+				append(&res.errors, errors.make_error(.Package_Not_Found, item.name))
 			} else {
-				append(&res.errors, errors.make_error(.Dependency_Not_Found, item.name, allocator))
+				append(&res.errors, errors.make_error(.Dependency_Not_Found, item.name))
 			}
 
 			delete(item.name, allocator)
@@ -172,14 +174,18 @@ resolve_deps :: proc(
 			append(&res.to_install, pkg)
 
 			// Resolve VUP package dependencies from template
-			if tmpl, tmpl_ok := fetch_and_parse_template(pkg.category, item.name, allocator); tmpl_ok {
+			if tmpl, tmpl_ok := fetch_and_parse_template(pkg.category, item.name, allocator);
+			   tmpl_ok {
 				// Queue runtime dependencies
 				for dep in tmpl.depends {
 					if dep not_in visited {
-						append(&queue, Queue_Item{
-							name  = strings.clone(dep, allocator),
-							depth = item.depth + 1,
-						})
+						append(
+							&queue,
+							Queue_Item {
+								name = strings.clone(dep, allocator),
+								depth = item.depth + 1,
+							},
+						)
 					}
 				}
 
@@ -187,10 +193,13 @@ resolve_deps :: proc(
 				if include_makedeps {
 					for dep in tmpl.makedepends {
 						if dep not_in visited {
-							append(&queue, Queue_Item{
-								name  = strings.clone(dep, allocator),
-								depth = item.depth + 1,
-							})
+							append(
+								&queue,
+								Queue_Item {
+									name = strings.clone(dep, allocator),
+									depth = item.depth + 1,
+								},
+							)
 						}
 					}
 				}
