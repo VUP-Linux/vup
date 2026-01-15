@@ -11,7 +11,7 @@ vup/hostdir/*/*
 dist/
 vup/masterdir-x86_64/
 vup/.xbps*
-
+vup/scripts/vup-updater/
 # IDEs
 .vscode/
 .idea/

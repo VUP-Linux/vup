@@ -13,11 +13,19 @@ jobs:
   release-source:
     runs-on: ubuntu-latest
     steps:
+      - name: Generate App Token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.VUP_BOT_APP_ID }}
+          private-key: ${{ secrets.VUP_BOT_PRIVATE_KEY }}
+
       - name: Checkout Source
         uses: actions/checkout@v4
         with:
           path: vup
           fetch-depth: 0 # Needed for push
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Create Source Tarball
         run: |
@@ -67,8 +75,8 @@ jobs:
           # Push changes to new branch
           BRANCH="release/vuru-$VERSION"
           cd vup
-          git config user.name "vup-bot"
-          git config user.email "vup-bot@users.noreply.github.com"
+          git config user.name "vup-bot[bot]"
+          git config user.email "vup-bot[bot]@users.noreply.github.com"
           
           # Make workflow idempotent
           git push origin --delete "$BRANCH" || true
@@ -85,4 +93,5 @@ jobs:
             --head "$BRANCH" \
             --base main
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+
