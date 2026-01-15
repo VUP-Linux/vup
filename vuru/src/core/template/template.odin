@@ -83,7 +83,8 @@ template_free :: proc(t: ^Template) {
 
 // Parse a template file from disk
 template_parse_file :: proc(path: string, allocator := context.allocator) -> (Template, bool) {
-	content, ok := utils.read_file(path, allocator)
+	// Read with temp allocator - template_parse will clone what it needs
+	content, ok := utils.read_file(path, context.temp_allocator)
 	if !ok {
 		return {}, false
 	}
