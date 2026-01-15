@@ -39,7 +39,6 @@ install_run :: proc(args: []string, config: ^Config) -> int {
 		errors.log_error("Failed to load package index")
 		return 1
 	}
-	defer index.index_free(&idx)
 
 	exit_code := 0
 
@@ -55,11 +54,9 @@ install_run :: proc(args: []string, config: ^Config) -> int {
 			} else {
 				errors.log_error("Failed to resolve dependencies for %s", pkg_name)
 			}
-			resolve.resolution_free(&res)
 			exit_code = 1
 			continue
 		}
-		defer resolve.resolution_free(&res)
 
 		// Check for missing packages
 		if len(res.missing) > 0 {
@@ -86,7 +83,6 @@ install_run :: proc(args: []string, config: ^Config) -> int {
 
 		// Create transaction
 		tx := transaction.transaction_from_resolution(&res)
-		defer transaction.transaction_free(&tx)
 
 		transaction.transaction_print(&tx)
 
@@ -114,7 +110,6 @@ install_run :: proc(args: []string, config: ^Config) -> int {
 				continue
 			}
 			build_cfg = cfg_result
-			defer builder.build_config_free(&build_cfg)
 		}
 
 		// Execute

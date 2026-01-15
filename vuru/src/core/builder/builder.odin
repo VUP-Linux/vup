@@ -144,7 +144,6 @@ install_local_package :: proc(cfg: ^Build_Config, pkg_name: string, yes: bool) -
 	if !ok {
 		return false
 	}
-	defer delete(arch)
 
 	// xbps-install from local repository
 	args := make([dynamic]string, context.temp_allocator)
@@ -173,7 +172,7 @@ get_built_package_path :: proc(
 	if !ok {
 		return "", false
 	}
-	defer delete(arch)
+
 
 	// Check for package file
 	// Format: pkgname-version_revision.arch.xbps

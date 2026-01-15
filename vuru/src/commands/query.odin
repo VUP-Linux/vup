@@ -96,7 +96,6 @@ query_info :: proc(args: []string, config: ^Config) -> int {
 		errors.log_error("Failed to load package index")
 		return 1
 	}
-	defer index.index_free(&idx)
 
 	for pkg_name in args {
 		// Check VUP first
@@ -108,7 +107,6 @@ query_info :: proc(args: []string, config: ^Config) -> int {
 				context.temp_allocator,
 			)
 			if tmpl_ok {
-				defer template.template_free(&tmpl)
 			}
 
 			// Use template description if index doesn't have it

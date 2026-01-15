@@ -103,26 +103,15 @@ resolve_deps :: proc(
 		append(&res.errors, errors.make_error(.Arch_Detection_Failed))
 		return res, false
 	}
-	defer delete(arch)
+
 
 	// Track visited packages to avoid cycles - keys are owned by this map
 	visited := make(map[string]bool, allocator = allocator)
-	defer {
-		for key in visited {
-			delete(key, allocator)
-		}
-		delete(visited)
-	}
+
 
 	// Queue of packages to process - using proper struct with int depth
 	queue := make([dynamic]Queue_Item, allocator)
-	defer {
-		// Only free items that weren't processed (queue should be empty normally)
-		for item in queue {
-			delete(item.name, allocator)
-		}
-		delete(queue)
-	}
+
 
 	// Add target to queue
 	append(&queue, Queue_Item{name = strings.clone(target, allocator), depth = 0})
@@ -134,7 +123,7 @@ resolve_deps :: proc(
 
 		// Check if already visited
 		if item.name in visited {
-			delete(item.name, allocator)
+
 			continue
 		}
 
@@ -155,7 +144,7 @@ resolve_deps :: proc(
 				append(&res.errors, errors.make_error(.Dependency_Not_Found, cloned_name))
 			}
 
-			delete(item.name, allocator)
+
 			continue
 		}
 
@@ -165,7 +154,7 @@ resolve_deps :: proc(
 			if len(pkg.version) == 0 {
 				// Already installed - add to satisfied, free the pkg
 				append(&res.satisfied, strings.clone(item.name, allocator))
-				resolved_package_free(&pkg, allocator)
+
 			} else {
 				// Needs to be installed from official repos
 				append(&res.to_install, pkg)
@@ -206,7 +195,7 @@ resolve_deps :: proc(
 				}
 
 				// Free template after extracting deps
-				template.template_free(&tmpl)
+
 			}
 
 		case .VUP_Build:
@@ -214,11 +203,11 @@ resolve_deps :: proc(
 
 		case .Unknown:
 			append(&res.missing, strings.clone(item.name, allocator))
-			resolved_package_free(&pkg, allocator)
+
 		}
 
 		// Free the queue item's name - we've extracted what we need
-		delete(item.name, allocator)
+
 	}
 
 	return res, true
@@ -248,8 +237,7 @@ resolution_print :: proc(r: ^Resolution) {
 	// Separate VUP and official packages
 	vup_pkgs: [dynamic]string
 	official_pkgs: [dynamic]string
-	defer delete(vup_pkgs)
-	defer delete(official_pkgs)
+
 
 	for pkg in r.to_install {
 		if pkg.source == .VUP {

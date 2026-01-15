@@ -193,7 +193,7 @@ download_vup_pkg_to_binpkgs_and_get_filename :: proc(
 
 	// Get architecture
 	arch, arch_ok := utils.get_arch()
-	defer delete(arch)
+
 	if !arch_ok {
 		return false, errors.make_error(.Arch_Detection_Failed), ""
 	}
@@ -268,11 +268,11 @@ install_vup_deps_for_pkg :: proc(
 		errors.log_warning("Could not parse template for %s", pkg_name)
 		return true, {}, installed_files // Continue anyway, let xbps-src handle the error
 	}
-	defer template.template_free(&tmpl)
+
 
 	// Collect all dependencies using a map to deduplicate
 	all_deps: map[string]bool
-	defer delete(all_deps)
+
 
 	for dep in tmpl.depends {
 		all_deps[dep] = true
@@ -291,7 +291,7 @@ install_vup_deps_for_pkg :: proc(
 
 	// Find VUP dependencies
 	vup_deps: [dynamic]string
-	defer delete(vup_deps)
+
 
 	for dep in all_deps {
 		// Check if it's in VUP index
@@ -351,7 +351,7 @@ install_vup_deps_for_pkg :: proc(
 run_xbps_src :: proc(xbps_src_path: string, args: []string) -> bool {
 	// Build the command as string array
 	cmd_args: [dynamic]string
-	defer delete(cmd_args)
+
 
 	append(&cmd_args, xbps_src_path)
 
@@ -506,12 +506,7 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 
 	// Track installed packages for cleanup
 	installed_pkgs: [dynamic]string
-	defer {
-		for s in installed_pkgs {
-			delete(s)
-		}
-		delete(installed_pkgs)
-	}
+
 
 	// Schedule cleanup of installed dependencies at the end of the program
 	defer {
@@ -538,7 +533,7 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 		if !idx_ok {
 			errors.log_warning("Could not load VUP index, continuing without VUP dep resolution")
 		} else {
-			defer index.index_free(&idx)
+
 
 			ok, err, deps := install_vup_deps_for_pkg(pkg_name, xbps_src_path, &idx)
 
@@ -546,7 +541,7 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 			for d in deps {
 				append(&installed_pkgs, d)
 			}
-			delete(deps) // We copied them, free the temporary list
+
 
 			if !ok {
 				return false, err
@@ -556,7 +551,7 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 
 	// Build the full xbps-src args, including -a if specified
 	xbps_args: [dynamic]string
-	defer delete(xbps_args)
+
 
 	if cross_target != "" {
 		append(&xbps_args, "-a")

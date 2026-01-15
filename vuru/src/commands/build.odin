@@ -19,14 +19,12 @@ build_run :: proc(args: []string, config: ^Config) -> int {
 		errors.log_error("Failed to load package index")
 		return 1
 	}
-	defer index.index_free(&idx)
 
 	cfg, cfg_ok := builder.default_build_config()
 	if !cfg_ok {
 		errors.log_error("VUP repository not found. Run 'vuru clone' first.")
 		return 1
 	}
-	defer builder.build_config_free(&cfg)
 
 	exit_code := 0
 

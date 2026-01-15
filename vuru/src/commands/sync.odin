@@ -11,7 +11,6 @@ sync_run :: proc(args: []string, config: ^Config) -> int {
 		errors.log_error("Failed to sync package index")
 		return 1
 	}
-	defer index.index_free(&idx)
 
 	errors.log_info("Package index synchronized")
 	return 0

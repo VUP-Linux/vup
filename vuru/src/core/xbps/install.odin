@@ -10,7 +10,7 @@ install_from_repo :: proc(
 	run_cmd: proc(_: []string) -> int,
 ) -> int {
 	args := build_args_with_yes(yes, "sudo", "xbps-install", "-R", repo_url, "-S")
-	defer delete(args)
+
 
 	append(&args, pkg_name)
 	return run_cmd(args[:])
