@@ -1,0 +1,57 @@
+# Template file for 'mullvad-vpn'
+pkgname=mullvad-vpn
+version=2025.14
+revision=1
+archs="x86_64 aarch64"
+create_wrksrc=yes
+hostmakedepends="tar"
+depends="dbus"
+short_desc="Mullvad VPN client - Privacy-focused VPN service"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="GPL-3.0-or-later"
+homepage="https://mullvad.net/"
+nostrip=yes
+make_dirs="
+ /var/log/mullvad-vpn 0755 root root
+ /var/cache/mullvad-vpn 0755 root root
+ /etc/mullvad-vpn 0755 root root
+"
+
+_baseurl="https://github.com/mullvad/mullvadvpn-app/releases/download/${version}"
+
+case "$XBPS_TARGET_MACHINE" in
+	x86_64)
+		distfiles="${_baseurl}/MullvadVPN-${version}_amd64.deb"
+		checksum=247b981e2e2e047ccca296b8e62a70b1dc7fdcec7f17137795884100240e0a41
+		;;
+	aarch64)
+		distfiles="${_baseurl}/MullvadVPN-${version}_arm64.deb"
+		checksum=9a20a1d71eac09c01b83d897ed227361cc49f0321054d76b83a6f7f61b7c813c
+		;;
+esac
+
+do_install() {
+	# GUI app
+	vmkdir opt
+	vcopy "opt/Mullvad VPN" opt
+
+	# CLI binaries
+	vinstall usr/bin/mullvad 755 usr/bin
+	vinstall usr/bin/mullvad-daemon 755 usr/bin
+	vinstall usr/bin/mullvad-exclude 755 usr/bin
+
+	# Desktop entry and icons
+	vinstall usr/share/applications/mullvad-vpn.desktop 644 usr/share/applications
+	vcopy usr/share/icons usr/share
+
+	# Shell completions
+	vcompletion usr/share/bash-completion/completions/mullvad bash
+	vcompletion usr/share/fish/vendor_completions.d/mullvad.fish fish
+	vcompletion usr/local/share/zsh/site-functions/_mullvad zsh
+
+	# Runit service
+	vsv mullvad-daemon
+
+	# License
+	vlicense "opt/Mullvad VPN/LICENSE.electron.txt"
+}
