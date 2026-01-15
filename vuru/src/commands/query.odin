@@ -7,6 +7,7 @@ import errors "../core/errors"
 import index "../core/index"
 import resolve "../core/resolve"
 import template "../core/template"
+import xbps "../core/xbps"
 import utils "../utils"
 
 // Unified query command - maps to xbps-query patterns
@@ -44,15 +45,15 @@ query_run :: proc(args: []string, config: ^Config) -> int {
 
 // List installed packages (xbps-query -l)
 query_list :: proc(config: ^Config) -> int {
-	cmd := make([dynamic]string, context.temp_allocator)
-	append(&cmd, "xbps-query", "-l")
-	if config.verbose {
-		append(&cmd, "-v")
+	list, ok := xbps.list_installed(utils.run_command_output, context.temp_allocator)
+	if !ok {
+		return 1
 	}
-	if len(config.rootdir) > 0 {
-		append(&cmd, "-r", config.rootdir)
+
+	for item in list {
+		fmt.printf("%s-%s\n", item[0], item[1])
 	}
-	return utils.run_command(cmd[:])
+	return 0
 }
 
 // Find package owning a file (xbps-query -o)

@@ -1,6 +1,7 @@
 package commands
 
 import errors "../core/errors"
+import xbps "../core/xbps"
 import utils "../utils"
 import "core:fmt"
 
@@ -58,7 +59,7 @@ remove_orphans :: proc(config: ^Config) -> int {
 	}
 
 	errors.log_info("Removing orphan packages...")
-	return utils.run_command(cmd[:])
+	return xbps.remove_orphans(config.yes, utils.run_command)
 }
 
 // Clean package cache (xbps-remove -O)
@@ -85,7 +86,7 @@ remove_cache :: proc(config: ^Config) -> int {
 	}
 
 	errors.log_info("Cleaning package cache...")
-	return utils.run_command(cmd[:])
+	return xbps.clean_cache(utils.run_command)
 }
 
 // Remove a package using xbps-remove

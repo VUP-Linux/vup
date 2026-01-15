@@ -6,6 +6,7 @@ import "core:os"
 import "core:strings"
 
 import "../../utils"
+import config "../config"
 import errors "../errors"
 
 // Validate URL - checks for valid scheme and dangerous characters
@@ -84,7 +85,10 @@ parse_index :: proc(content: string, allocator := context.allocator) -> (Index, 
 				pkg.repo_urls = make(map[string]string, allocator = allocator)
 				for arch, url_val in urls_obj {
 					if url_str, is_url_str := url_val.(json.String); is_url_str {
-						pkg.repo_urls[strings.clone(arch, allocator)] = strings.clone(url_str, allocator)
+						pkg.repo_urls[strings.clone(arch, allocator)] = strings.clone(
+							url_str,
+							allocator,
+						)
 					}
 				}
 			}
@@ -117,31 +121,47 @@ Cache_Paths :: struct {
 
 @(private)
 get_cache_paths :: proc() -> (Cache_Paths, bool) {
-	cache_dir, ok := utils.get_cache_dir(context.temp_allocator)
+	cache_dir, ok := config.get_cache_dir(context.temp_allocator)
 	if !ok {
 		return {}, false
 	}
 
 	return Cache_Paths {
-		dir   = cache_dir,
-		index = utils.path_join(cache_dir, "index.json", allocator = context.temp_allocator),
-		etag  = utils.path_join(cache_dir, "index.json.etag", allocator = context.temp_allocator),
-		temp  = utils.path_join(cache_dir, "index.json.tmp", allocator = context.temp_allocator),
-	}, true
+			dir = cache_dir,
+			index = utils.path_join(cache_dir, "index.json", allocator = context.temp_allocator),
+			etag = utils.path_join(
+				cache_dir,
+				"index.json.etag",
+				allocator = context.temp_allocator,
+			),
+			temp = utils.path_join(
+				cache_dir,
+				"index.json.tmp",
+				allocator = context.temp_allocator,
+			),
+		},
+		true
 }
 
 // Fetch index from URL, returns HTTP status code
 @(private)
-fetch_index_from_url :: proc(url: string, paths: Cache_Paths, old_etag: string) -> (status: string, ok: bool) {
+fetch_index_from_url :: proc(
+	url: string,
+	paths: Cache_Paths,
+	old_etag: string,
+) -> (
+	status: string,
+	ok: bool,
+) {
 	curl_args := make([dynamic]string, context.temp_allocator)
-	
+
 	append(&curl_args, "curl", "-s", "-L", "-w", "%{http_code}")
-	
+
 	// Use conditional request if we have an etag
 	if len(old_etag) > 0 {
 		append(&curl_args, "-H", fmt.tprintf("If-None-Match: %s", old_etag))
 	}
-	
+
 	append(&curl_args, "-o", paths.temp, url)
 
 	output, cmd_ok := utils.run_command_output(curl_args[:], context.temp_allocator)
@@ -157,7 +177,10 @@ index_load_or_fetch :: proc(
 	url: string,
 	force_update: bool,
 	allocator := context.allocator,
-) -> (Index, bool) {
+) -> (
+	Index,
+	bool,
+) {
 	// Validate URL first
 	if !is_valid_url(url) {
 		errors.log_error("Invalid or unsafe URL provided")
@@ -214,13 +237,13 @@ index_load_or_fetch :: proc(
 		// Success - move temp file to index
 		errors.log_info("Index updated")
 		os.remove(paths.index)
-		
+
 		if os.rename(paths.temp, paths.index) != os.ERROR_NONE {
 			errors.log_error("Failed to save index")
 			os.remove(paths.temp)
 			return {}, false
 		}
-		
+
 		return load_index_from_file(paths.index, allocator)
 
 	case:
@@ -233,7 +256,13 @@ index_load_or_fetch :: proc(
 
 // Try to load from cache as fallback
 @(private)
-try_fallback_to_cache :: proc(index_path: string, allocator := context.allocator) -> (Index, bool) {
+try_fallback_to_cache :: proc(
+	index_path: string,
+	allocator := context.allocator,
+) -> (
+	Index,
+	bool,
+) {
 	if os.exists(index_path) {
 		errors.log_info("Using cached index as fallback")
 		return load_index_from_file(index_path, allocator)

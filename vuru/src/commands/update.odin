@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:os"
 import "core:strings"
 
+import config "../core/config"
 import errors "../core/errors"
 import index "../core/index"
 import template "../core/template"
@@ -34,7 +35,7 @@ update_run :: proc(args: []string, config: ^Config) -> int {
 		return 1
 	}
 
-	return xbps_upgrade_all(&idx, config.yes)
+	return xbps.upgrade_all_official(config.yes, utils.run_command)
 }
 
 // Compare versions using xbps-uhelper
@@ -171,7 +172,7 @@ xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
 		}
 
 		// Get architecture-specific repo URL
-		arch, arch_ok := utils.get_arch()
+		arch, arch_ok := config.get_arch()
 		if !arch_ok {continue}
 
 

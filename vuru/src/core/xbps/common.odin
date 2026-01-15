@@ -4,6 +4,13 @@ import "core:strings"
 
 // Common utilities for XBPS operations
 
+import "core:mem"
+
+// Type alias for command runner functions
+Command_Runner :: proc(args: []string) -> int
+Command_Runner_Output :: proc(args: []string, allocator: mem.Allocator) -> (string, bool)
+
+
 // Build a command argument list from variadic strings
 // Returns a slice that the caller should delete when done
 build_args :: proc(args: ..string, allocator := context.allocator) -> []string {

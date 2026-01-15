@@ -8,6 +8,7 @@ import errors "../../core/errors"
 import index "../../core/index"
 import template "../../core/template"
 import utils "../../utils"
+import config "../config"
 
 // xbps-src wrapper that intercepts builds and installs VUP dependencies first
 // Usage: vuru src <xbps-src-command> [args...]
@@ -167,7 +168,7 @@ cleanup_vup_deps :: proc(binpkgs_dir: string, installed_pkgs: []string) {
 		}
 	}
 
-	if arch, ok := utils.get_arch(); ok {
+	if arch, ok := config.get_arch(); ok {
 		repodata := fmt.tprintf("%s/%s-repodata", binpkgs_dir, arch)
 		if os.exists(repodata) {
 			os.remove(repodata)
@@ -192,7 +193,7 @@ download_vup_pkg_to_binpkgs_and_get_filename :: proc(
 	}
 
 	// Get architecture
-	arch, arch_ok := utils.get_arch()
+	arch, arch_ok := config.get_arch()
 
 	if !arch_ok {
 		return false, errors.make_error(.Arch_Detection_Failed), ""

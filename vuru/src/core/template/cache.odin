@@ -1,6 +1,7 @@
 package template
 
 import "../../utils"
+import config "../config"
 
 import errors "../errors"
 import "core:os"
@@ -13,7 +14,7 @@ cache_get_template :: proc(pkg_name: string, allocator := context.allocator) -> 
 		return "", false
 	}
 
-	cache_dir, ok := utils.get_cache_dir(context.temp_allocator)
+	cache_dir, ok := config.get_cache_dir(context.temp_allocator)
 	if !ok {
 		return "", false
 	}
@@ -29,7 +30,7 @@ cache_save_template :: proc(pkg_name: string, content: string) -> bool {
 		return false
 	}
 
-	cache_dir, ok := utils.get_cache_dir(context.temp_allocator)
+	cache_dir, ok := config.get_cache_dir(context.temp_allocator)
 	if !ok {
 		return false
 	}

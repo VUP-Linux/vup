@@ -6,6 +6,7 @@ import "core:os"
 import "core:strings"
 
 import utils "../../utils"
+import config "../config"
 import errors "../errors"
 
 // Configuration for the build system
@@ -140,7 +141,7 @@ install_local_package :: proc(cfg: ^Build_Config, pkg_name: string, yes: bool) -
 	// Find the built package in hostdir/binpkgs
 	binpkgs := utils.path_join(cfg.vup_dir, "hostdir/binpkgs", allocator = context.temp_allocator)
 
-	arch, ok := utils.get_arch()
+	arch, ok := config.get_arch()
 	if !ok {
 		return false
 	}
@@ -168,7 +169,7 @@ get_built_package_path :: proc(
 ) {
 	binpkgs := utils.path_join(cfg.vup_dir, "hostdir/binpkgs", allocator = context.temp_allocator)
 
-	arch, ok := utils.get_arch()
+	arch, ok := config.get_arch()
 	if !ok {
 		return "", false
 	}

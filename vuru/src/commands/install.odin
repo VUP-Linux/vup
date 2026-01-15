@@ -8,6 +8,7 @@ import errors "../core/errors"
 import index "../core/index"
 import resolve "../core/resolve"
 import transaction "../core/transaction"
+import xbps "../core/xbps"
 import utils "../utils"
 
 // Install command implementation
@@ -15,7 +16,7 @@ install_run :: proc(args: []string, config: ^Config) -> int {
 	// Sync repos if -S flag
 	if config.sync {
 		errors.log_info("Syncing repository index...")
-		if utils.run_command({"sudo", "xbps-install", "-S"}) != 0 {
+		if xbps.sync_repos(utils.run_command) != 0 {
 			errors.log_error("Failed to sync repositories")
 			return 1
 		}

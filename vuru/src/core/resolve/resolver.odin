@@ -7,6 +7,7 @@ import errors "../../core/errors"
 import index "../../core/index"
 import template "../../core/template"
 import utils "../../utils"
+import config "../config"
 
 // Check if a package is installed (silently)
 is_pkg_installed :: proc(name: string) -> bool {
@@ -98,7 +99,7 @@ resolve_deps :: proc(
 ) {
 	res := resolution_make(allocator)
 
-	arch, arch_ok := utils.get_arch()
+	arch, arch_ok := config.get_arch()
 	if !arch_ok {
 		append(&res.errors, errors.make_error(.Arch_Detection_Failed))
 		return res, false
