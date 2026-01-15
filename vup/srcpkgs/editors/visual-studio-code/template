@@ -44,7 +44,7 @@ nostrip=yes
 noshlibprovides=yes
 create_wrksrc=yes
 
-_baseurl="https://raw.githubusercontent.com/microsoft/vscode/${version}/resources/linux"
+_baseurl="https://raw.githubusercontent.com/microsoft/vscode/main/resources/linux"
 distfiles="${_baseurl}/code.desktop>code.desktop.in
  ${_baseurl}/code-url-handler.desktop>code-url-handler.desktop.in
  ${_baseurl}/code-workspace.xml>code-workspace.xml.in"
