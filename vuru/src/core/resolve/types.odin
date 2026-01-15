@@ -8,9 +8,9 @@ import template "../../core/template"
 // Package source - where a package comes from
 Package_Source :: enum {
 	Unknown,
-	Official,   // Official Void Linux repos
-	VUP,        // VUP binary repo
-	VUP_Build,  // VUP source (needs building)
+	Official, // Official Void Linux repos
+	VUP, // VUP binary repo
+	VUP_Build, // VUP source (needs building)
 }
 
 // Resolved package info
@@ -18,10 +18,10 @@ Resolved_Package :: struct {
 	name:     string,
 	version:  string,
 	source:   Package_Source,
-	repo_url: string,             // For binary install
-	category: string,             // For VUP packages
+	repo_url: string, // For binary install
+	category: string, // For VUP packages
 	template: ^template.Template, // For VUP_Build
-	depth:    int,                // Dependency depth (0 = target, 1+ = deps)
+	depth:    int, // Dependency depth (0 = target, 1+ = deps)
 }
 
 // Resolution result
@@ -90,10 +90,7 @@ resolution_free :: proc(r: ^Resolution) {
 	}
 	delete(r.missing)
 
-	// Free error contexts
-	for e in r.errors {
-		if len(e.ctx) > 0 do delete(e.ctx, r.allocator)
-	}
+	// Errors are temp-based views, ctx is not owned - just free the array
 	delete(r.errors)
 }
 
@@ -101,10 +98,10 @@ resolution_free :: proc(r: ^Resolution) {
 resolution_make :: proc(allocator := context.allocator) -> Resolution {
 	return Resolution {
 		to_install = make([dynamic]Resolved_Package, allocator),
-		to_build   = make([dynamic]Resolved_Package, allocator),
-		satisfied  = make([dynamic]string, allocator),
-		missing    = make([dynamic]string, allocator),
-		errors     = make([dynamic]errors.Error, allocator),
-		allocator  = allocator,
+		to_build = make([dynamic]Resolved_Package, allocator),
+		satisfied = make([dynamic]string, allocator),
+		missing = make([dynamic]string, allocator),
+		errors = make([dynamic]errors.Error, allocator),
+		allocator = allocator,
 	}
 }

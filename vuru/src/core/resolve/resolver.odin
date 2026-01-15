@@ -144,14 +144,15 @@ resolve_deps :: proc(
 		// Resolve this package
 		pkg, ok := resolve_package(item.name, idx, arch, item.depth, allocator)
 		if !ok {
-			// Not found - add to missing list
-			append(&res.missing, strings.clone(item.name, allocator))
+			// Not found - add to missing list (clone persists)
+			cloned_name := strings.clone(item.name, allocator)
+			append(&res.missing, cloned_name)
 
-			// Add detailed error
+			// Add detailed error - use the cloned name that will persist
 			if item.depth == 0 {
-				append(&res.errors, errors.make_error(.Package_Not_Found, item.name))
+				append(&res.errors, errors.make_error(.Package_Not_Found, cloned_name))
 			} else {
-				append(&res.errors, errors.make_error(.Dependency_Not_Found, item.name))
+				append(&res.errors, errors.make_error(.Dependency_Not_Found, cloned_name))
 			}
 
 			delete(item.name, allocator)
@@ -244,35 +245,78 @@ fetch_and_parse_template :: proc(
 resolution_print :: proc(r: ^Resolution) {
 	fmt.println()
 
-	if len(r.to_install) > 0 {
-		fmt.printf("Packages to install (%d):\n", len(r.to_install))
-		for pkg in r.to_install {
-			source_str := "official" if pkg.source == .Official else "VUP"
-			fmt.printf("  %s-%s [%s]\n", pkg.name, pkg.version, source_str)
+	// Separate VUP and official packages
+	vup_pkgs: [dynamic]string
+	official_pkgs: [dynamic]string
+	defer delete(vup_pkgs)
+	defer delete(official_pkgs)
+
+	for pkg in r.to_install {
+		if pkg.source == .VUP {
+			append(&vup_pkgs, pkg.name)
+		} else {
+			append(&official_pkgs, pkg.name)
+		}
+	}
+
+	if len(vup_pkgs) > 0 {
+		fmt.printf("VUP packages (%d):\n", len(vup_pkgs))
+		fmt.print(" ")
+		for name, i in vup_pkgs {
+			if i > 0 {
+				fmt.print(" ")
+			}
+			fmt.print(name)
+		}
+		fmt.println()
+		fmt.println()
+	}
+
+	if len(official_pkgs) > 0 {
+		fmt.printf("Official deps (%d):\n", len(official_pkgs))
+		fmt.print(" ")
+		for name, i in official_pkgs {
+			if i > 0 {
+				fmt.print(" ")
+			}
+			fmt.print(name)
 		}
 		fmt.println()
 	}
 
 	if len(r.to_build) > 0 {
-		fmt.printf("Packages to build (%d):\n", len(r.to_build))
-		for pkg in r.to_build {
-			fmt.printf("  %s-%s [build]\n", pkg.name, pkg.version)
+		fmt.printf("Build from source (%d):\n", len(r.to_build))
+		fmt.print(" ")
+		for pkg, i in r.to_build {
+			if i > 0 {
+				fmt.print(" ")
+			}
+			fmt.print(pkg.name)
 		}
+		fmt.println()
 		fmt.println()
 	}
 
 	if len(r.satisfied) > 0 {
 		fmt.printf("Already installed (%d):\n", len(r.satisfied))
-		for name in r.satisfied {
-			fmt.printf("  %s\n", name)
+		fmt.print(" ")
+		for name, i in r.satisfied {
+			if i > 0 {
+				fmt.print(" ")
+			}
+			fmt.print(name)
 		}
 		fmt.println()
 	}
 
 	if len(r.missing) > 0 {
-		fmt.printf("Missing/Unresolvable (%d):\n", len(r.missing))
-		for name in r.missing {
-			fmt.printf("  %s\n", name)
+		fmt.printf("Missing (%d):\n", len(r.missing))
+		fmt.print(" ")
+		for name, i in r.missing {
+			if i > 0 {
+				fmt.print(" ")
+			}
+			fmt.print(name)
 		}
 		fmt.println()
 	}
