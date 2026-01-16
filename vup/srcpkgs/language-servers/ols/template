@@ -1,0 +1,41 @@
+# Template file for 'ols'
+pkgname=ols
+version=2025.12
+revision=1
+_tag="dev-${version//./-}"
+archs="x86_64 aarch64"
+hostmakedepends="unzip"
+create_wrksrc=yes
+short_desc="Odin language server"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="MIT"
+homepage="https://github.com/DanielGavin/ols"
+nostrip=yes
+nopie=yes
+
+_baseurl="https://github.com/DanielGavin/ols/releases/download/${_tag}"
+
+case "$XBPS_TARGET_MACHINE" in
+	x86_64)
+		distfiles="${_baseurl}/ols-x86_64-unknown-linux-gnu.zip"
+		checksum=9dbd202047c39ca1b12289fa89e33083925982271a0026b853f9f1a12d95e240
+		_arch="x86_64-unknown-linux-gnu"
+		;;
+	aarch64)
+		distfiles="${_baseurl}/ols-arm64-unknown-linux-gnu.zip"
+		checksum=491781a54f53d4bba91a96b0e23b3bdc0abc1c8ef9cc14d64864d01cd0fb096d
+		_arch="arm64-unknown-linux-gnu"
+		;;
+esac
+
+do_extract() {
+	mkdir -p ${wrksrc}
+	unzip -q -o ${XBPS_SRCDISTDIR}/${pkgname}-${version}/${distfiles##*/} -d ${wrksrc}
+}
+
+do_install() {
+	vbin ols-${_arch} ols
+	vbin odinfmt-${_arch} odinfmt
+	vmkdir usr/share/ols
+	vcopy builtin usr/share/ols
+}
