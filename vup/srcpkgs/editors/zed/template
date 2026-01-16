@@ -1,0 +1,58 @@
+# Template file for 'zed'
+pkgname=zed
+version=0.219.4
+revision=1
+archs="x86_64 aarch64"
+create_wrksrc=yes
+hostmakedepends="tar"
+depends="
+ alsa-lib
+ curl
+ fontconfig
+ libgcc
+ glibc
+ libxcb
+ libxkbcommon
+ libxkbcommon-x11
+ openssl
+ sqlite
+ vulkan-loader
+ wayland
+ zlib
+ zstd
+"
+short_desc="A high-performance, multiplayer code editor from the creators of Atom and Tree-sitter"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="GPL-3.0-or-later OR AGPL-3.0-or-later OR Apache-2.0"
+homepage="https://zed.dev"
+nopie=yes
+nostrip=yes
+noshlibprovides=yes
+
+case "${XBPS_TARGET_MACHINE}" in
+	x86_64)
+		distfiles="https://github.com/zed-industries/zed/releases/download/v${version}/zed-linux-x86_64.tar.gz"
+		checksum="4488716f5a0f73a6c2c897c467488a7cf7843eb0d4dc09a3d2c280ff49a5a821"
+		;;
+	aarch64)
+		distfiles="https://github.com/zed-industries/zed/releases/download/v${version}/zed-linux-aarch64.tar.gz"
+		checksum="166addfa8bb8f0fb64806b8f8c16a1b898be08f918721a1c0e7b9c8edbf6f0d9"
+		;;
+esac
+
+_app_dir="zed.app"
+
+do_install() {
+	vmkdir opt/zed
+	vcopy "${_app_dir}/*" opt/zed
+
+	vinstall "${_app_dir}/share/applications/zed.desktop" 644 usr/share/applications
+
+	vinstall "${_app_dir}/share/icons/hicolor/512x512/apps/zed.png" 644 usr/share/pixmaps zed.png
+	vmkdir usr/share/icons/hicolor/512x512/apps
+	vinstall "${_app_dir}/share/icons/hicolor/512x512/apps/zed.png" 644 usr/share/icons/hicolor/512x512/apps
+	vmkdir usr/share/icons/hicolor/1024x1024/apps
+	vinstall "${_app_dir}/share/icons/hicolor/1024x1024/apps/zed.png" 644 usr/share/icons/hicolor/1024x1024/apps
+
+	vlicense "${_app_dir}/licenses.md"
+}
