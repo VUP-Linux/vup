@@ -1,14 +1,18 @@
 package main
 
 import "core:fmt"
+import "core:mem"
 import "core:os"
 import "core:strings"
 
 import commands "commands"
 import errors "core/errors"
 
-VERSION :: "0.5.1"
+VERSION :: "0.5.2"
 INDEX_URL :: "https://vup-linux.github.io/vup/index.json"
+
+// Arena size for command execution (4MB should be plenty)
+ARENA_SIZE :: 4 * 1024 * 1024
 
 main :: proc() {
 	exit_code := run()
@@ -24,8 +28,10 @@ run :: proc() -> int {
 	// Parse global flags and find command
 	args := os.args[1:]
 	config := commands.Config {
-		index_url = INDEX_URL,
+		index_url = strings.clone(INDEX_URL),
+		allocator = context.allocator,
 	}
+	defer commands.config_free(&config)
 
 	command_name := ""
 	command_args: [dynamic]string
@@ -90,7 +96,7 @@ run :: proc() -> int {
 				config.ownedby = true
 			} else if arg == "-r" || arg == "--rootdir" {
 				if i + 1 < len(args) {
-					config.rootdir = args[i + 1]
+					config.rootdir = strings.clone(args[i + 1])
 					skip_next = true
 				}
 			} else if strings.has_prefix(arg, "-") && len(arg) > 1 && arg[1] != '-' {
@@ -141,32 +147,32 @@ run :: proc() -> int {
 		}
 	}
 
-	// Dispatch
+	// Dispatch with arena allocator for automatic cleanup
 	switch command_name {
 	case "query", "q", "info", "show":
-		return commands.query_run(command_args[:], &config)
+		return run_with_arena(commands.query_run, command_args[:], &config)
 	case "search", "s":
-		return commands.search_run(command_args[:], &config)
+		return run_with_arena(commands.search_run, command_args[:], &config)
 	case "install", "i":
-		return commands.install_run(command_args[:], &config)
+		return run_with_arena(commands.install_run, command_args[:], &config)
 	case "remove", "r", "uninstall":
-		return commands.remove_run(command_args[:], &config)
+		return run_with_arena(commands.remove_run, command_args[:], &config)
 	case "update", "upgrade", "u":
-		return commands.update_run(command_args[:], &config)
+		return run_with_arena(commands.update_run, command_args[:], &config)
 	case "build":
-		return commands.build_run(command_args[:], &config)
+		return run_with_arena(commands.build_run, command_args[:], &config)
 	case "clone":
-		return commands.clone_run(command_args[:], &config)
+		return run_with_arena(commands.clone_run, command_args[:], &config)
 	case "sync":
-		return commands.sync_run(command_args[:], &config)
+		return run_with_arena(commands.sync_run, command_args[:], &config)
 	case "fetch":
-		return commands.fetch_run(command_args[:], &config)
+		return run_with_arena(commands.fetch_run, command_args[:], &config)
 	case "src":
 		// Pass raw args after 'src' command (bypass vuru's flag parsing)
 		if src_cmd_index >= 0 && src_cmd_index + 1 < len(args) {
-			return commands.src_run(args[src_cmd_index + 1:], &config)
+			return run_with_arena(commands.src_run, args[src_cmd_index + 1:], &config)
 		}
-		return commands.src_run([]string{}, &config)
+		return run_with_arena(commands.src_run, []string{}, &config)
 	case "help":
 		print_help()
 		return 0
@@ -216,6 +222,24 @@ run :: proc() -> int {
 	}
 
 	return 0
+}
+
+// Run a command with arena allocator - all allocations freed when command returns
+run_with_arena :: proc(
+	command: proc(_: []string, _: ^commands.Config) -> int,
+	args: []string,
+	config: ^commands.Config,
+) -> int {
+	// Allocate arena backing memory
+	arena_backing := make([]u8, ARENA_SIZE)
+	defer delete(arena_backing)
+
+	arena: mem.Arena
+	mem.arena_init(&arena, arena_backing)
+
+	// Run command with arena as context.allocator
+	context.allocator = mem.arena_allocator(&arena)
+	return command(args, config)
 }
 
 print_help :: proc() {

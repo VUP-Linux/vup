@@ -1,10 +1,12 @@
 package builder
 
 import "core:fmt"
+import "core:mem"
 import "core:os"
 import "core:strings"
 
 import utils "../../utils"
+import config "../config"
 import errors "../errors"
 
 // Configuration for the build system
@@ -13,6 +15,7 @@ Build_Config :: struct {
 	masterdir:   string, // xbps-src masterdir
 	hostdir:     string, // xbps-src hostdir
 	clean_after: bool, // Clean build dir after successful build
+	allocator:   mem.Allocator, // Allocator used for strings
 }
 
 // Default build configuration
@@ -38,12 +41,22 @@ default_build_config :: proc(allocator := context.allocator) -> (Build_Config, b
 					masterdir = utils.path_join(path, "masterdir", allocator = allocator),
 					hostdir = utils.path_join(path, "hostdir", allocator = allocator),
 					clean_after = true,
+					allocator = allocator,
 				},
 				true
 		}
 	}
 
 	return {}, false
+}
+
+// Free resources in Build_Config
+build_config_free :: proc(cfg: ^Build_Config) {
+	if cfg == nil do return
+	if cfg.allocator.procedure == nil do return
+	if len(cfg.vup_dir) > 0 do delete(cfg.vup_dir, cfg.allocator)
+	if len(cfg.masterdir) > 0 do delete(cfg.masterdir, cfg.allocator)
+	if len(cfg.hostdir) > 0 do delete(cfg.hostdir, cfg.allocator)
 }
 
 // Clone or update VUP repository
@@ -128,11 +141,10 @@ install_local_package :: proc(cfg: ^Build_Config, pkg_name: string, yes: bool) -
 	// Find the built package in hostdir/binpkgs
 	binpkgs := utils.path_join(cfg.vup_dir, "hostdir/binpkgs", allocator = context.temp_allocator)
 
-	arch, ok := utils.get_arch()
+	arch, ok := config.get_arch()
 	if !ok {
 		return false
 	}
-	defer delete(arch)
 
 	// xbps-install from local repository
 	args := make([dynamic]string, context.temp_allocator)
@@ -157,11 +169,11 @@ get_built_package_path :: proc(
 ) {
 	binpkgs := utils.path_join(cfg.vup_dir, "hostdir/binpkgs", allocator = context.temp_allocator)
 
-	arch, ok := utils.get_arch()
+	arch, ok := config.get_arch()
 	if !ok {
 		return "", false
 	}
-	defer delete(arch)
+
 
 	// Check for package file
 	// Format: pkgname-version_revision.arch.xbps

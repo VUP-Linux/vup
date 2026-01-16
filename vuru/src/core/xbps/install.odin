@@ -7,16 +7,16 @@ install_from_repo :: proc(
 	repo_url: string,
 	pkg_name: string,
 	yes: bool,
-	run_cmd: proc(_: []string) -> int,
+	run_cmd: Command_Runner,
 ) -> int {
 	args := build_args_with_yes(yes, "sudo", "xbps-install", "-R", repo_url, "-S")
-	defer delete(args)
+
 
 	append(&args, pkg_name)
 	return run_cmd(args[:])
 }
 
 // Sync package index only
-sync_repos :: proc(run_cmd: proc(_: []string) -> int) -> int {
+sync_repos :: proc(run_cmd: Command_Runner) -> int {
 	return run_cmd({"sudo", "xbps-install", "-S"})
 }

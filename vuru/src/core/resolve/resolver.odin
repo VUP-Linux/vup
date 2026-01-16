@@ -1,81 +1,13 @@
 package resolve
 
 import "core:fmt"
-import "core:mem"
 import "core:strings"
 
 import errors "../../core/errors"
 import index "../../core/index"
 import template "../../core/template"
 import utils "../../utils"
-
-// Package source - where a package comes from
-Package_Source :: enum {
-	Unknown,
-	Official, // Official Void Linux repos
-	VUP, // VUP binary repo
-	VUP_Build, // VUP source (needs building)
-}
-
-// Resolved package info
-Resolved_Package :: struct {
-	name:     string,
-	version:  string,
-	source:   Package_Source,
-	repo_url: string, // For binary install
-	category: string, // For VUP packages
-	template: ^template.Template, // For VUP_Build
-	depth:    int, // Dependency depth (0 = target, 1+ = deps)
-}
-
-// Resolution result
-Resolution :: struct {
-	// Packages to install from binary repos (in dependency order)
-	to_install: [dynamic]Resolved_Package,
-
-	// Packages to build from source (in dependency order)
-	to_build:   [dynamic]Resolved_Package,
-
-	// Already satisfied
-	satisfied:  [dynamic]string,
-
-	// Unresolvable - names only (legacy)
-	missing:    [dynamic]string,
-
-	// Detailed errors for each failure
-	errors:     [dynamic]errors.Error,
-	allocator:  mem.Allocator,
-}
-
-resolution_free :: proc(r: ^Resolution) {
-	for pkg in r.to_install {
-		delete(pkg.name, r.allocator)
-		delete(pkg.version, r.allocator)
-		delete(pkg.repo_url, r.allocator)
-		delete(pkg.category, r.allocator)
-	}
-	delete(r.to_install)
-
-	for pkg in r.to_build {
-		delete(pkg.name, r.allocator)
-		delete(pkg.version, r.allocator)
-		delete(pkg.category, r.allocator)
-		if pkg.template != nil {
-			template.template_free(pkg.template)
-			free(pkg.template, r.allocator)
-		}
-	}
-	delete(r.to_build)
-
-	for s in r.satisfied {delete(s, r.allocator)}
-	delete(r.satisfied)
-
-	for s in r.missing {delete(s, r.allocator)}
-	delete(r.missing)
-
-	for e in r.errors {delete(e.ctx, r.allocator)}
-	delete(r.errors)
-}
+import config "../config"
 
 // Check if a package is installed (silently)
 is_pkg_installed :: proc(name: string) -> bool {
@@ -103,7 +35,8 @@ is_in_official_repos :: proc(name: string) -> (version: string, ok: bool) {
 	return "", false
 }
 
-// Resolve a single package
+// Resolve a single package - returns a Resolved_Package with allocated strings
+// Caller must free the package on success, or handle that nothing was allocated on failure
 resolve_package :: proc(
 	name: string,
 	idx: ^index.Index,
@@ -114,39 +47,43 @@ resolve_package :: proc(
 	Resolved_Package,
 	bool,
 ) {
-
-	pkg := Resolved_Package {
-		name  = strings.clone(name, allocator),
-		depth = depth,
-	}
-
 	// 1. Check if already installed
 	if is_pkg_installed(name) {
-		pkg.source = .Official // Treat as satisfied
-		pkg.version = ""
-		return pkg, true
+		return Resolved_Package {
+				name    = strings.clone(name, allocator),
+				source  = .Official, // Treat as satisfied (empty version = already installed)
+				version = "",
+				depth   = depth,
+			}, true
 	}
 
 	// 2. Check VUP index for binary
 	if vup_pkg, ok := index.index_get_package(idx, name); ok {
 		if url, url_ok := vup_pkg.repo_urls[arch]; url_ok {
-			pkg.source = .VUP
-			pkg.version = strings.clone(vup_pkg.version, allocator)
-			pkg.repo_url = strings.clone(url, allocator)
-			pkg.category = strings.clone(vup_pkg.category, allocator)
-			return pkg, true
+			return Resolved_Package {
+					name = strings.clone(name, allocator),
+					source = .VUP,
+					version = strings.clone(vup_pkg.version, allocator),
+					repo_url = strings.clone(url, allocator),
+					category = strings.clone(vup_pkg.category, allocator),
+					depth = depth,
+				},
+				true
 		}
 	}
 
 	// 3. Check official Void repos
 	if version, ok := is_in_official_repos(name); ok {
-		pkg.source = .Official
-		pkg.version = strings.clone(version, allocator)
-		return pkg, true
+		return Resolved_Package {
+				name = strings.clone(name, allocator),
+				source = .Official,
+				version = strings.clone(version, allocator),
+				depth = depth,
+			},
+			true
 	}
 
-	// 4. Not found anywhere
-	delete(pkg.name, allocator)
+	// 4. Not found anywhere - return false, no allocations made
 	return {}, false
 }
 
@@ -160,75 +97,55 @@ resolve_deps :: proc(
 	Resolution,
 	bool,
 ) {
+	res := resolution_make(allocator)
 
-	res := Resolution {
-		to_install = make([dynamic]Resolved_Package, allocator),
-		to_build   = make([dynamic]Resolved_Package, allocator),
-		satisfied  = make([dynamic]string, allocator),
-		missing    = make([dynamic]string, allocator),
-		errors     = make([dynamic]errors.Error, allocator),
-		allocator  = allocator,
-	}
-
-	arch, arch_ok := utils.get_arch()
+	arch, arch_ok := config.get_arch()
 	if !arch_ok {
-		append(&res.errors, errors.make_error(.Arch_Detection_Failed, "", allocator))
+		append(&res.errors, errors.make_error(.Arch_Detection_Failed))
 		return res, false
 	}
-	defer delete(arch)
 
-	// Track visited packages to avoid cycles
+
+	// Track visited packages to avoid cycles - keys are owned by this map
 	visited := make(map[string]bool, allocator = allocator)
-	defer {
-		for key in visited {
-			delete(key, allocator)
-		}
-		delete(visited)
-	}
 
-	// Queue of packages to process: (name, depth)
-	queue := make([dynamic][2]string, allocator)
-	defer {
-		for item in queue {
-			delete(item[0], allocator)
-			delete(item[1], allocator)
-		}
-		delete(queue)
-	}
-	append(&queue, [2]string{strings.clone(target, allocator), strings.clone("0", allocator)})
+
+	// Queue of packages to process - using proper struct with int depth
+	queue := make([dynamic]Queue_Item, allocator)
+
+
+	// Add target to queue
+	append(&queue, Queue_Item{name = strings.clone(target, allocator), depth = 0})
 
 	for len(queue) > 0 {
+		// Pop from front
 		item := queue[0]
-		ordered_remove(&queue, 0) // ordered_remove is builtin
-		// `ordered_remove` is defined in `core:slice` or builtin? `ordered_remove` is a procedure in Odin's `core:slice`? No.
-		// Wait, `ordered_remove(&queue, 0)` is standard usage.
-		// However, I previously saw it as just `ordered_remove` in Step 94 line 180.
-		// This means it's likely a built-in or imported from somewhere.
-		// Ah, `import "core:slice"` was probably missing or it's implicitly available for dynamic arrays?
-		// Actually, `ordered_remove` is part of `core:container/queue`? No.
-		// `ordered_remove` is often just `unordered_remove` or `ordered_remove` from `core:slice` or similar.
-		// Step 94 imports: fmt, mem, strings, errors. No `core:slice`.
-		// So `ordered_remove` must be builtin for dynamic arrays in the version of Odin used (~2024+).
-		// I will assume it's valid.
+		ordered_remove(&queue, 0)
 
-		name := item[0]
-		depth := utils.parse_int(item[1])
+		// Check if already visited
+		if item.name in visited {
 
-		if name in visited {
 			continue
 		}
-		visited[strings.clone(name, allocator)] = true
+
+		// Mark as visited - clone for the map, we'll use item.name then free it
+		visited[strings.clone(item.name, allocator)] = true
 
 		// Resolve this package
-		pkg, ok := resolve_package(name, idx, arch, depth, allocator)
+		pkg, ok := resolve_package(item.name, idx, arch, item.depth, allocator)
 		if !ok {
-			append(&res.missing, strings.clone(name, allocator))
-			// Add detailed error - different message for target vs dependency
-			if depth == 0 {
-				append(&res.errors, errors.make_error(.Package_Not_Found, name, allocator))
+			// Not found - add to missing list (clone persists)
+			cloned_name := strings.clone(item.name, allocator)
+			append(&res.missing, cloned_name)
+
+			// Add detailed error - use the cloned name that will persist
+			if item.depth == 0 {
+				append(&res.errors, errors.make_error(.Package_Not_Found, cloned_name))
 			} else {
-				append(&res.errors, errors.make_error(.Dependency_Not_Found, name, allocator))
+				append(&res.errors, errors.make_error(.Dependency_Not_Found, cloned_name))
 			}
+
+
 			continue
 		}
 
@@ -236,10 +153,11 @@ resolve_deps :: proc(
 		switch pkg.source {
 		case .Official:
 			if len(pkg.version) == 0 {
-				// Already installed
-				append(&res.satisfied, strings.clone(name, allocator))
-				delete(pkg.name, allocator)
+				// Already installed - add to satisfied, free the pkg
+				append(&res.satisfied, strings.clone(item.name, allocator))
+
 			} else {
+				// Needs to be installed from official repos
 				append(&res.to_install, pkg)
 			}
 
@@ -247,43 +165,50 @@ resolve_deps :: proc(
 			append(&res.to_install, pkg)
 
 			// Resolve VUP package dependencies from template
-			if tmpl, tmpl_ok := fetch_and_parse_template(pkg.category, name, allocator); tmpl_ok {
-				defer template.template_free(&tmpl)
-
+			if tmpl, tmpl_ok := fetch_and_parse_template(pkg.category, item.name, allocator);
+			   tmpl_ok {
+				// Queue runtime dependencies
 				for dep in tmpl.depends {
 					if dep not_in visited {
 						append(
 							&queue,
-							[2]string {
-								strings.clone(dep, allocator),
-								utils.int_to_string(depth + 1, allocator),
+							Queue_Item {
+								name = strings.clone(dep, allocator),
+								depth = item.depth + 1,
 							},
 						)
 					}
 				}
 
+				// Queue build dependencies if requested
 				if include_makedeps {
 					for dep in tmpl.makedepends {
 						if dep not_in visited {
 							append(
 								&queue,
-								[2]string {
-									strings.clone(dep, allocator),
-									utils.int_to_string(depth + 1, allocator),
+								Queue_Item {
+									name = strings.clone(dep, allocator),
+									depth = item.depth + 1,
 								},
 							)
 						}
 					}
 				}
+
+				// Free template after extracting deps
+
 			}
 
 		case .VUP_Build:
 			append(&res.to_build, pkg)
 
 		case .Unknown:
-			append(&res.missing, strings.clone(name, allocator))
-			delete(pkg.name, allocator)
+			append(&res.missing, strings.clone(item.name, allocator))
+
 		}
+
+		// Free the queue item's name - we've extracted what we need
+
 	}
 
 	return res, true
@@ -310,35 +235,77 @@ fetch_and_parse_template :: proc(
 resolution_print :: proc(r: ^Resolution) {
 	fmt.println()
 
-	if len(r.to_install) > 0 {
-		fmt.printf("Packages to install (%d):\n", len(r.to_install))
-		for pkg in r.to_install {
-			source_str := "official" if pkg.source == .Official else "VUP"
-			fmt.printf("  %s-%s [%s]\n", pkg.name, pkg.version, source_str)
+	// Separate VUP and official packages
+	vup_pkgs: [dynamic]string
+	official_pkgs: [dynamic]string
+
+
+	for pkg in r.to_install {
+		if pkg.source == .VUP {
+			append(&vup_pkgs, pkg.name)
+		} else {
+			append(&official_pkgs, pkg.name)
+		}
+	}
+
+	if len(vup_pkgs) > 0 {
+		fmt.printf("VUP packages (%d):\n", len(vup_pkgs))
+		fmt.print(" ")
+		for name, i in vup_pkgs {
+			if i > 0 {
+				fmt.print(" ")
+			}
+			fmt.print(name)
+		}
+		fmt.println()
+		fmt.println()
+	}
+
+	if len(official_pkgs) > 0 {
+		fmt.printf("Official deps (%d):\n", len(official_pkgs))
+		fmt.print(" ")
+		for name, i in official_pkgs {
+			if i > 0 {
+				fmt.print(" ")
+			}
+			fmt.print(name)
 		}
 		fmt.println()
 	}
 
 	if len(r.to_build) > 0 {
-		fmt.printf("Packages to build (%d):\n", len(r.to_build))
-		for pkg in r.to_build {
-			fmt.printf("  %s-%s [build]\n", pkg.name, pkg.version)
+		fmt.printf("Build from source (%d):\n", len(r.to_build))
+		fmt.print(" ")
+		for pkg, i in r.to_build {
+			if i > 0 {
+				fmt.print(" ")
+			}
+			fmt.print(pkg.name)
 		}
+		fmt.println()
 		fmt.println()
 	}
 
 	if len(r.satisfied) > 0 {
 		fmt.printf("Already installed (%d):\n", len(r.satisfied))
-		for name in r.satisfied {
-			fmt.printf("  %s\n", name)
+		fmt.print(" ")
+		for name, i in r.satisfied {
+			if i > 0 {
+				fmt.print(" ")
+			}
+			fmt.print(name)
 		}
 		fmt.println()
 	}
 
 	if len(r.missing) > 0 {
-		fmt.printf("Missing/Unresolvable (%d):\n", len(r.missing))
-		for name in r.missing {
-			fmt.printf("  %s\n", name)
+		fmt.printf("Missing (%d):\n", len(r.missing))
+		fmt.print(" ")
+		for name, i in r.missing {
+			if i > 0 {
+				fmt.print(" ")
+			}
+			fmt.print(name)
 		}
 		fmt.println()
 	}

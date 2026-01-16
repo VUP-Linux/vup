@@ -1,7 +1,6 @@
 package errors
 
 import "core:fmt"
-import "core:strings"
 
 // Error categories
 Error_Kind :: enum {
@@ -60,15 +59,13 @@ Error :: struct {
 }
 
 // Create error with full details
-make_error :: proc(
-	kind: Error_Kind,
-	error_ctx: string = "",
-	allocator := context.allocator,
-) -> Error {
+// NOTE: Errors are short-lived (create, print, discard). All strings are views
+// into static memory or temp allocator. Do not store Error structs long-term.
+make_error :: proc(kind: Error_Kind, error_ctx: string = "") -> Error {
 	return Error {
 		kind = kind,
 		message = get_message(kind),
-		ctx = strings.clone(error_ctx, allocator),
+		ctx = error_ctx,
 		hint = get_hint(kind, error_ctx),
 	}
 }

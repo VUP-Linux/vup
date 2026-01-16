@@ -22,7 +22,6 @@ info_run :: proc(args: []string, config: ^Config) -> int {
 		errors.log_error("Failed to load package index")
 		return 1
 	}
-	defer index.index_free(&idx)
 
 	for pkg_name in args {
 		// Check VUP first
@@ -50,7 +49,6 @@ info_run :: proc(args: []string, config: ^Config) -> int {
 				pkg_name,
 				context.temp_allocator,
 			); tmpl_ok {
-				defer template.template_free(&tmpl)
 				if len(tmpl.depends) > 0 {
 					fmt.printf(
 						"Dependencies: %s\n",

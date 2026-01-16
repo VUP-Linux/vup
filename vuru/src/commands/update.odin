@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:os"
 import "core:strings"
 
+import config "../core/config"
 import errors "../core/errors"
 import index "../core/index"
 import template "../core/template"
@@ -33,9 +34,8 @@ update_run :: proc(args: []string, config: ^Config) -> int {
 		errors.log_error("Failed to load package index")
 		return 1
 	}
-	defer index.index_free(&idx)
 
-	return xbps_upgrade_all(&idx, config.yes)
+	return xbps.upgrade_all_official(config.yes, utils.run_command)
 }
 
 // Compare versions using xbps-uhelper
@@ -149,16 +149,10 @@ xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
 		errors.log_error("Failed to run xbps-query")
 		return -1
 	}
-	defer delete(output)
+
 
 	upgrades: [dynamic]Upgrade_Info
-	defer {
-		for u in upgrades {
-			delete(u.new_template)
-			delete(u.cached_template)
-		}
-		delete(upgrades)
-	}
+
 
 	// Phase 1: Collect packages needing upgrade
 	lines := output
@@ -178,9 +172,9 @@ xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
 		}
 
 		// Get architecture-specific repo URL
-		arch, arch_ok := utils.get_arch()
+		arch, arch_ok := config.get_arch()
 		if !arch_ok {continue}
-		defer delete(arch)
+
 
 		repo_url, url_ok := pkg.repo_urls[arch]
 		if !url_ok {continue}
