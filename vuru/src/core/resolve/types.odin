@@ -1,6 +1,7 @@
 package resolve
 
 import "core:mem"
+import "core:strings"
 
 import errors "../../core/errors"
 import template "../../core/template"
@@ -26,6 +27,9 @@ Resolved_Package :: struct {
 
 // Resolution result
 Resolution :: struct {
+	// The target package being resolved
+	target:     string,
+
 	// Packages to install from binary repos (in dependency order)
 	to_install: [dynamic]Resolved_Package,
 
@@ -90,13 +94,19 @@ resolution_free :: proc(r: ^Resolution) {
 	}
 	delete(r.missing)
 
+	// Free target
+	if len(r.target) > 0 {
+		delete(r.target, r.allocator)
+	}
+
 	// Errors are temp-based views, ctx is not owned - just free the array
 	delete(r.errors)
 }
 
 // Create a new empty Resolution
-resolution_make :: proc(allocator := context.allocator) -> Resolution {
+resolution_make :: proc(target: string = "", allocator := context.allocator) -> Resolution {
 	return Resolution {
+		target = strings.clone(target, allocator) if len(target) > 0 else "",
 		to_install = make([dynamic]Resolved_Package, allocator),
 		to_build = make([dynamic]Resolved_Package, allocator),
 		satisfied = make([dynamic]string, allocator),

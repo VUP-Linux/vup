@@ -6,12 +6,36 @@ import "core:strings"
 import errors "../../core/errors"
 import index "../../core/index"
 import template "../../core/template"
+import xbps "../../core/xbps"
 import utils "../../utils"
 import config "../config"
 
 // Check if a package is installed (silently)
 is_pkg_installed :: proc(name: string) -> bool {
 	return utils.run_command_silent({"xbps-query", name}) == 0
+}
+
+// Get the installed version of a package
+// Returns empty string if not installed
+get_installed_version :: proc(name: string) -> (version: string, ok: bool) {
+	output, cmd_ok := utils.run_command_output({"xbps-query", name}, context.temp_allocator)
+	if !cmd_ok {
+		return "", false
+	}
+
+	// Parse pkgver from output
+	for line in strings.split_lines_iterator(&output) {
+		if strings.has_prefix(line, "pkgver:") {
+			value := strings.trim_space(line[7:])
+			// Use xbps-uhelper for correct parsing of packages with dashes in names
+			_, version, parse_ok := xbps.parse_pkgver(value)
+			if parse_ok {
+				return version, true
+			}
+		}
+	}
+
+	return "", false
 }
 
 // Check if package exists in official Void repos
@@ -25,9 +49,10 @@ is_in_official_repos :: proc(name: string) -> (version: string, ok: bool) {
 	for line in strings.split_lines_iterator(&output) {
 		if strings.has_prefix(line, "pkgver:") {
 			value := strings.trim_space(line[7:])
-			// Format: name-version
-			if idx := strings.last_index(value, "-"); idx > 0 {
-				return strings.clone(value[idx + 1:], context.temp_allocator), true
+			// Use xbps-uhelper for correct parsing of packages with dashes in names
+			_, version, parse_ok := xbps.parse_pkgver(value)
+			if parse_ok {
+				return version, true
 			}
 		}
 	}
@@ -48,18 +73,35 @@ resolve_package :: proc(
 	bool,
 ) {
 	// 1. Check if already installed
-	if is_pkg_installed(name) {
-		return Resolved_Package {
-				name    = strings.clone(name, allocator),
-				source  = .Official, // Treat as satisfied (empty version = already installed)
-				version = "",
-				depth   = depth,
-			}, true
-	}
+	installed_ver, is_installed := get_installed_version(name)
 
 	// 2. Check VUP index for binary
 	if vup_pkg, ok := index.index_get_package(idx, name); ok {
 		if url, url_ok := vup_pkg.repo_urls[arch]; url_ok {
+			// If installed, check if VUP has a newer version
+			if is_installed {
+				if xbps.version_greater_than(vup_pkg.version, installed_ver, utils.run_command) {
+					// VUP has a newer version - mark for upgrade
+					return Resolved_Package {
+							name = strings.clone(name, allocator),
+							source = .VUP,
+							version = strings.clone(vup_pkg.version, allocator),
+							repo_url = strings.clone(url, allocator),
+							category = strings.clone(vup_pkg.category, allocator),
+							depth = depth,
+						},
+						true
+				} else {
+					// Already up to date
+					return Resolved_Package {
+							name    = strings.clone(name, allocator),
+							source  = .Official, // Treat as satisfied (empty version = already installed)
+							version = "",
+							depth   = depth,
+						}, true
+				}
+			}
+			// Not installed - install from VUP
 			return Resolved_Package {
 					name = strings.clone(name, allocator),
 					source = .VUP,
@@ -72,7 +114,17 @@ resolve_package :: proc(
 		}
 	}
 
-	// 3. Check official Void repos
+	// 3. Already installed but not in VUP index - satisfied
+	if is_installed {
+		return Resolved_Package {
+				name    = strings.clone(name, allocator),
+				source  = .Official, // Treat as satisfied (empty version = already installed)
+				version = "",
+				depth   = depth,
+			}, true
+	}
+
+	// 4. Check official Void repos
 	if version, ok := is_in_official_repos(name); ok {
 		return Resolved_Package {
 				name = strings.clone(name, allocator),
@@ -83,7 +135,7 @@ resolve_package :: proc(
 			true
 	}
 
-	// 4. Not found anywhere - return false, no allocations made
+	// 5. Not found anywhere - return false, no allocations made
 	return {}, false
 }
 
@@ -97,7 +149,7 @@ resolve_deps :: proc(
 	Resolution,
 	bool,
 ) {
-	res := resolution_make(allocator)
+	res := resolution_make(target, allocator)
 
 	arch, arch_ok := config.get_arch()
 	if !arch_ok {
@@ -235,22 +287,37 @@ fetch_and_parse_template :: proc(
 resolution_print :: proc(r: ^Resolution) {
 	fmt.println()
 
-	// Separate VUP and official packages
-	vup_pkgs: [dynamic]string
-	official_pkgs: [dynamic]string
+	// Check if the target package itself is already installed
+	target_satisfied := false
+	for name in r.satisfied {
+		if name == r.target {
+			target_satisfied = true
+			break
+		}
+	}
 
+	// If target is satisfied and nothing to install/build, just say package is installed
+	if target_satisfied && len(r.to_install) == 0 && len(r.to_build) == 0 {
+		fmt.printf("Package already installed: %s\n", r.target)
+		return
+	}
+
+	// Separate VUP packages and official dependencies to install
+	vup_pkgs: [dynamic]string
+	official_deps_to_install: [dynamic]string
 
 	for pkg in r.to_install {
 		if pkg.source == .VUP {
 			append(&vup_pkgs, pkg.name)
 		} else {
-			append(&official_pkgs, pkg.name)
+			append(&official_deps_to_install, pkg.name)
 		}
 	}
 
+	// VUP packages to install
 	if len(vup_pkgs) > 0 {
 		fmt.printf("VUP packages (%d):\n", len(vup_pkgs))
-		fmt.print(" ")
+		fmt.print("  ")
 		for name, i in vup_pkgs {
 			if i > 0 {
 				fmt.print(" ")
@@ -261,21 +328,10 @@ resolution_print :: proc(r: ^Resolution) {
 		fmt.println()
 	}
 
-	if len(official_pkgs) > 0 {
-		fmt.printf("Official deps (%d):\n", len(official_pkgs))
-		fmt.print(" ")
-		for name, i in official_pkgs {
-			if i > 0 {
-				fmt.print(" ")
-			}
-			fmt.print(name)
-		}
-		fmt.println()
-	}
-
+	// Build from source
 	if len(r.to_build) > 0 {
 		fmt.printf("Build from source (%d):\n", len(r.to_build))
-		fmt.print(" ")
+		fmt.print("  ")
 		for pkg, i in r.to_build {
 			if i > 0 {
 				fmt.print(" ")
@@ -286,21 +342,45 @@ resolution_print :: proc(r: ^Resolution) {
 		fmt.println()
 	}
 
-	if len(r.satisfied) > 0 {
-		fmt.printf("Already installed (%d):\n", len(r.satisfied))
-		fmt.print(" ")
-		for name, i in r.satisfied {
+	// Dependencies to install from official repos
+	if len(official_deps_to_install) > 0 {
+		fmt.printf("Dependencies to install (%d):\n", len(official_deps_to_install))
+		fmt.print("  ")
+		for name, i in official_deps_to_install {
 			if i > 0 {
 				fmt.print(" ")
 			}
 			fmt.print(name)
 		}
 		fmt.println()
+		fmt.println()
 	}
 
+	// Dependencies already satisfied (exclude target)
+	deps_satisfied: [dynamic]string
+	for name in r.satisfied {
+		if name != r.target {
+			append(&deps_satisfied, name)
+		}
+	}
+
+	if len(deps_satisfied) > 0 {
+		fmt.printf("Dependencies already installed (%d):\n", len(deps_satisfied))
+		fmt.print("  ")
+		for name, i in deps_satisfied {
+			if i > 0 {
+				fmt.print(" ")
+			}
+			fmt.print(name)
+		}
+		fmt.println()
+		fmt.println()
+	}
+
+	// Missing/unresolvable
 	if len(r.missing) > 0 {
 		fmt.printf("Missing (%d):\n", len(r.missing))
-		fmt.print(" ")
+		fmt.print("  ")
 		for name, i in r.missing {
 			if i > 0 {
 				fmt.print(" ")
