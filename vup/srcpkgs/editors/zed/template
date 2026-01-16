@@ -1,7 +1,7 @@
 # Template file for 'zed'
 pkgname=zed
 version=0.219.4
-revision=1
+revision=2
 archs="x86_64 aarch64"
 create_wrksrc=yes
 hostmakedepends="tar"
@@ -47,8 +47,13 @@ do_install() {
 	vmkdir opt/zed
 	vcopy "${_app_dir}/*" opt/zed
 
-	# Desktop file
-	vinstall "${_app_dir}/share/applications/zed.desktop" 644 usr/share/applications
+	# Desktop file - modify to use absolute paths and add StartupWMClass
+	cp "${_app_dir}/share/applications/zed.desktop" zed.desktop
+	vsed -i zed.desktop \
+		-e "s#^Exec=zed#Exec=/usr/bin/zed#g" \
+		-e "s#^TryExec=zed#TryExec=/usr/bin/zed#g" \
+		-e "/^StartupNotify=true/a StartupWMClass=dev.zed.Zed"
+	vinstall zed.desktop 644 usr/share/applications
 
 	# Icons
 	vcopy "${_app_dir}/share/icons" usr/share
