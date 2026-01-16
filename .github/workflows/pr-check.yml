@@ -183,8 +183,7 @@ jobs:
                  cp -r "$pkgpath" "srcpkgs/"
                  
                  echo "Building $pkgname..."
-                 if ./xbps-src -Q pkg "$pkgname" > build.log 2>&1; then
-                     echo "Build SUCCESS: $pkgname"
+                if vuru src pkg "$pkgname" > build.log 2>&1; then
                      status="success"
                  else
                      echo "Build FAILED: $pkgname"
