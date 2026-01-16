@@ -1,0 +1,135 @@
+# Template file for 'visual-studio-code-insiders'
+pkgname=visual-studio-code-insiders
+version=1.102.0.20250116
+revision=1
+_commit=03f79ac30bd46fc92f3d2be4cd92906e7a375761
+archs="x86_64 aarch64 armv7l"
+depends="
+ alsa-lib
+ at-spi2-core
+ cairo
+ cups
+ dbus
+ expat
+ glib
+ gnupg
+ gtk+3
+ libsecret
+ libX11
+ libXcomposite
+ libXdamage
+ libXext
+ libXfixes
+ libXrandr
+ libXScrnSaver
+ libdrm
+ libxcb
+ libxkbcommon
+ libxkbfile
+ libxshmfence
+ lsof
+ mesa
+ nspr
+ nss
+ pango
+ shared-mime-info
+ xdg-utils
+"
+short_desc="Visual Studio Code Insiders: Editor for building and debugging modern web and cloud applications (Insiders build)"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="custom:commercial"
+homepage="https://code.visualstudio.com/insiders/"
+restricted=yes
+nopie=yes
+nostrip=yes
+noshlibprovides=yes
+create_wrksrc=yes
+
+_baseurl="https://raw.githubusercontent.com/microsoft/vscode/main/resources/linux"
+distfiles="${_baseurl}/code.desktop>code-insiders.desktop.in
+ ${_baseurl}/code-url-handler.desktop>code-insiders-url-handler.desktop.in
+ ${_baseurl}/code-workspace.xml>code-insiders-workspace.xml.in"
+checksum="2f1782b30c4e040efff655fd9cf477930c5a0c81ddae27749b0cbb922c1d248e
+ c361efa7e02fcad759ed80d2fbab67877f33219b981578af6fffaf18aeb12d9b
+ 3af748dd6578a1775e8eb7248ba397b7e11840df2ea6ee234ff76fee3dc306cf"
+
+skip_extraction="code-insiders.desktop.in code-insiders-url-handler.desktop.in code-insiders-workspace.xml.in"
+
+_dlbase="https://vscode.download.prss.microsoft.com/dbazure/download/insider/${_commit}"
+
+case "$XBPS_TARGET_MACHINE" in
+	x86_64)
+		distfiles+=" ${_dlbase}/code-insider-x64-1768540625.tar.gz"
+		checksum+=" a6659149afed3f022b62bf988376ec5dd0716473bc596c71da787df7608898f3"
+		_app_dir="VSCode-linux-x64"
+		;;
+	aarch64)
+		distfiles+=" ${_dlbase}/code-insider-arm64-1768540625.tar.gz"
+		checksum+=" 18d6373ba3fd5641b3340c64eecbe4a75b6420861cd35424906c78ddbe95dfd6"
+		_app_dir="VSCode-linux-arm64"
+		;;
+	armv7l)
+		distfiles+=" ${_dlbase}/code-insider-armhf-1768540617.tar.gz"
+		checksum+=" d3bd1e6b026236d5fb5efd6b2329cbdb3a87259c8cb66b0a18f0251659f15c5f"
+		_app_dir="VSCode-linux-armhf"
+		;;
+esac
+
+do_install() {
+	# Extract and install app
+	vmkdir opt/${pkgname}
+	vcopy "${_app_dir}/*" opt/${pkgname}
+
+	# Helper script
+	# We create it dynamically to handle strict paths
+	cat > code-insiders.sh <<EOF
+#!/bin/bash
+XDG_CONFIG_HOME=\${XDG_CONFIG_HOME:-~/.config}
+
+# Allow users to override command-line options
+if [[ -f \$XDG_CONFIG_HOME/code-insiders-flags.conf ]]; then
+   CODE_USER_FLAGS="\$(sed 's/#.*//' \$XDG_CONFIG_HOME/code-insiders-flags.conf | tr '\n' ' ')"
+fi
+
+# Launch
+exec /opt/${pkgname}/bin/code-insiders "\$@" \$CODE_USER_FLAGS
+EOF
+	vbin code-insiders.sh code-insiders
+
+	# Desktop files and icons
+	cp "${XBPS_SRCDISTDIR}/${pkgname}-${version}/code-insiders.desktop.in" code-insiders.desktop
+	cp "${XBPS_SRCDISTDIR}/${pkgname}-${version}/code-insiders-url-handler.desktop.in" code-insiders-url-handler.desktop
+	cp "${XBPS_SRCDISTDIR}/${pkgname}-${version}/code-insiders-workspace.xml.in" ${pkgname}-workspace.xml
+
+	# Process desktop files
+	vsed -i "code-insiders.desktop" \
+		-e "s/@@NAME_LONG@@/Visual Studio Code - Insiders/g" \
+		-e "s/@@NAME_SHORT@@/Code - Insiders/g" \
+		-e "s/@@NAME@@/code-insiders/g" \
+		-e "s#@@EXEC@@#/usr/bin/code-insiders#g" \
+		-e "s/@@ICON@@/visual-studio-code-insiders/g"
+
+	vsed -i "code-insiders-url-handler.desktop" \
+		-e "s/@@NAME_LONG@@/Visual Studio Code - Insiders/g" \
+		-e "s#@@EXEC@@#/usr/bin/code-insiders#g" \
+		-e "s/@@ICON@@/visual-studio-code-insiders/g" \
+		-e "s/@@URLPROTOCOL@@/vscode-insiders/g"
+
+	# Process workspace xml
+	vsed -i "${pkgname}-workspace.xml" \
+		-e "s/@@NAME_LONG@@/Visual Studio Code - Insiders/g" \
+		-e "s/@@NAME@@/code-insiders/g"
+
+	vinstall code-insiders.desktop 644 usr/share/applications
+	vinstall code-insiders-url-handler.desktop 644 usr/share/applications
+	vinstall ${pkgname}-workspace.xml 644 usr/share/mime/packages
+
+	vinstall "${_app_dir}/resources/app/resources/linux/code.png" 644 usr/share/pixmaps ${pkgname}.png
+	
+	# License
+	vlicense "${_app_dir}/resources/app/LICENSE.rtf"
+	
+	# Shell completions
+	vcompletion "${_app_dir}/resources/completions/bash/code-insiders" bash code-insiders
+	vcompletion "${_app_dir}/resources/completions/zsh/_code-insiders" zsh code-insiders
+}
