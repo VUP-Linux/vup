@@ -51,11 +51,8 @@ do_install() {
 	vinstall "${_app_dir}/share/applications/zed.desktop" 644 usr/share/applications
 
 	# Icons
+	vcopy "${_app_dir}/share/icons" usr/share
 	vinstall "${_app_dir}/share/icons/hicolor/512x512/apps/zed.png" 644 usr/share/pixmaps zed.png
-	vmkdir usr/share/icons/hicolor/512x512/apps
-	vinstall "${_app_dir}/share/icons/hicolor/512x512/apps/zed.png" 644 usr/share/icons/hicolor/512x512/apps
-	vmkdir usr/share/icons/hicolor/1024x1024/apps
-	vinstall "${_app_dir}/share/icons/hicolor/1024x1024/apps/zed.png" 644 usr/share/icons/hicolor/1024x1024/apps
 
 	# Helper script with flags config support
 	cat > zed.sh <<EOF
