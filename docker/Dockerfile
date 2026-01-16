@@ -21,7 +21,7 @@ RUN xbps-install -Syu -y xbps && \
 
 # Install Odin from VUP repository (install public key first for signature verification)
 COPY keys/78:b8:1b:87:74:ff:ce:49:f8:f9:06:9a:04:7f:7e:1e.plist /var/db/xbps/keys/
-RUN xbps-install -y -R https://github.com/VUP-Linux/vup/releases/download/programming-x86_64-current -S odin
+RUN xbps-install -y -R https://github.com/VUP-Linux/vup/releases/download/languages-x86_64-current -S odin
 
 # Build and install vuru (VUP package manager)
 # This enables installing VUP dependencies during builds
