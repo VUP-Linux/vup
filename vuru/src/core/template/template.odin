@@ -98,27 +98,11 @@ template_parse :: proc(content: string, allocator := context.allocator) -> (Temp
 		raw_content = strings.clone(content, allocator),
 	}
 
-	// Process line by line
-	lines := content
-	for line in strings.split_lines_iterator(&lines) {
-		// Skip comments and empty lines
-		trimmed := strings.trim_space(line)
-		if len(trimmed) == 0 || trimmed[0] == '#' {
-			continue
-		}
-
-		// Look for variable assignments: name=value or name="value"
-		eq_idx := strings.index(trimmed, "=")
-		if eq_idx <= 0 {
-			continue
-		}
-
-		name := trimmed[:eq_idx]
-		value_raw := trimmed[eq_idx + 1:]
-
-		// Strip quotes if present
-		value := utils.strip_quotes(value_raw)
-
+	// First pass: extract multi-line values and single-line values
+	vars := parse_shell_variables(content, context.temp_allocator)
+	
+	// Process parsed variables
+	for name, value in vars {
 		switch name {
 		case "pkgname":
 			t.pkgname = strings.clone(value, allocator)
@@ -164,6 +148,85 @@ template_parse :: proc(content: string, allocator := context.allocator) -> (Temp
 	}
 
 	return t, true
+}
+
+// Parse shell-style variable assignments, handling multi-line quoted values
+@(private)
+parse_shell_variables :: proc(content: string, allocator := context.allocator) -> map[string]string {
+	vars := make(map[string]string, allocator = allocator)
+	
+	lines := strings.split_lines(content, context.temp_allocator)
+	i := 0
+	
+	for i < len(lines) {
+		line := strings.trim_space(lines[i])
+		
+		// Skip comments and empty lines
+		if len(line) == 0 || line[0] == '#' {
+			i += 1
+			continue
+		}
+		
+		// Look for variable assignment
+		eq_idx := strings.index(line, "=")
+		if eq_idx <= 0 {
+			i += 1
+			continue
+		}
+		
+		name := line[:eq_idx]
+		value_start := line[eq_idx + 1:]
+		
+		// Check if this is a multi-line quoted value
+		if len(value_start) > 0 && value_start[0] == '"' {
+			// Check if closing quote is on same line
+			if len(value_start) > 1 && strings.index(value_start[1:], "\"") >= 0 {
+				// Single line quoted value
+				vars[strings.clone(name, allocator)] = strings.clone(utils.strip_quotes(value_start), allocator)
+			} else {
+				// Multi-line value - collect until closing quote
+				builder := strings.builder_make(context.temp_allocator)
+				
+				// Add content after opening quote (skip the quote itself)
+				if len(value_start) > 1 {
+					strings.write_string(&builder, value_start[1:])
+				}
+				
+				i += 1
+				for i < len(lines) {
+					next_line := lines[i]
+					
+					// Check if this line has the closing quote
+					if quote_idx := strings.index(next_line, "\""); quote_idx >= 0 {
+						// Add content before closing quote
+						strings.write_string(&builder, " ")
+						strings.write_string(&builder, strings.trim_space(next_line[:quote_idx]))
+						break
+					} else {
+						// Add entire line (trimmed)
+						trimmed := strings.trim_space(next_line)
+						if len(trimmed) > 0 {
+							strings.write_string(&builder, " ")
+							strings.write_string(&builder, trimmed)
+						}
+					}
+					i += 1
+				}
+				
+				vars[strings.clone(name, allocator)] = strings.clone(strings.trim_space(strings.to_string(builder)), allocator)
+			}
+		} else if len(value_start) > 0 && value_start[0] == '\'' {
+			// Single-quoted value (always single line in shell)
+			vars[strings.clone(name, allocator)] = strings.clone(utils.strip_quotes(value_start), allocator)
+		} else {
+			// Unquoted value
+			vars[strings.clone(name, allocator)] = strings.clone(value_start, allocator)
+		}
+		
+		i += 1
+	}
+	
+	return vars
 }
 
 // Get full version string (version_revision)
