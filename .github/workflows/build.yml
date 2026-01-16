@@ -2,7 +2,7 @@ name: Build and Release
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
 
 permissions:
@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Determine Systems to Build
         id: set-matrix
         env:
@@ -140,11 +140,11 @@ jobs:
     concurrency:
       group: vup-release-${{ matrix.category }}-${{ matrix.arch }}
       cancel-in-progress: false
-    
+
     steps:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-      
+
       - name: Checkout VUP
         uses: actions/checkout@v4
         with:
@@ -189,10 +189,10 @@ jobs:
             armv7l)  PLATFORM="linux/arm/v7" ;;
             *)       PLATFORM="linux/amd64" ;;
           esac
-          
+
           # Write key if present
           [ -n "$XBPS_PRIVATE_KEY" ] && echo "$XBPS_PRIVATE_KEY" > work/privkey.pem
-          
+
           docker run --rm --platform "$PLATFORM" \
             -v "$PWD/work/dist:/dist" \
             ${XBPS_PRIVATE_KEY:+-v "$PWD/work/privkey.pem:/privkey.pem:ro"} \
@@ -207,8 +207,26 @@ jobs:
               [ -f /privkey.pem ] && xbps-rindex --sign --privkey /privkey.pem --signedby "VUP Builder" .
               ls -la *-repodata* 2>/dev/null || echo "No repodata!"
             '
-          
+
           rm -f work/privkey.pem
+
+      - name: Upload to Cloudflare R2
+        env:
+          CATEGORY: ${{ matrix.category }}
+          ARCH: ${{ matrix.arch }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          # Skip if R2 credentials are not configured
+          if [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ]; then
+            echo "R2 credentials not configured, skipping R2 upload."
+            exit 0
+          fi
+          pip install boto3 --quiet
+          cd work
+          python3 ../vup/vup/scripts/manage_release.py r2_all
 
       - name: Clean Remote Assets
         env:
@@ -245,12 +263,12 @@ jobs:
           pattern: build-logs-*
           path: reports
           merge-multiple: true
-      
+
       - name: Generate Summary
         id: summary
         run: |
-           echo "# Build Summary" >> $GITHUB_STEP_SUMMARY
-           python3 vup/scripts/generate_summary.py reports >> $GITHUB_STEP_SUMMARY
+          echo "# Build Summary" >> $GITHUB_STEP_SUMMARY
+          python3 vup/scripts/generate_summary.py reports >> $GITHUB_STEP_SUMMARY
 
   deploy-index:
     needs: [check-changes, release]
@@ -269,7 +287,7 @@ jobs:
     steps:
       - name: Checkout VUP
         uses: actions/checkout@v4
-      
+
       - name: Generate Global Index
         run: |
           python3 vup/scripts/generate_index.py
