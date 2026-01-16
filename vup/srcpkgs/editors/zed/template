@@ -43,16 +43,38 @@ esac
 _app_dir="zed.app"
 
 do_install() {
+	# Install to /opt/zed
 	vmkdir opt/zed
 	vcopy "${_app_dir}/*" opt/zed
 
+	# Desktop file
 	vinstall "${_app_dir}/share/applications/zed.desktop" 644 usr/share/applications
 
+	# Icons
 	vinstall "${_app_dir}/share/icons/hicolor/512x512/apps/zed.png" 644 usr/share/pixmaps zed.png
 	vmkdir usr/share/icons/hicolor/512x512/apps
 	vinstall "${_app_dir}/share/icons/hicolor/512x512/apps/zed.png" 644 usr/share/icons/hicolor/512x512/apps
 	vmkdir usr/share/icons/hicolor/1024x1024/apps
 	vinstall "${_app_dir}/share/icons/hicolor/1024x1024/apps/zed.png" 644 usr/share/icons/hicolor/1024x1024/apps
 
+	# Helper script with flags config support
+	cat > zed.sh <<EOF
+#!/bin/bash
+XDG_CONFIG_HOME=\${XDG_CONFIG_HOME:-~/.config}
+
+# Allow users to override command-line options
+if [[ -f \$XDG_CONFIG_HOME/zed-flags.conf ]]; then
+   ZED_USER_FLAGS="\$(sed 's/#.*//' \$XDG_CONFIG_HOME/zed-flags.conf | tr '\n' ' ')"
+fi
+
+# Launch
+exec /opt/zed/libexec/zed-editor "\$@" \$ZED_USER_FLAGS
+EOF
+	vbin zed.sh zed
+
+	# Also create symlink for 'zeditor' command (common alternative name)
+	ln -sf zed ${DESTDIR}/usr/bin/zeditor
+
+	# License
 	vlicense "${_app_dir}/licenses.md"
 }
