@@ -49,8 +49,23 @@ parse_index :: proc(content: string, allocator := context.allocator) -> (Index, 
 		return {}, false
 	}
 
+	// Get the "packages" object from root
+	packages_val, has_packages := root["packages"]
+	if !has_packages {
+		errors.log_error("Index missing 'packages' field")
+		index_free(&idx)
+		return {}, false
+	}
+
+	packages_obj, is_packages_obj := packages_val.(json.Object)
+	if !is_packages_obj {
+		errors.log_error("Index 'packages' field is not an object")
+		index_free(&idx)
+		return {}, false
+	}
+
 	// Iterate packages
-	for name, value in root {
+	for name, value in packages_obj {
 		pkg_obj, is_obj := value.(json.Object)
 		if !is_obj {
 			continue
