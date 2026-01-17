@@ -18,13 +18,6 @@ REPO_OWNER = "VUP-Linux"
 REPO_NAME = "vup"
 BASE_URL = f"https://github.com/{REPO_OWNER}/{REPO_NAME}/releases/download"
 
-# Cloudflare R2 configuration
-# R2_PUBLIC_URL is the public CDN endpoint for package downloads
-# Set via environment or customize here
-R2_BUCKET = "vup-packages"
-R2_PUBLIC_URL = "https://packages.vup.dev"  # Your R2 public bucket URL or custom domain
-R2_ENDPOINT = None  # Set via R2_ENDPOINT env var (e.g., https://<account_id>.r2.cloudflarestorage.com)
-
 # Path to srcpkgs relative to repo root
 SRCPKGS_DIR = "vup/srcpkgs"
 

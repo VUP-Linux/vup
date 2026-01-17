@@ -12,7 +12,6 @@ import re
 try:
     from config import (
         BASE_URL,
-        R2_PUBLIC_URL,
         SRCPKGS_DIR,
         SUPPORTED_ARCHS,
         get_positive_archs,
@@ -24,7 +23,6 @@ except ImportError:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from config import (
         BASE_URL,
-        R2_PUBLIC_URL,
         SRCPKGS_DIR,
         SUPPORTED_ARCHS,
         get_positive_archs,
@@ -65,12 +63,7 @@ def generate_index():
                     "description": "GitHub Releases (repodata + packages)",
                     "base_url": BASE_URL,
                 },
-                "r2": {
-                    "description": "Cloudflare R2 CDN (packages only, faster)",
-                    "base_url": R2_PUBLIC_URL,
-                },
             },
-            "note": "Use 'github' for repodata. Packages available from both sources.",
         },
         "packages": {},
     }
@@ -111,22 +104,18 @@ def generate_index():
                     archs = SUPPORTED_ARCHS.copy()
 
                 # Build repo_urls dict per architecture
-                # GitHub releases hold the repodata (index) - always use this for xbps-install
+                # GitHub releases hold the repodata (index) and packages
                 repo_urls = {}
-                # R2 holds the actual .xbps and .sig2 files (optional faster CDN)
-                r2_urls = {}
 
                 for arch in archs:
                     tag = f"{category}-{arch}-current"
                     repo_urls[arch] = f"{BASE_URL}/{tag}"
-                    r2_urls[arch] = f"{R2_PUBLIC_URL}/{tag}"
 
                 index["packages"][pkg] = {
                     "category": category,
                     "version": full_version,
                     "archs": archs,
-                    "repo_urls": repo_urls,  # GitHub releases (repodata + fallback packages)
-                    "r2_urls": r2_urls,  # Cloudflare R2 (packages only, faster)
+                    "repo_urls": repo_urls,
                 }
                 print(
                     f"Indexed: {pkg} -> {category} ({full_version}) [{', '.join(archs)}]"

@@ -210,24 +210,6 @@ jobs:
 
           rm -f work/privkey.pem
 
-      - name: Upload to Cloudflare R2
-        env:
-          CATEGORY: ${{ matrix.category }}
-          ARCH: ${{ matrix.arch }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-        run: |
-          # Skip if R2 credentials are not configured
-          if [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ]; then
-            echo "R2 credentials not configured, skipping R2 upload."
-            exit 0
-          fi
-          pip install boto3 --quiet
-          cd work
-          python3 ../vup/vup/scripts/manage_release.py r2_all
-
       - name: Clean Remote Assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

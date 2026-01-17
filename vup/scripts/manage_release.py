@@ -19,12 +19,6 @@ ARCH: str = os.environ.get("ARCH", "x86_64")
 TAG_NAME: str = f"{CATEGORY}-{ARCH}-current"
 DIST_DIR: str = "dist"
 
-# R2 Configuration
-R2_BUCKET: str = os.environ.get("R2_BUCKET", "vup-packages")
-R2_ENDPOINT: str = os.environ.get("R2_ENDPOINT", "")
-R2_ACCESS_KEY_ID: str = os.environ.get("R2_ACCESS_KEY_ID", "")
-R2_SECRET_ACCESS_KEY: str = os.environ.get("R2_SECRET_ACCESS_KEY", "")
-
 
 def run_command(
     cmd: list[str], capture_output: bool = False
@@ -300,164 +294,17 @@ def clean_remote_assets():
 
 
 # ============================================================================
-# Cloudflare R2 Functions
-# ============================================================================
-
-
-def get_s3_client():
-    """Get an S3 client configured for Cloudflare R2."""
-    try:
-        import boto3
-        from botocore.config import Config
-    except ImportError:
-        print(
-            "ERROR: boto3 is required for R2 operations. Install with: pip install boto3"
-        )
-        return None
-
-    if not R2_ENDPOINT or not R2_ACCESS_KEY_ID or not R2_SECRET_ACCESS_KEY:
-        print("ERROR: R2 credentials not configured.")
-        print("  Required: R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY")
-        return None
-
-    return boto3.client(
-        "s3",
-        endpoint_url=R2_ENDPOINT,
-        aws_access_key_id=R2_ACCESS_KEY_ID,
-        aws_secret_access_key=R2_SECRET_ACCESS_KEY,
-        config=Config(signature_version="s3v4"),
-    )
-
-
-def upload_to_r2():
-    """Upload .xbps and .sig2 files to Cloudflare R2."""
-    print(f"Uploading packages to R2 bucket '{R2_BUCKET}' under '{TAG_NAME}/'...")
-
-    s3 = get_s3_client()
-    if not s3:
-        return False
-
-    # Get list of files to upload (.xbps and .sig2 only - not repodata)
-    files_to_upload = []
-    for pattern in ["*.xbps", "*.sig2"]:
-        files_to_upload.extend(glob.glob(os.path.join(DIST_DIR, pattern)))
-
-    if not files_to_upload:
-        print("No packages to upload to R2.")
-        return True
-
-    uploaded = 0
-    for filepath in files_to_upload:
-        filename = os.path.basename(filepath)
-        key = f"{TAG_NAME}/{filename}"
-
-        try:
-            # Check if file already exists with same size
-            try:
-                head = s3.head_object(Bucket=R2_BUCKET, Key=key)
-                local_size = os.path.getsize(filepath)
-                if head["ContentLength"] == local_size:
-                    print(f"  Skipping (unchanged): {filename}")
-                    continue
-            except Exception:
-                pass  # File doesn't exist, upload it
-
-            print(f"  Uploading: {filename}")
-            s3.upload_file(filepath, R2_BUCKET, key)
-            uploaded += 1
-        except Exception as e:
-            print(f"  ERROR uploading {filename}: {e}")
-            return False
-
-    print(f"Uploaded {uploaded} files to R2.")
-    return True
-
-
-def sync_r2():
-    """Remove old/orphaned files from R2 that are not in local DIST_DIR."""
-    print(f"Syncing R2 bucket '{R2_BUCKET}' prefix '{TAG_NAME}/'...")
-
-    s3 = get_s3_client()
-    if not s3:
-        return False
-
-    # Get local .xbps and .sig2 files
-    local_files = set()
-    for pattern in ["*.xbps", "*.sig2"]:
-        for f in glob.glob(os.path.join(DIST_DIR, pattern)):
-            local_files.add(os.path.basename(f))
-
-    # List remote files
-    try:
-        paginator = s3.get_paginator("list_objects_v2")
-        remote_files = {}
-
-        for page in paginator.paginate(Bucket=R2_BUCKET, Prefix=f"{TAG_NAME}/"):
-            for obj in page.get("Contents", []):
-                key = obj["Key"]
-                filename = key.split("/")[-1]
-                remote_files[filename] = key
-    except Exception as e:
-        print(f"ERROR listing R2 objects: {e}")
-        return False
-
-    print(f"Local packages: {len(local_files)}")
-    print(f"Remote packages in R2: {len(remote_files)}")
-
-    # Find files to delete
-    to_delete = []
-    for filename, key in remote_files.items():
-        if filename not in local_files:
-            to_delete.append(key)
-
-    if not to_delete:
-        print("R2 is in sync.")
-        return True
-
-    # Delete old files
-    print(f"Deleting {len(to_delete)} obsolete files from R2...")
-    try:
-        # R2 supports batch delete
-        for i in range(0, len(to_delete), 1000):  # Max 1000 per request
-            batch = to_delete[i : i + 1000]
-            delete_objects = {"Objects": [{"Key": k} for k in batch]}
-            s3.delete_objects(Bucket=R2_BUCKET, Delete=delete_objects)
-            for key in batch:
-                print(f"  Deleted: {key}")
-    except Exception as e:
-        print(f"ERROR deleting from R2: {e}")
-        return False
-
-    print("R2 sync complete.")
-    return True
-
-
-def r2_upload_and_sync():
-    """Combined operation: upload new packages and remove old ones from R2."""
-    if not upload_to_r2():
-        return False
-    if not sync_r2():
-        return False
-    return True
-
-
-# ============================================================================
 # Main
 # ============================================================================
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print(
-            "Usage: manage_release.py [download|prune|clean_remote|r2_upload|r2_sync|r2_all]"
-        )
+        print("Usage: manage_release.py [download|prune|clean_remote]")
         print()
         print("Commands:")
         print("  download     - Download existing release assets from GitHub")
         print("  prune        - Remove old package versions locally")
         print("  clean_remote - Delete obsolete assets from GitHub release")
-        print("  r2_upload    - Upload .xbps and .sig2 files to Cloudflare R2")
-        print("  r2_sync      - Remove obsolete files from R2")
-        print("  r2_all       - Upload and sync R2 (combined)")
         sys.exit(1)
 
     cmd = sys.argv[1]
@@ -468,15 +315,6 @@ if __name__ == "__main__":
         clean_stale_sigs()
     elif cmd == "clean_remote":
         clean_remote_assets()
-    elif cmd == "r2_upload":
-        if not upload_to_r2():
-            sys.exit(1)
-    elif cmd == "r2_sync":
-        if not sync_r2():
-            sys.exit(1)
-    elif cmd == "r2_all":
-        if not r2_upload_and_sync():
-            sys.exit(1)
     else:
         print(f"Unknown command: {cmd}")
         sys.exit(1)
