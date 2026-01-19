@@ -1,0 +1,113 @@
+# Template file for 'brave'
+pkgname=brave
+version=1.86.139
+revision=1
+archs="x86_64 aarch64"
+create_wrksrc=yes
+depends="
+ alsa-lib
+ at-spi2-core
+ cairo
+ cups
+ dbus
+ expat
+ glib
+ gtk+3
+ libX11
+ libXcomposite
+ libXdamage
+ libXext
+ libXfixes
+ libXrandr
+ libXScrnSaver
+ libdrm
+ libxcb
+ libxkbcommon
+ mesa
+ nspr
+ nss
+ pango
+ xdg-utils
+"
+short_desc="Web browser that blocks ads and trackers by default"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="MPL-2.0, BSD-3-Clause, custom:chromium"
+homepage="https://brave.com"
+# Binary repackage
+restricted=yes
+nopie=yes
+nostrip=yes
+noshlibprovides=yes
+
+_baseurl="https://github.com/brave/brave-browser/releases/download/v${version}"
+
+case "$XBPS_TARGET_MACHINE" in
+	x86_64)
+		distfiles="${_baseurl}/brave-browser-${version}-linux-amd64.zip"
+		checksum=41eff31744453d54bbe8ba579fbccedb834a815dc485707b9dfe7fc6d591608d
+		;;
+	aarch64)
+		distfiles="${_baseurl}/brave-browser-${version}-linux-arm64.zip"
+		checksum=175ea1b1636469db8a8fe649789b51cd6d9c0f3e96f7a567a00dd308ec0123fc
+		;;
+esac
+
+do_install() {
+	# Extract and copy contents
+	vmkdir opt/brave
+	vcopy "*" opt/brave
+
+	# Allow suid sandbox
+	chmod 4755 ${DESTDIR}/opt/brave/chrome-sandbox
+
+	# Create wrapper script
+	cat > brave.sh <<EOF
+#!/bin/bash
+XDG_CONFIG_HOME=\${XDG_CONFIG_HOME:-~/.config}
+
+# Allow users to override command-line options
+if [[ -f \$XDG_CONFIG_HOME/brave-flags.conf ]]; then
+   BRAVE_USER_FLAGS="\$(sed 's/#.*//' \$XDG_CONFIG_HOME/brave-flags.conf | tr '\n' ' ')"
+fi
+
+# Wayland native support
+if [[ \$XDG_SESSION_TYPE == "wayland" ]]; then
+   WAYLAND_FLAGS="--ozone-platform=wayland --enable-features=WaylandWindowDecorations"
+fi
+
+exec /opt/brave/brave "\$@" \$WAYLAND_FLAGS \$BRAVE_USER_FLAGS
+EOF
+	vbin brave.sh brave
+
+	# Desktop file
+	cat > brave.desktop <<EOF
+[Desktop Entry]
+Name=Brave Web Browser
+Comment=Web browser that blocks ads and trackers by default
+GenericName=Web Browser
+Exec=brave %U
+Icon=brave
+Type=Application
+StartupNotify=true
+Categories=Network;WebBrowser;
+MimeType=application/pdf;application/rdf+xml;application/rss+xml;application/xhtml+xml;application/xml;image/gif;image/jpeg;image/png;image/webp;text/html;text/xml;x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/ipfs;x-scheme-handler/ipns;
+Actions=new-window;new-private-window;
+
+[Desktop Action new-window]
+Name=New Window
+Exec=brave
+
+[Desktop Action new-private-window]
+Name=New Private Window
+Exec=brave --incognito
+EOF
+	vinstall brave.desktop 644 usr/share/applications
+
+	# Icons
+	for size in 16 24 32 48 64 128 256; do
+		vinstall "${DESTDIR}/opt/brave/product_logo_${size}.png" 644 usr/share/icons/hicolor/${size}x${size}/apps brave.png
+	done
+    
+	# License
+	vlicense "${DESTDIR}/opt/brave/LICENSE"
+}
