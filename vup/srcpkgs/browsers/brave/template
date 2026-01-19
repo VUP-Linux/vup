@@ -43,14 +43,23 @@ _baseurl="https://github.com/brave/brave-browser/releases/download/v${version}"
 
 case "$XBPS_TARGET_MACHINE" in
 	x86_64)
-		distfiles="${_baseurl}/brave-browser-${version}-linux-amd64.zip"
+		_arch_class=linux-amd64
 		checksum=41eff31744453d54bbe8ba579fbccedb834a815dc485707b9dfe7fc6d591608d
 		;;
 	aarch64)
-		distfiles="${_baseurl}/brave-browser-${version}-linux-arm64.zip"
+		_arch_class=linux-arm64
 		checksum=175ea1b1636469db8a8fe649789b51cd6d9c0f3e96f7a567a00dd308ec0123fc
 		;;
 esac
+
+distfiles="${_baseurl}/brave-browser-${version}-${_arch_class}.zip"
+
+hostmakedepends="unzip"
+
+do_extract() {
+	mkdir -p "$wrksrc"
+	unzip -q "${XBPS_SRCDISTDIR}/${pkgname}-${version}/brave-browser-${version}-${_arch_class}.zip" -d "$wrksrc"
+}
 
 do_install() {
 	# Extract and copy contents
