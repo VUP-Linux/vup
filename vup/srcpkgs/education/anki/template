@@ -1,0 +1,95 @@
+# Template file for 'anki'
+pkgname=anki
+version=25.09
+revision=1
+archs="x86_64"
+create_wrksrc=yes
+depends="
+ python3>=3.9
+ python3-BeautifulSoup4
+ python3-certifi
+ python3-decorator
+ python3-distro
+ python3-Flask
+ python3-Flask-Cors
+ python3-jsonschema
+ python3-Markdown
+ python3-orjson
+ python3-protobuf
+ python3-pysocks
+ python3-requests
+ python3-send2trash
+ python3-waitress
+ python3-pyqt6
+ python3-pyqt6-webengine
+ qt6-multimedia
+ qt6-svg
+ mpv
+ lame
+"
+short_desc="Helps you remember facts efficiently using spaced repetition"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="AGPL-3.0-or-later"
+homepage="https://apps.ankiweb.net/"
+# Binary repackage
+nopie=yes
+nostrip=yes
+noshlibprovides=yes
+
+_baseurl="https://github.com/ankitects/anki/releases/download/${version}"
+
+distfiles="${_baseurl}/anki-launcher-${version}-linux.tar.zst"
+checksum=97cbddae74e44944360cac89bbdda06af7cf080a4dc1012dd6dc63952bbbb029
+
+hostmakedepends="tar zstd"
+
+do_install() {
+	# The tarball extracts to anki-launcher-${version}-linux/
+	cd "anki-launcher-${version}-linux"
+
+	# Install the launcher binary
+	vbin launcher.amd64 anki-launcher
+
+	# Install data files to share/anki
+	vmkdir usr/share/anki
+	vcopy pyproject.toml usr/share/anki
+	vcopy versions.py usr/share/anki
+	vcopy .python-version usr/share/anki
+
+	# Install uv binary for python env management
+	vbin uv.amd64 anki-uv
+
+	# Install desktop file and icons
+	vinstall anki.desktop 644 usr/share/applications
+	vinstall anki.png 644 usr/share/pixmaps
+	vinstall anki.xpm 644 usr/share/pixmaps
+
+	# Install man page
+	vman anki.1
+
+	# Install mime type
+	vinstall anki.xml 644 usr/share/mime/packages
+
+	# Create wrapper script with Wayland support
+	cat > anki.sh <<EOF
+#!/bin/bash
+XDG_CONFIG_HOME=\${XDG_CONFIG_HOME:-~/.config}
+
+# Allow users to override command-line options
+if [[ -f \$XDG_CONFIG_HOME/anki-flags.conf ]]; then
+   ANKI_USER_FLAGS="\$(sed 's/#.*//' \$XDG_CONFIG_HOME/anki-flags.conf | tr '\n' ' ')"
+fi
+
+# Wayland native support
+if [[ \$XDG_SESSION_TYPE == "wayland" ]]; then
+   export QT_QPA_PLATFORM=wayland
+fi
+
+# Set up environment for the launcher
+export ANKI_DATA_DIR=/usr/share/anki
+export PATH="/usr/bin:\$PATH"
+
+exec /usr/bin/anki-launcher "\$@" \$ANKI_USER_FLAGS
+EOF
+	vbin anki.sh anki
+}
