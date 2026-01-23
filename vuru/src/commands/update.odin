@@ -35,7 +35,14 @@ update_run :: proc(args: []string, config: ^Config) -> int {
 		return 1
 	}
 
-	return xbps.upgrade_all_official(config.yes, utils.run_command)
+	// Update official Void packages first
+	ret := xbps.upgrade_all_official(config.yes, utils.run_command)
+	if ret != 0 {
+		return ret
+	}
+
+	// Then update VUP packages
+	return xbps_upgrade_all(&idx, config.yes)
 }
 
 // Compare versions using xbps-uhelper
