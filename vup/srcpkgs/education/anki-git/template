@@ -47,17 +47,16 @@ do_install() {
 	# The tarball extracts to anki-launcher-${version}-linux/
 	cd "anki-launcher-${version}-linux"
 
-	# Install the launcher binary
-	vbin launcher.amd64 anki-launcher
-
-	# Install data files to share/anki
+	# Install ALL launcher files together - the launcher expects .python-version
+	# and other files to be in the same directory as the binary
 	vmkdir usr/share/anki
+	vcopy launcher.amd64 usr/share/anki
+	vcopy uv.amd64 usr/share/anki
 	vcopy pyproject.toml usr/share/anki
 	vcopy versions.py usr/share/anki
 	vcopy .python-version usr/share/anki
-
-	# Install uv binary for python env management
-	vbin uv.amd64 anki-uv
+	chmod 755 ${DESTDIR}/usr/share/anki/launcher.amd64
+	chmod 755 ${DESTDIR}/usr/share/anki/uv.amd64
 
 	# Install desktop file and icons
 	vinstall anki.desktop 644 usr/share/applications
@@ -69,6 +68,10 @@ do_install() {
 
 	# Install mime type
 	vinstall anki.xml 644 usr/share/mime/packages
+
+	# Fix desktop file to use our wrapper
+	vsed -i ${DESTDIR}/usr/share/applications/anki.desktop \
+		-e 's|Exec=anki|Exec=/usr/bin/anki|g'
 
 	# Create wrapper script with Wayland support
 	cat > anki.sh <<EOF
@@ -85,11 +88,9 @@ if [[ \$XDG_SESSION_TYPE == "wayland" ]]; then
    export QT_QPA_PLATFORM=wayland
 fi
 
-# Set up environment for the launcher
-export ANKI_DATA_DIR=/usr/share/anki
-export PATH="/usr/bin:\$PATH"
-
-exec /usr/bin/anki-launcher "\$@" \$ANKI_USER_FLAGS
+# Run from the anki directory so launcher can find .python-version
+cd /usr/share/anki
+exec ./launcher.amd64 "\$@" \$ANKI_USER_FLAGS
 EOF
 	vbin anki.sh anki
 }
