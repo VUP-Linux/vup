@@ -98,6 +98,7 @@ Exec=brave %U
 Icon=brave
 Type=Application
 StartupNotify=true
+StartupWMClass=brave-browser
 Categories=Network;WebBrowser;
 MimeType=application/pdf;application/rdf+xml;application/rss+xml;application/xhtml+xml;application/xml;image/gif;image/jpeg;image/png;image/webp;text/html;text/xml;x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/ipfs;x-scheme-handler/ipns;
 Actions=new-window;new-private-window;
@@ -116,6 +117,7 @@ EOF
 	for size in 16 24 32 48 64 128 256; do
 		vinstall "${DESTDIR}/opt/brave/product_logo_${size}.png" 644 usr/share/icons/hicolor/${size}x${size}/apps brave.png
 	done
+	vinstall "${DESTDIR}/opt/brave/product_logo_128.png" 644 usr/share/pixmaps brave.png
     
 	# License
 	vlicense "${DESTDIR}/opt/brave/LICENSE"
