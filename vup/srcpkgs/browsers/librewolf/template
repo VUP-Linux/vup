@@ -1,0 +1,143 @@
+# Template file for 'librewolf'
+pkgname=librewolf
+version=147.0.3.2
+revision=1
+archs="x86_64 aarch64"
+create_wrksrc=yes
+depends="
+ alsa-lib
+ at-spi2-core
+ cairo
+ dbus
+ ffmpeg
+ fontconfig
+ freetype
+ gdk-pixbuf
+ glib
+ gtk+3
+ hicolor-icon-theme
+ libX11
+ libXcomposite
+ libXcursor
+ libXdamage
+ libXext
+ libXfixes
+ libXi
+ libXrandr
+ libXrender
+ libxcb
+ mime-types
+ nspr
+ nss
+ pango
+ pulseaudio
+ startup-notification
+ dejavu-fonts-ttf
+"
+short_desc="Community-maintained fork of Firefox, focused on privacy, security and freedom"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="MPL-2.0"
+homepage="https://librewolf.net"
+# Binary repackage
+restricted=yes
+nopie=yes
+nostrip=yes
+noshlibprovides=yes
+
+# Version format: 147.0.3.2 = Firefox 147.0.3, LibreWolf release 2
+# Extract Firefox version (first 3 parts) and LibreWolf version (4th part)
+_ffver="${version%.*}"
+_lwver="${version##*.}"
+# Remove trailing .0 from Firefox version for download URL (e.g., 147.0.0 -> 147.0)
+_ffver_short="${_ffver%.0}"
+_baseurl="https://codeberg.org/api/packages/librewolf/generic/librewolf/${_ffver_short}-${_lwver}"
+
+case "$XBPS_TARGET_MACHINE" in
+	x86_64)
+		_arch=x86_64
+		checksum=041ad95256c0e7af6692d8c331ac91e0d6f4e629616ec00d299eb26368d9677e
+		;;
+	aarch64)
+		_arch=arm64
+		checksum=9b812482eb65477420103560b4a998915be3ee3cda663974727d97e1427a1898
+		;;
+esac
+
+distfiles="${_baseurl}/librewolf-${_ffver_short}-${_lwver}-linux-${_arch}-package.tar.xz"
+
+hostmakedepends="tar"
+
+do_install() {
+	# Install to /usr/lib/librewolf
+	# Tarball extracts to librewolf/ directory
+	vmkdir usr/lib/librewolf
+	vcopy "librewolf/*" usr/lib/librewolf
+
+	# Create wrapper script
+	cat > librewolf.sh <<EOF
+#!/bin/bash
+XDG_CONFIG_HOME=\${XDG_CONFIG_HOME:-~/.config}
+
+# Allow users to override command-line options
+if [[ -f \$XDG_CONFIG_HOME/librewolf-flags.conf ]]; then
+   LIBREWOLF_USER_FLAGS="\$(sed 's/#.*//' \$XDG_CONFIG_HOME/librewolf-flags.conf | tr '\n' ' ')"
+fi
+
+exec /usr/lib/librewolf/librewolf "\$@" \$LIBREWOLF_USER_FLAGS
+EOF
+	vbin librewolf.sh librewolf
+
+	# Desktop file
+	cat > librewolf.desktop <<EOF
+[Desktop Entry]
+Name=LibreWolf
+Comment=Community-maintained fork of Firefox, focused on privacy, security and freedom
+GenericName=Web Browser
+Exec=librewolf %u
+Icon=librewolf
+Type=Application
+StartupNotify=true
+StartupWMClass=librewolf
+Categories=Network;WebBrowser;
+MimeType=text/html;text/xml;application/xhtml+xml;application/vnd.mozilla.xul+xml;text/mml;x-scheme-handler/http;x-scheme-handler/https;
+Actions=new-window;new-private-window;
+
+[Desktop Action new-window]
+Name=New Window
+Exec=librewolf --new-window
+
+[Desktop Action new-private-window]
+Name=New Private Window
+Exec=librewolf --private-window
+EOF
+	vinstall librewolf.desktop 644 usr/share/applications
+
+	# Icons - reference from source directory since it's easier than DESTDIR path
+	for size in 16 32 48 64 128; do
+		vinstall "librewolf/browser/chrome/icons/default/default${size}.png" 644 \
+			usr/share/icons/hicolor/${size}x${size}/apps librewolf.png
+	done
+	vinstall "librewolf/browser/chrome/icons/default/default128.png" 644 usr/share/pixmaps librewolf.png
+
+	# Vendor preferences
+	cat > vendor.js <<EOF
+// Use system-provided dictionaries
+pref("spellchecker.dictionary_path", "/usr/share/hunspell");
+EOF
+	vinstall vendor.js 644 usr/lib/librewolf/browser/defaults/preferences
+
+	# Distribution info
+	vmkdir usr/lib/librewolf/distribution
+	cat > distribution.ini <<EOF
+[Global]
+id=io.gitlab.librewolf-community
+version=1.0
+about=LibreWolf
+
+[Preferences]
+app.distributor="LibreWolf Community"
+app.distributor.channel=librewolf
+app.partner.librewolf=librewolf
+EOF
+	vinstall distribution.ini 644 usr/lib/librewolf/distribution
+}
