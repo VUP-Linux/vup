@@ -1,6 +1,6 @@
 # Template file for 'brave'
 pkgname=brave
-version=1.87.186
+version=1.87.188
 revision=1
 archs="x86_64 aarch64"
 create_wrksrc=yes
@@ -44,11 +44,11 @@ _baseurl="https://github.com/brave/brave-browser/releases/download/v${version}"
 case "$XBPS_TARGET_MACHINE" in
 	x86_64)
 		_arch_class=linux-amd64
-		checksum=a50b4e999a3c1c4b2ccb26b0b6975cd48a8edd72ec3454e37b40e9017b4e742e
+		checksum=9c80f829f0a78903c8cff30abbee68b1b87c4839506ba528052a47aeead5d167
 		;;
 	aarch64)
 		_arch_class=linux-arm64
-		checksum=3b93121800bc647785419626e524d12cd1ea89e967ef3f91adc707a2f3c3762e
+		checksum=e4a43b5aed1eb895d6d21122dd79b2618e39e7fc70abc9d1bd87ea87d93ff6f9
 		;;
 esac
 
