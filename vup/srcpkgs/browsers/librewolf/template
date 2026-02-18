@@ -1,6 +1,6 @@
 # Template file for 'librewolf'
 pkgname=librewolf
-version=147.0.3.2
+version=147.0.4.1
 revision=1
 archs="x86_64 aarch64"
 create_wrksrc=yes
@@ -55,11 +55,11 @@ _baseurl="https://codeberg.org/api/packages/librewolf/generic/librewolf/${_ffver
 case "$XBPS_TARGET_MACHINE" in
 	x86_64)
 		_arch=x86_64
-		checksum=041ad95256c0e7af6692d8c331ac91e0d6f4e629616ec00d299eb26368d9677e
+		checksum=cea5aaf0581d48b5806a85af9829c873d1654e642d70280ba0af57b97b164b83
 		;;
 	aarch64)
 		_arch=arm64
-		checksum=9b812482eb65477420103560b4a998915be3ee3cda663974727d97e1427a1898
+		checksum=4a2799dd1d2daab54ba710a55848b39e33e4d584bfdfb30768960717f53202f9
 		;;
 esac
 
@@ -131,7 +131,7 @@ EOF
 	cat > distribution.ini <<EOF
 [Global]
 id=io.gitlab.librewolf-community
-version=1.0
+version=147.0.4.1
 about=LibreWolf
 
 [Preferences]
