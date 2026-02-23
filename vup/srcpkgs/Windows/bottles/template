@@ -43,7 +43,7 @@ depends="
   vkBasalt-cli
 "
 short_desc="Easily manage wine and proton prefix"
-maintainer="Eren Öztürk <erenozturkhde@gmail.com>"
+maintainer="ErenHDE <erenozturkhde@gmail.com>"
 license="GPL-3.0-only"
 homepage="https://usebottles.com/"
 distfiles="
