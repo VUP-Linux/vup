@@ -82,6 +82,8 @@ jobs:
         run: |
           cd void-packages
           cp ../vup/vup/xbps-src .
+          mkdir -p srcpkgs/core/xbps-triggers
+          cp -r ../vup/vup/srcpkgs/core/xbps-triggers/* srcpkgs/core/xbps-triggers/
           chmod +x xbps-src
           echo "XBPS_ALLOW_RESTRICTED=yes" >> etc/conf
           echo "XBPS_CCACHE=yes" >> etc/conf
