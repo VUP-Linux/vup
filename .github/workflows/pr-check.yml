@@ -143,6 +143,11 @@ jobs:
           cd void-packages
           # Override xbps-src with our custom version
           cp ../vup/vup/xbps-src .
+          
+          # Copy VUP's xbps-triggers to where xbps-src expects them
+          mkdir -p srcpkgs/core/xbps-triggers
+          cp -r ../vup/vup/srcpkgs/core/xbps-triggers/* srcpkgs/core/xbps-triggers/
+          
           chmod +x xbps-src
           
           # Authorize restricted packages
