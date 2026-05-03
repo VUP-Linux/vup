@@ -284,3 +284,24 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  notify-web:
+    needs: deploy-index
+    if: needs.deploy-index.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger vup-web sync
+        env:
+          VUP_WEBHOOK_SECRET: ${{ secrets.VUP_WEBHOOK_SECRET }}
+        run: |
+          if [ -z "$VUP_WEBHOOK_SECRET" ]; then
+            echo "VUP_WEBHOOK_SECRET not set; skipping notify."
+            exit 0
+          fi
+          # Give GH Pages CDN a moment to publish the new index.json
+          sleep 30
+          curl -fsSL --retry 5 --retry-delay 15 --max-time 600 \
+            -X POST https://voiduserpackages.org/api/sync \
+            -H "Content-Type: application/json" \
+            -H "X-Webhook-Secret: $VUP_WEBHOOK_SECRET" \
+            -d '{"action":"sync"}'
