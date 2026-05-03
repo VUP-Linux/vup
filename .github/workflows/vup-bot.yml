@@ -31,7 +31,27 @@ jobs:
           path: reports
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      
+
+      - name: Download PR Metadata
+        uses: actions/download-artifact@v4
+        with:
+          name: pr-meta
+          path: pr-meta
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve PR Number
+        id: pr
+        run: |
+          if [ -f pr-meta/pr_number.txt ]; then
+            num=$(cat pr-meta/pr_number.txt | tr -d '[:space:]')
+          fi
+          if [ -z "$num" ]; then
+            echo "No PR number found in artifact." >&2
+            exit 1
+          fi
+          echo "number=$num" >> "$GITHUB_OUTPUT"
+
       - name: Analyze Results
         id: analyze
         run: |
@@ -111,39 +131,25 @@ jobs:
           script: |
             const fs = require('fs');
             const commentBody = fs.readFileSync('comment.md', 'utf8');
-            
-            // Get PR number from the workflow run context
-            const workflow_run = context.payload.workflow_run;
-            const prs = workflow_run.pull_requests;
-            
-            if (prs.length > 0) {
-              const prNumber = prs[0].number;
-              
-              // Post Comment
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body: commentBody
-              });
-              
-              // Add Labels
-              // Check the output of the analysis step? Or just read from failures count in python?
-              // Simple heuristic: if body contains "✅ VUP Build Passed", add label
-              
-              if (commentBody.includes("✅ VUP Build Passed")) {
-                 console.log("Adding build-passed label");
-                 try {
-                     await github.rest.issues.addLabels({
-                       owner: context.repo.owner,
-                       repo: context.repo.repo,
-                       issue_number: prNumber,
-                       labels: ['build-passed']
-                     });
-                 } catch (e) {
-                     console.log("Could not add label (maybe it exists or permissions): " + e);
-                 }
-              }
-            } else {
-              console.log("No PR found associated with this workflow run.");
+            const prNumber = parseInt('${{ steps.pr.outputs.number }}', 10);
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: commentBody
+            });
+
+            if (commentBody.includes("✅ VUP Build Passed")) {
+               console.log("Adding build-passed label");
+               try {
+                   await github.rest.issues.addLabels({
+                     owner: context.repo.owner,
+                     repo: context.repo.repo,
+                     issue_number: prNumber,
+                     labels: ['build-passed']
+                   });
+               } catch (e) {
+                   console.log("Could not add label (maybe it exists or permissions): " + e);
+               }
             }

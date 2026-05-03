@@ -25,6 +25,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Record PR Number
+        run: |
+          mkdir -p pr-meta
+          echo "${{ github.event.pull_request.number }}" > pr-meta/pr_number.txt
+
+      - name: Upload PR Metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-meta
+          path: pr-meta/pr_number.txt
+
       - name: Determine Systems to Build
         id: set-matrix
         run: |
@@ -54,7 +65,7 @@ jobs:
 
               all_cats = [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d))]
               
-              cmd = ["git", "diff", "--name-only", "origin/main", "HEAD"]
+              cmd = ["git", "diff", "--name-only", "origin/main...HEAD"]
               try:
                   changes = subprocess.check_output(cmd).decode().splitlines()
               except:
@@ -167,7 +178,7 @@ jobs:
           
           # Get list of modified template dirs
           cd ../vup
-          MODIFIED_PKGS=$(git diff --name-only origin/main HEAD | grep "srcpkgs/${{ matrix.category }}" | cut -d/ -f4 | sort -u)
+          MODIFIED_PKGS=$(git diff --name-only origin/main...HEAD | grep "srcpkgs/${{ matrix.category }}" | cut -d/ -f4 | sort -u)
           cd ../void-packages
           
           mkdir -p ../reports
