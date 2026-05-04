@@ -129,7 +129,7 @@ find_package_template :: proc(srcpkgs_dir: string, pkg_name: string) -> string {
 	// Since we use temp_allocator, it will be freed at end of frame/scope.
 
 	for fi in file_infos {
-		if fi.is_dir {
+		if fi.type == .Directory {
 			// Check srcpkgs/<category>/<pkgname>/template
 			cat_path := utils.path_join(
 				srcpkgs_dir,
@@ -348,6 +348,42 @@ install_vup_deps_for_pkg :: proc(
 	return true, {}, installed_files
 }
 
+// Install a built package on the host system using xbps-install, pulling from
+// every subdirectory under hostdir/binpkgs as a possible repository.
+host_install_pkg :: proc(pkg_name: string, binpkgs_dir: string) -> (bool, errors.Error) {
+	if !os.exists(binpkgs_dir) {
+		return false, errors.make_error(.Command_Failed, fmt.tprintf("missing %s", binpkgs_dir))
+	}
+
+	d, err := os.open(binpkgs_dir)
+	if err != os.ERROR_NONE {
+		return false, errors.make_error(.Command_Failed, fmt.tprintf("cannot read %s", binpkgs_dir))
+	}
+	defer os.close(d)
+
+	file_infos, _ := os.read_dir(d, -1, context.temp_allocator)
+
+	cmd: [dynamic]string
+	append(&cmd, "sudo", "xbps-install")
+
+	// hostdir/binpkgs itself (some templates drop packages here) plus every subdir.
+	append(&cmd, fmt.tprintf("--repository=%s", binpkgs_dir))
+	for fi in file_infos {
+		if fi.type == .Directory {
+			sub_path := utils.path_join(binpkgs_dir, fi.name, allocator = context.temp_allocator)
+			append(&cmd, fmt.tprintf("--repository=%s", sub_path))
+		}
+	}
+
+	append(&cmd, pkg_name)
+
+	errors.log_info("Installing %s on host system...", pkg_name)
+	if utils.run_command(cmd[:]) != 0 {
+		return false, errors.make_error(.Command_Failed, fmt.tprintf("xbps-install %s", pkg_name))
+	}
+	return true, {}
+}
+
 // Run xbps-src with the given arguments
 run_xbps_src :: proc(xbps_src_path: string, args: []string) -> bool {
 	// Build the command as string array
@@ -499,6 +535,14 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 	cmd := cmd_args[0]
 	remaining_args := cmd_args[1:] if len(cmd_args) > 1 else []string{}
 
+	// `vuru src install <pkg>` builds the binary package and then installs it on
+	// the host system from hostdir/binpkgs. We rewrite the inner xbps-src call to
+	// `pkg` and remember to run xbps-install afterwards.
+	host_install := cmd == "install"
+	if host_install {
+		cmd = "pkg"
+	}
+
 	// Find xbps-src
 	xbps_src_path, found := find_xbps_src()
 	if !found {
@@ -558,8 +602,12 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 		append(&xbps_args, "-a")
 		append(&xbps_args, cross_target)
 	}
-	for arg in cmd_args {
-		append(&xbps_args, arg)
+	for arg, i in cmd_args {
+		if i == 0 && host_install {
+			append(&xbps_args, "pkg")
+		} else {
+			append(&xbps_args, arg)
+		}
 	}
 
 	// Run the actual xbps-src command
@@ -567,6 +615,21 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 	errors.log_info("Running: xbps-src %s", joined_args)
 	if !run_xbps_src(xbps_src_path, xbps_args[:]) {
 		return false, errors.make_error(.Command_Failed, fmt.tprintf("xbps-src %s", joined_args))
+	}
+
+	if host_install {
+		pkg_name := extract_pkg_name(cmd, remaining_args)
+		if pkg_name == "" {
+			return false, errors.make_error(
+				.Missing_Argument,
+				"package name for 'install' command",
+			)
+		}
+		binpkgs := get_binpkgs_dir(xbps_src_path, context.temp_allocator)
+		ok, err := host_install_pkg(pkg_name, binpkgs)
+		if !ok {
+			return false, err
+		}
 	}
 	return true, {}
 }
@@ -586,7 +649,7 @@ xbps_src_usage :: proc() {
 	fmt.println("  configure <pkgname>  Configure <pkgname>")
 	fmt.println("  build <pkgname>      Build <pkgname>")
 	fmt.println("  check <pkgname>      Run tests for <pkgname>")
-	fmt.println("  install <pkgname>    Install <pkgname> into destdir")
+	fmt.println("  install <pkgname>    Build <pkgname> and install it on the host system")
 	fmt.println("  clean <pkgname>      Clean up <pkgname> build directory")
 	fmt.println("  show <pkgname>       Show info about <pkgname>")
 	fmt.println("  ... and all other xbps-src commands")

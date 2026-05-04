@@ -147,7 +147,7 @@ install_local_package :: proc(cfg: ^Build_Config, pkg_name: string, yes: bool) -
 	}
 
 	// xbps-install from local repository
-	args := make([dynamic]string, context.temp_allocator)
+	args: [dynamic; 8]string
 	append(&args, "sudo", "xbps-install", "-R", binpkgs)
 
 	if yes {

@@ -16,6 +16,22 @@ upgrade_from_repo :: proc(
 	return run_cmd(args[:])
 }
 
+// Upgrade multiple packages from a repository in a single transaction
+upgrade_packages_from_repo :: proc(
+	repo_url: string,
+	pkg_names: []string,
+	yes: bool,
+	run_cmd: Command_Runner,
+) -> int {
+	args := build_args_with_yes(yes, "sudo", "xbps-install", "-R", repo_url, "-Su")
+
+
+	for name in pkg_names {
+		append(&args, name)
+	}
+	return run_cmd(args[:])
+}
+
 // Upgrade all packages from official repos
 upgrade_all_official :: proc(yes: bool, run_cmd: Command_Runner) -> int {
 	args := build_args_with_yes(yes, "sudo", "xbps-install", "-Su")

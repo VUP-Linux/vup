@@ -15,8 +15,8 @@ foreign libc {
 
 // Read entire file contents
 read_file :: proc(path: string, allocator := context.allocator) -> (string, bool) {
-	data, ok := os.read_entire_file(path, allocator)
-	if !ok {
+	data, err := os.read_entire_file(path, allocator)
+	if err != nil {
 		return "", false
 	}
 	return string(data), true
@@ -24,7 +24,7 @@ read_file :: proc(path: string, allocator := context.allocator) -> (string, bool
 
 // Write string content to a file
 write_file :: proc(path: string, content: string) -> bool {
-	return os.write_entire_file(path, transmute([]u8)content)
+	return os.write_entire_file(path, transmute([]u8)content) == nil
 }
 
 
@@ -201,33 +201,7 @@ mkdir_p :: proc(path: string) -> bool {
 	if os.exists(path) {
 		return os.is_dir(path)
 	}
-
-	err := os.make_directory(path)
-	if err == os.ERROR_NONE {
-		return true
-	}
-
-	// Try to create parent first
-	parent := parent_dir(path)
-	if len(parent) > 0 && parent != path {
-		if !mkdir_p(parent) {
-			return false
-		}
-		return os.make_directory(path) == os.ERROR_NONE
-	}
-
-	return false
-}
-
-// Get parent directory
-parent_dir :: proc(path: string) -> string {
-	for i := len(path) - 1; i >= 0; i -= 1 {
-		if path[i] == '/' {
-			if i == 0 {return "/"}
-			return path[:i]
-		}
-	}
-	return ""
+	return os.make_directory_all(path) == nil
 }
 
 // Join paths

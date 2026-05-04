@@ -58,7 +58,7 @@ query_list :: proc(config: ^Config) -> int {
 
 // Find package owning a file (xbps-query -o)
 query_ownedby :: proc(file: string, config: ^Config) -> int {
-	cmd := make([dynamic]string, context.temp_allocator)
+	cmd: [dynamic; 8]string
 	append(&cmd, "xbps-query", "-o", file)
 	if len(config.rootdir) > 0 {
 		append(&cmd, "-r", config.rootdir)
@@ -68,7 +68,7 @@ query_ownedby :: proc(file: string, config: ^Config) -> int {
 
 // Show package files (xbps-query -f)
 query_files :: proc(pkg: string, config: ^Config) -> int {
-	cmd := make([dynamic]string, context.temp_allocator)
+	cmd: [dynamic; 8]string
 	append(&cmd, "xbps-query", "-f", pkg)
 	if len(config.rootdir) > 0 {
 		append(&cmd, "-r", config.rootdir)
@@ -78,7 +78,7 @@ query_files :: proc(pkg: string, config: ^Config) -> int {
 
 // Show package dependencies (xbps-query -x)
 query_deps :: proc(pkg: string, config: ^Config) -> int {
-	cmd := make([dynamic]string, context.temp_allocator)
+	cmd: [dynamic; 8]string
 	append(&cmd, "xbps-query", "-x", pkg)
 	if config.recursive {
 		append(&cmd, "--fulldeptree")
@@ -167,7 +167,7 @@ query_info :: proc(args: []string, config: ^Config) -> int {
 			fmt.println()
 		} else if !config.vup_only {
 			// Check official repos
-			cmd := make([dynamic]string, context.temp_allocator)
+			cmd: [dynamic; 8]string
 			append(&cmd, "xbps-query", "-R", pkg_name)
 			if len(config.rootdir) > 0 {
 				append(&cmd, "-r", config.rootdir)

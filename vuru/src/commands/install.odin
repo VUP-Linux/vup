@@ -41,90 +41,81 @@ install_run :: proc(args: []string, config: ^Config) -> int {
 		return 1
 	}
 
-	exit_code := 0
-
-	for pkg_name in args {
-		// Resolve dependencies
-		res, ok := resolve.resolve_deps(pkg_name, &idx, config.force_build)
-		if !ok {
-			// Print detailed errors if available
-			if len(res.errors) > 0 {
-				for err in res.errors {
-					errors.print_error(err)
-				}
-			} else {
-				errors.log_error("Failed to resolve dependencies for %s", pkg_name)
+	// Resolve dependencies for all packages at once
+	res, res_ok := resolve.resolve_deps(args, &idx, config.force_build)
+	if !res_ok {
+		if len(res.errors) > 0 {
+			for err in res.errors {
+				errors.print_error(err)
 			}
-			exit_code = 1
-			continue
+		} else {
+			errors.log_error("Failed to resolve dependencies")
 		}
+		return 1
+	}
 
-		// Check for missing packages
-		if len(res.missing) > 0 {
-			// Use detailed errors if available
-			if len(res.errors) > 0 {
-				for err in res.errors {
-					errors.print_error(err)
-				}
-			} else {
-				errors.log_error(
-					"Cannot resolve: %s",
-					strings.join(res.missing[:], ", ", context.temp_allocator),
-				)
+	// Check for missing packages
+	if len(res.missing) > 0 {
+		if len(res.errors) > 0 {
+			for err in res.errors {
+				errors.print_error(err)
 			}
-			exit_code = 1
-			continue
+		} else {
+			errors.log_error(
+				"Cannot resolve: %s",
+				strings.join(res.missing[:], ", ", context.temp_allocator),
+			)
 		}
+		return 1
+	}
 
-		// Dry run - just show what would happen
-		if config.dry_run {
-			resolve.resolution_print(&res)
-			continue
-		}
+	// Dry run - just show what would happen
+	if config.dry_run {
+		resolve.resolution_print(&res)
+		return 0
+	}
 
-		// Create transaction
-		tx := transaction.transaction_from_resolution(&res)
+	// Create transaction
+	tx := transaction.transaction_from_resolution(&res)
 
-		transaction.transaction_print(&tx)
+	transaction.transaction_print(&tx)
 
-		// Confirm unless -y
-		if !config.yes && !transaction.transaction_confirm(&tx) {
-			errors.log_info("Installation cancelled")
-			continue
-		}
+	// Confirm unless -y
+	if !config.yes && !transaction.transaction_confirm(&tx) {
+		errors.log_info("Installation cancelled")
+		return 0
+	}
 
-		// Get build config if needed
-		build_cfg: builder.Build_Config
-		has_build := false
-		for item in tx.items {
-			if item.op == .Build_Install {
-				has_build = true
-				break
-			}
-		}
-
-		if has_build {
-			cfg_result, cfg_ok := builder.default_build_config()
-			if !cfg_ok {
-				errors.log_error("VUP repository not found. Run 'vuru clone' first.")
-				exit_code = 1
-				continue
-			}
-			build_cfg = cfg_result
-		}
-
-		// Execute
-		if !transaction.transaction_execute(&tx, &build_cfg, config.yes) {
-			exit_code = 1
+	// Get build config if needed
+	build_cfg: builder.Build_Config
+	has_build := false
+	for item in tx.items {
+		if item.op == .Build_Install {
+			has_build = true
+			break
 		}
 	}
 
-	return exit_code
+	if has_build {
+		cfg_result, cfg_ok := builder.default_build_config()
+		if !cfg_ok {
+			errors.log_error("VUP repository not found. Run 'vuru clone' first.")
+			return 1
+		}
+		build_cfg = cfg_result
+	}
+
+	// Execute
+	if !transaction.transaction_execute(&tx, &build_cfg, config.yes) {
+		return 1
+	}
+
+	return 0
 }
 
 // System upgrade (xbps-install -u)
 install_update :: proc(config: ^Config) -> int {
-	cmd := make([dynamic]string, context.temp_allocator)
+	cmd: [dynamic; 16]string
 	append(&cmd, "sudo", "xbps-install", "-u")
 
 	if config.dry_run {
