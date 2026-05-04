@@ -108,63 +108,104 @@ transaction_execute :: proc(t: ^Transaction, cfg: ^builder.Build_Config, yes: bo
 		return true
 	}
 
+	// Group packages by operation type for batch execution
+	VUP_Group :: struct {
+		repo_url: string,
+		pkgs:     [dynamic]string,
+	}
+
+	official_pkgs := make([dynamic]string, context.temp_allocator)
+	vup_groups := make([dynamic]VUP_Group, context.temp_allocator)
+	remove_pkgs := make([dynamic]string, context.temp_allocator)
+	builds := make([dynamic]^Transaction_Item, context.temp_allocator)
+
 	for &item in t.items {
 		switch item.op {
 		case .Install_Official:
-			if !execute_install_official(&item, yes) {
-				return false
-			}
+			append(&official_pkgs, item.name)
 
 		case .Install_VUP:
-			if !execute_install_vup(&item, yes) {
-				return false
+			found := false
+			for &group in vup_groups {
+				if group.repo_url == item.repo_url {
+					append(&group.pkgs, item.name)
+					found = true
+					break
+				}
 			}
-
-		case .Build_Install:
-			if !execute_build_install(&item, cfg, yes) {
-				return false
+			if !found {
+				append(&vup_groups, VUP_Group{
+					repo_url = item.repo_url,
+					pkgs     = make([dynamic]string, context.temp_allocator),
+				})
+				append(&vup_groups[len(vup_groups) - 1].pkgs, item.name)
 			}
 
 		case .Remove:
-			if !execute_remove(&item, yes) {
-				return false
-			}
+			append(&remove_pkgs, item.name)
+
+		case .Build_Install:
+			append(&builds, &item)
 
 		case .Upgrade:
-			// Handled by install with newer version
 		}
 	}
 
-	return true
-}
+	// Execute official installs in one batch
+	if len(official_pkgs) > 0 {
+		errors.log_info("Installing %d package(s) from official repos...", len(official_pkgs))
 
-// Execute handlers for each operation type
-@(private)
-execute_install_official :: proc(item: ^Transaction_Item, yes: bool) -> bool {
-	errors.log_info("Installing %s from official repos...", item.name)
-	
-	args := make([dynamic]string, context.temp_allocator)
-	append(&args, "sudo", "xbps-install", "-S")
-	if yes {
-		append(&args, "-y")
-	}
-	append(&args, item.name)
+		args: [dynamic; 64]string
+		append(&args, "sudo", "xbps-install", "-S")
+		if yes {
+			append(&args, "-y")
+		}
+		for pkg in official_pkgs {
+			append(&args, pkg)
+		}
 
-	if utils.run_command(args[:]) != 0 {
-		errors.log_error("Failed to install %s", item.name)
-		return false
+		if utils.run_command(args[:]) != 0 {
+			errors.log_error("Failed to install official packages")
+			return false
+		}
 	}
-	return true
-}
 
-@(private)
-execute_install_vup :: proc(item: ^Transaction_Item, yes: bool) -> bool {
-	errors.log_info("Installing %s from VUP...", item.name)
-	
-	if xbps.install_from_repo(item.repo_url, item.name, yes, utils.run_command) != 0 {
-		errors.log_error("Failed to install %s", item.name)
-		return false
+	// Execute VUP installs grouped by repo
+	for group in vup_groups {
+		errors.log_info("Installing %d package(s) from VUP...", len(group.pkgs))
+
+		if xbps.install_packages_from_repo(group.repo_url, group.pkgs[:], yes, utils.run_command) != 0 {
+			errors.log_error("Failed to install VUP packages")
+			return false
+		}
 	}
+
+	// Execute removes in one batch
+	if len(remove_pkgs) > 0 {
+		errors.log_info("Removing %d package(s)...", len(remove_pkgs))
+
+		args: [dynamic; 64]string
+		append(&args, "sudo", "xbps-remove", "-R")
+		if yes {
+			append(&args, "-y")
+		}
+		for pkg in remove_pkgs {
+			append(&args, pkg)
+		}
+
+		if utils.run_command(args[:]) != 0 {
+			errors.log_error("Failed to remove packages")
+			return false
+		}
+	}
+
+	// Execute builds individually
+	for item in builds {
+		if !execute_build_install(item, cfg, yes) {
+			return false
+		}
+	}
+
 	return true
 }
 
@@ -179,17 +220,6 @@ execute_build_install :: proc(item: ^Transaction_Item, cfg: ^builder.Build_Confi
 	
 	if !builder.install_local_package(cfg, item.name, yes) {
 		errors.log_error("Failed to install built package %s", item.name)
-		return false
-	}
-	return true
-}
-
-@(private)
-execute_remove :: proc(item: ^Transaction_Item, yes: bool) -> bool {
-	errors.log_info("Removing %s...", item.name)
-	
-	if xbps.remove_package(item.name, yes, utils.run_command) != 0 {
-		errors.log_error("Failed to remove %s", item.name)
 		return false
 	}
 	return true

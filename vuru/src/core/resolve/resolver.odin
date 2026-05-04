@@ -139,9 +139,9 @@ resolve_package :: proc(
 	return {}, false
 }
 
-// Resolve dependencies for a target package
+// Resolve dependencies for one or more target packages
 resolve_deps :: proc(
-	target: string,
+	targets: []string,
 	idx: ^index.Index,
 	include_makedeps: bool,
 	allocator := context.allocator,
@@ -149,7 +149,7 @@ resolve_deps :: proc(
 	Resolution,
 	bool,
 ) {
-	res := resolution_make(target, allocator)
+	res := resolution_make(strings.join(targets, " ", allocator), allocator)
 
 	arch, arch_ok := config.get_arch()
 	if !arch_ok {
@@ -166,8 +166,10 @@ resolve_deps :: proc(
 	queue := make([dynamic]Queue_Item, allocator)
 
 
-	// Add target to queue
-	append(&queue, Queue_Item{name = strings.clone(target, allocator), depth = 0})
+	// Add all targets to queue
+	for target in targets {
+		append(&queue, Queue_Item{name = strings.clone(target, allocator), depth = 0})
+	}
 
 	for len(queue) > 0 {
 		// Pop from front
@@ -298,7 +300,7 @@ resolution_print :: proc(r: ^Resolution) {
 
 	// If target is satisfied and nothing to install/build, just say package is installed
 	if target_satisfied && len(r.to_install) == 0 && len(r.to_build) == 0 {
-		fmt.printf("Package already installed: %s\n", r.target)
+		fmt.printf("Already installed: %s\n", r.target)
 		return
 	}
 

@@ -55,11 +55,6 @@ get_installed_version :: proc(pkg_name: string, allocator := context.allocator) 
 	return xbps.get_installed_version(pkg_name, utils.run_command_output, allocator)
 }
 
-// Run xbps-install for upgrade
-run_xbps_upgrade :: proc(repo_url: string, pkg_name: string, yes: bool) -> int {
-	return xbps.upgrade_from_repo(repo_url, pkg_name, yes, utils.run_command)
-}
-
 // Parse installed package line from xbps-query -l
 parse_installed_pkg :: proc(line: string) -> (name: string, version: string, ok: bool) {
 	parts := strings.fields(line, context.temp_allocator)
@@ -214,6 +209,7 @@ xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
 	fmt.println()
 
 	// Phase 2: Fetch templates (unless --yes)
+	confirmed := yes
 	if !yes {
 		errors.log_info("Fetching templates for review...")
 
@@ -234,26 +230,57 @@ xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
 			errors.log_info("Upgrade cancelled by user")
 			return 0
 		}
+		confirmed = true
 	}
 
 	// Phase 4: Perform upgrades
 	upgraded := 0
 	err_count := 0
 
-	for u in upgrades {
-		errors.log_info("Upgrading %s...", u.name)
+	// Group upgrades by repo URL for batch execution
+	Upgrade_Group :: struct {
+		repo_url: string,
+		upgrades: [dynamic]^Upgrade_Info,
+	}
+	groups := make([dynamic]Upgrade_Group, context.temp_allocator)
 
-		if run_xbps_upgrade(u.repo_url, u.name, yes) != 0 {
-			errors.log_error("Failed to upgrade %s", u.name)
+	for &u in upgrades {
+		found := false
+		for &group in groups {
+			if group.repo_url == u.repo_url {
+				append(&group.upgrades, &u)
+				found = true
+				break
+			}
+		}
+		if !found {
+			append(&groups, Upgrade_Group{
+				repo_url = u.repo_url,
+				upgrades = make([dynamic]^Upgrade_Info, context.temp_allocator),
+			})
+			append(&groups[len(groups) - 1].upgrades, &u)
+		}
+	}
+
+	for group in groups {
+		pkg_names := make([dynamic]string, context.temp_allocator)
+		for u in group.upgrades {
+			append(&pkg_names, u.name)
+		}
+
+		errors.log_info("Upgrading %d package(s) from VUP...", len(pkg_names))
+
+		if xbps.upgrade_packages_from_repo(group.repo_url, pkg_names[:], confirmed, utils.run_command) != 0 {
+			errors.log_error("Failed to upgrade %d package(s)", len(pkg_names))
 			err_count += 1
 		} else {
-			// Verify upgrade happened
-			new_ver, ver_ok := get_installed_version(u.name, context.temp_allocator)
-			if ver_ok && new_ver != u.installed_ver {
-				upgraded += 1
-				// Update template cache
-				if len(u.new_template) > 0 {
-					template.cache_save_template(u.name, u.new_template)
+			for u in group.upgrades {
+				new_ver, ver_ok := get_installed_version(u.name, context.temp_allocator)
+				if ver_ok && new_ver != u.installed_ver {
+					upgraded += 1
+					if len(u.new_template) > 0 {
+						template.cache_save_template(u.name, u.new_template)
+					}
 				}
 			}
 		}

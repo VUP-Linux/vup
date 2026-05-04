@@ -8,7 +8,7 @@ import "core:strings"
 import commands "commands"
 import errors "core/errors"
 
-VERSION :: "0.5.5"
+VERSION :: "0.6.0"
 INDEX_URL :: "https://vup-linux.github.io/vup/index.json"
 
 // Arena size for command execution (4MB should be plenty)

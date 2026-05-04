@@ -1,8 +1,6 @@
 package errors
 
 import "core:fmt"
-import "core:io"
-import "core:os"
 
 // ANSI color codes (centralized here for all of vuru)
 COLOR_RESET :: "\033[0m"
