@@ -1,9 +1,8 @@
-name: PR Check
+name: PR Build
 
 on:
-  pull_request:
-    paths:
-      - 'vup/srcpkgs/**/*'
+  pull_request_target:
+    types: [labeled]
 
 env:
   XBPS_ALLOW_RESTRICTED: yes
@@ -15,14 +14,16 @@ permissions:
 
 jobs:
   check-changes:
+    if: github.event.label.name == 'ok-to-build'
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       should_run: ${{ steps.set-matrix.outputs.should_run }}
     steps:
-      - name: Checkout
+      - name: Checkout (PR code for diff)
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
       - name: Record PR Number
@@ -40,70 +41,7 @@ jobs:
         id: set-matrix
         run: |
           git config --global --add safe.directory "$PWD"
-          # Fetch main to ensure we have the reference for diff
-          git fetch origin main
-
-          # Actual Script
-          python3 -c '
-          import os, subprocess, json, sys
-
-          def main():
-              # We need to list all categories first
-              # Assuming checkout at vup/
-              base_path = "vup/vup/srcpkgs"
-              if not os.path.exists(base_path):
-                  # Fallback to root (if paths differ)
-                  base_path = "vup/srcpkgs"
-              
-              if not os.path.exists(base_path):
-                   print(f"Could not find srcpkgs at {base_path}")
-                   # Return empty
-                   with open(os.environ["GITHUB_OUTPUT"], "a") as gh:
-                       gh.write("should_run=false\n")
-                       gh.write("matrix={\"category\":[]}\n")
-                   return
-
-              all_cats = [d for d in os.listdir(base_path) if os.path.isdir(os.path.join(base_path, d))]
-              
-              cmd = ["git", "diff", "--name-only", "origin/main...HEAD"]
-              try:
-                  changes = subprocess.check_output(cmd).decode().splitlines()
-              except:
-                  changes = []
-              
-              target_cats = set()
-              for f in changes:
-                  # Path: vup/srcpkgs/<cat>/<pkg>...
-                  # Since we checked out to "vup", git diff runs inside that repo?
-                  # If file path matches srcpkgs/<cat>
-                  parts = f.split("/")
-                  # Expected: vup/srcpkgs/category/pkg (if repo has vup/srcpkgs)
-                  # In this repo, struct is vup/srcpkgs.
-                  
-                  # Robust detection
-                  if "srcpkgs/" in f:
-                      # find index
-                      idx = parts.index("srcpkgs")
-                      if idx + 1 < len(parts):
-                          cat = parts[idx+1]
-                          if cat in all_cats:
-                              target_cats.add(cat)
-              
-              target_list = sorted(list(target_cats))
-              
-              if not target_list:
-                  print("No relevant changes.")
-                  with open(os.environ["GITHUB_OUTPUT"], "a") as gh:
-                       gh.write("should_run=false\n")
-                       gh.write("matrix={\"category\":[]}\n")
-              else:
-                  print(f"Building categories: {target_list}")
-                  matrix_json = json.dumps({"category": target_list})
-                  with open(os.environ["GITHUB_OUTPUT"], "a") as gh:
-                       gh.write("should_run=true\n")
-                       gh.write(f"matrix={matrix_json}\n")
-          main()
-          '
+          python3 vup/scripts/check_changes.py
 
   verify-build:
     needs: check-changes
@@ -118,15 +56,16 @@ jobs:
     strategy:
       matrix: ${{ fromJson(needs.check-changes.outputs.matrix) }}
       fail-fast: false
-    
+
     concurrency:
-      group: pr-vup-${{ matrix.category }}-${{ github.head_ref }}
+      group: pr-vup-${{ matrix.category }}-${{ github.event.pull_request.head.ref }}
       cancel-in-progress: true
-    
+
     steps:
       - name: Checkout VUP
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           path: vup
           fetch-depth: 0
 
@@ -137,9 +76,8 @@ jobs:
           path: void-packages
 
       - name: Cache xbps-src bootstrap
-
         id: cache-bootstrap
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             void-packages/masterdir-*
@@ -149,19 +87,12 @@ jobs:
             xbps-bootstrap-${{ runner.os }}-
 
       - name: Setup xbps-src
-
         run: |
           cd void-packages
-          # Override xbps-src with our custom version
           cp ../vup/vup/xbps-src .
-          
-          # Copy VUP's xbps-triggers to where xbps-src expects them
           mkdir -p srcpkgs/core/xbps-triggers
           cp -r ../vup/vup/srcpkgs/core/xbps-triggers/* srcpkgs/core/xbps-triggers/
-          
           chmod +x xbps-src
-          
-          # Authorize restricted packages
           echo "XBPS_ALLOW_RESTRICTED=yes" >> etc/conf
 
       - name: Binary Bootstrap
@@ -171,76 +102,69 @@ jobs:
           ./xbps-src binary-bootstrap
 
       - name: Build Modified Packages
-
         run: |
           cd void-packages
           cat_path="../vup/vup/srcpkgs/${{ matrix.category }}"
-          
-          # Get list of modified template dirs
-          cd ../vup
-          MODIFIED_PKGS=$(git diff --name-only origin/main...HEAD | grep "srcpkgs/${{ matrix.category }}" | cut -d/ -f4 | sort -u)
-          cd ../void-packages
-          
+
+          if [ "${{ matrix.packages }}" = "ALL" ]; then
+            PKGS=$(ls "$cat_path" 2>/dev/null || echo "")
+          else
+            PKGS="${{ matrix.packages }}"
+          fi
+
           mkdir -p ../reports
           REPORT_FILE="../reports/report-${{ matrix.category }}.json"
-          
-          # Initialize report file
+
           echo "[]" > "$REPORT_FILE"
-          
-          for pkgname in $MODIFIED_PKGS; do
-             pkgpath="$cat_path/$pkgname"
-             if [ -d "$pkgpath" ]; then
-                 echo "Using template from $pkgpath"
-                 
-                 # Prepare reporting entry
-                 status="pending"
-                 
-                 rm -rf "srcpkgs/$pkgname"
-                 cp -r "$pkgpath" "srcpkgs/"
-                 
-                 echo "Building $pkgname..."
-                if vuru src pkg "$pkgname" > build.log 2>&1; then
-                     status="success"
-                 else
-                     echo "Build FAILED: $pkgname"
-                     status="failure"
-                     cat build.log
-                 fi
-                 
-                 # Update JSON report
-                 # We let python read the log file directly to avoid shell encoding issues
-                 python3 -c "
-          import json, sys, os
-          report_file = sys.argv[1]
-          pkg = sys.argv[2]
-          status = sys.argv[3]
-          log_file = sys.argv[4]
 
-          log_content = ''
-          if os.path.exists(log_file):
-              try:
-                  with open(log_file, 'r', errors='replace') as f:
-                      lines = f.readlines()
-                      log_content = ''.join(lines[-50:]) # Last 50 lines
-              except Exception as e:
-                  log_content = f'Error reading log: {e}'
-          
-          if status == 'success':
-              log_content = '' # Don't store logs for success to save space
+          for pkgname in $PKGS; do
+            pkgpath="$cat_path/$pkgname"
+            [ ! -d "$pkgpath" ] && continue
 
-          with open(report_file, 'r+') as f:
-              data = json.load(f)
-              data.append({'package': pkg, 'status': status, 'log': log_content})
-              f.seek(0)
-              json.dump(data, f)
-              f.truncate()
-          " "$REPORT_FILE" "$pkgname" "$status" "build.log"
-                 
-                 rm -rf "srcpkgs/$pkgname"
-             fi
+            echo "Building $pkgname..."
+            rm -rf "srcpkgs/$pkgname"
+            cp -r "$pkgpath" "srcpkgs/"
+
+            status="pending"
+            if vuru src pkg "$pkgname" > build.log 2>&1; then
+              status="success"
+            else
+              echo "Build FAILED: $pkgname"
+              status="failure"
+              cat build.log
+            fi
+
+            python3 -c "
+import json, sys, os
+report_file = sys.argv[1]
+pkg = sys.argv[2]
+status = sys.argv[3]
+log_file = sys.argv[4]
+
+log_content = ''
+if os.path.exists(log_file):
+    try:
+        with open(log_file, 'r', errors='replace') as f:
+            lines = f.readlines()
+            log_content = ''.join(lines[-50:])
+    except Exception as e:
+        log_content = f'Error reading log: {e}'
+
+if status == 'success':
+    log_content = ''
+
+with open(report_file, 'r+') as f:
+    data = json.load(f)
+    data.append({'package': pkg, 'status': status, 'log': log_content})
+    f.seek(0)
+    json.dump(data, f)
+    f.truncate()
+" "$REPORT_FILE" "$pkgname" "$status" "build.log"
+
+            rm -rf "srcpkgs/$pkgname"
           done
 
-      - name: Upload Build Artifacts
+      - name: Upload Build Reports
         if: always()
         uses: actions/upload-artifact@v4
         with:

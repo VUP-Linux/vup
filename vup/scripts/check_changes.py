@@ -15,21 +15,32 @@ def get_changes():
     event = os.environ.get("GITHUB_EVENT_NAME")
     if event == "workflow_dispatch":
         return "ALL"
-    
+
+    if event == "pull_request" or event == "pull_request_target":
+        # PR: diff against the base branch (origin/main)
+        try:
+            subprocess.check_call(["git", "fetch", "origin", "main"])
+            output = subprocess.check_output(
+                ["git", "diff", "--name-only", "origin/main...HEAD"]
+            ).decode()
+            return output.splitlines()
+        except subprocess.CalledProcessError:
+            return "ALL"
+
+    # Push event: diff against BEFORE_SHA
     before = os.environ.get("BEFORE_SHA")
     sha = os.environ.get("GITHUB_SHA")
-    
+
     if not before or before == "0000000000000000000000000000000000000000":
-        # forced push or new branch, diff against HEAD~1
         cmd = ["git", "diff", "--name-only", "HEAD~1", "HEAD"]
     else:
         cmd = ["git", "diff", "--name-only", before, sha]
-        
+
     try:
         output = subprocess.check_output(cmd).decode()
     except subprocess.CalledProcessError:
         return "ALL"
-        
+
     return output.splitlines()
 
 def get_category_archs(category_path, packages=None):
@@ -185,6 +196,13 @@ def main():
             for arch in archs:
                 includes.append({"category": cat, "arch": arch, "packages": pkg_str})
         
+        # For PR checks, only build x86_64 to keep CI fast.
+        # Full multi-arch builds happen on merge (push event).
+        is_pr = os.environ.get("GITHUB_EVENT_NAME") in ("pull_request", "pull_request_target")
+        if is_pr:
+            includes = [i for i in includes if i["arch"] == "x86_64"]
+            print(f"PR mode: filtered to x86_64 only ({len(includes)} jobs)")
+
         print(f"Total build jobs: {len(includes)}")
         matrix_json = json.dumps({"include": includes})
         if output_file:

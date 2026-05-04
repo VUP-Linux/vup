@@ -68,7 +68,7 @@ jobs:
 
       - name: Cache xbps-src bootstrap & ccache
         id: cache-xbps
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             void-packages/masterdir-*

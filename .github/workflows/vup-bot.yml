@@ -2,7 +2,7 @@ name: VUP Bot
 
 on:
   workflow_run:
-    workflows: ["PR Check"]
+    workflows: ["PR Build"]
     types:
       - completed
 
@@ -22,6 +22,9 @@ jobs:
         with:
           app-id: ${{ secrets.VUP_BOT_APP_ID }}
           private-key: ${{ secrets.VUP_BOT_PRIVATE_KEY }}
+
+      - name: Checkout VUP (for scripts)
+        uses: actions/checkout@v4
 
       - name: Download Build Reports
         uses: actions/download-artifact@v4
@@ -55,77 +58,14 @@ jobs:
       - name: Analyze Results
         id: analyze
         run: |
-          # Consolidate reports
-          cat <<'EOF' > analyze.py
-          import os, json, glob
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
+          python3 vup/scripts/analyze_pr_report.py \
+            --reports-dir reports \
+            --run-url "$RUN_URL" \
+            --output comment.md
 
-          reports = glob.glob("reports/*.json")
-          summary = []
-          failures = 0
-          
-          print("Scanning reports...")
-          
-          for r in reports:
-              try:
-                  with open(r, "r") as f:
-                      data = json.load(f)
-                      summary.extend(data)
-                      for res in data:
-                          if res["status"] == "failure":
-                              failures += 1
-              except Exception as e:
-                  print(f"Error reading {r}: {e}")
-
-          # Generate Markdown Comment
-          md = ""
-          run_url = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
-          
-          if failures == 0:
-              md += "### ✅ VUP Build Passed\n\n"
-              md += f"Built {len(summary)} packages successfully. [View Logs]({run_url})\n"
-          else:
-              md += f"### ❌ {failures} VUP Builds Failed\n\n"
-              md += f"[View Full Logs]({run_url})\n\n"
-          
-
-          if len(summary) > 0:
-              md += "| Package | Status |\n"
-              md += "|---------|--------|\n"
-              for res in summary:
-                  icon = "✅" if res["status"] == "success" else "❌"
-                  pkg_name = res.get("package", "unknown")
-                  status = res.get("status", "unknown")
-                  md += f"| {pkg_name} | {icon} {status} |\n"
-              
-              # Add failure logs below
-              failures_list = [r for r in summary if r["status"] == "failure"]
-              if failures_list:
-                  md += "\n<br>\n\n### 🔍 Failure Details\n"
-                  for res in failures_list:
-                       pkg = res.get("package")
-                       log = res.get("log", "No log available")
-                       # Escape HTML
-                       log = log.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                       md += f"\n<details><summary><strong>{pkg}</strong> Build Log</summary>\n\n<pre>{log}</pre>\n</details>\n"
-          else:
-              md += "No packages were modified or built in this run."
-
-          with open("comment.md", "w") as f:
-              f.write(md)
-          
-          # Set outcome for step
-          if failures > 0:
-              with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
-                  print("result=failure", file=fh)
-          else:
-              with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
-                  print("result=success", file=fh)
-          EOF
-          
-          python3 analyze.py
-          
       - name: Comment on PR
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
@@ -140,16 +80,28 @@ jobs:
               body: commentBody
             });
 
-            if (commentBody.includes("✅ VUP Build Passed")) {
-               console.log("Adding build-passed label");
-               try {
-                   await github.rest.issues.addLabels({
-                     owner: context.repo.owner,
-                     repo: context.repo.repo,
-                     issue_number: prNumber,
-                     labels: ['build-passed']
-                   });
-               } catch (e) {
-                   console.log("Could not add label (maybe it exists or permissions): " + e);
-               }
+            if (commentBody.includes('✅ VUP Build Passed') || commentBody.includes('VUP Build Passed')) {
+              console.log("Adding build-passed label");
+              try {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  labels: ['build-passed']
+                });
+              } catch (e) {
+                console.log("Could not add label: " + e);
+              }
+            }
+
+            // Remove the ok-to-build label so it can be re-added to re-trigger
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                name: 'ok-to-build'
+              });
+            } catch (e) {
+              console.log("ok-to-build label not present (already removed or never added): " + e);
             }

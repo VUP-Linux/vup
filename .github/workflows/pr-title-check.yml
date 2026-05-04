@@ -1,0 +1,61 @@
+name: PR Title Check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    paths:
+      - 'vup/srcpkgs/**/*'
+
+permissions:
+  pull-requests: write
+
+jobs:
+  check-title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR Title
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const title = context.payload.pull_request.title;
+            const prNumber = context.payload.pull_request.number;
+
+            // Allowed formats:
+            //   feat: add <pkgname> [<version>]
+            //   <pkgname>: update to <version>
+            //   fix: <description>
+            //   chore: <description>
+            //   docs: <description>
+            //   ci: <description>
+
+            const patterns = [
+              /^(feat|add):\s+add\s+\S+/i,          // New package
+              /^\S+:\s+update\s+to\s+\S+/i,         // Update package
+              /^(fix|chore|docs|ci|refactor|test):\s+/i,  // Standard conventional commits
+            ];
+
+            const valid = patterns.some(p => p.test(title));
+
+            if (!valid) {
+              const msg = [
+                `:warning: PR title does not follow conventions.`,
+                '',
+                '**New package:** `feat: add <pkgname>` or `feat: add <pkgname> <version>`',
+                '**Update:** `<pkgname>: update to <version>`',
+                '**Other:** `fix:`, `chore:`, `docs:`, `ci:`, `refactor:`, `test:`',
+                '',
+                `Current title: \`${title}\``,
+              ].join('\n');
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: msg
+              });
+
+              core.setFailed('PR title does not follow conventions. See comment for format.');
+            } else {
+              console.log(`PR title "${title}" is valid.`);
+            }

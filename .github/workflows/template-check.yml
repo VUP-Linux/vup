@@ -1,0 +1,153 @@
+name: Template Check
+
+on:
+  pull_request:
+    paths:
+      - 'vup/srcpkgs/**/*'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Templates
+        id: validate
+        run: |
+          git fetch origin main
+          CHANGED=$(git diff --name-only origin/main...HEAD -- 'vup/srcpkgs/*/*/template')
+
+          if [ -z "$CHANGED" ]; then
+            echo "No template changes detected."
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Validating changed templates:"
+          echo "$CHANGED"
+
+          # Capture both stdout and exit code
+          OUTPUT=$(python3 vup/scripts/validate_template.py $CHANGED 2>&1) && RC=$? || RC=$?
+          echo "$OUTPUT"
+
+          if [ $RC -ne 0 ]; then
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+            # Save output for comment
+            echo "$OUTPUT" > /tmp/validation-errors.txt
+            exit 0  # Don't fail the step, we want to comment
+          else
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+            echo "$OUTPUT" > /tmp/validation-output.txt
+          fi
+
+      - name: Comment on Failure
+        if: steps.validate.outputs.passed == 'false'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const errors = fs.readFileSync('/tmp/validation-errors.txt', 'utf8');
+            const prNumber = context.payload.pull_request.number;
+
+            const body = [
+              '### :x: Template Validation Failed',
+              '',
+              'Your template has issues that must be fixed before this PR can be built:',
+              '',
+              '```',
+              errors.trim(),
+              '```',
+              '',
+              'Fix the errors above, push your changes, and the check will re-run automatically.',
+              'Once templates pass validation, a maintainer will add the `ok-to-build` label to trigger the build.',
+            ].join('\n');
+
+            // Delete previous bot comments to avoid noise
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            for (const comment of comments) {
+              if (comment.user.type === 'Bot' && comment.body.includes('Template Validation Failed')) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment.id,
+                });
+              }
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: body,
+            });
+
+            core.setFailed('Template validation failed.');
+
+      - name: Comment on Success
+        if: steps.validate.outputs.passed == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('/tmp/validation-output.txt', 'utf8');
+            const prNumber = context.payload.pull_request.number;
+
+            // Check if there are warnings
+            const hasWarnings = output.includes('WARNING:');
+
+            if (hasWarnings) {
+              const body = [
+                '### :warning: Template Validation Passed (with warnings)',
+                '',
+                '```',
+                output.trim(),
+                '```',
+              ].join('\n');
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: body,
+              });
+            }
+
+            // Add ok-to-test comment for first-time validations
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const hasBotComment = comments.some(c =>
+              c.user.type === 'Bot' && c.body.includes('ok-to-build')
+            );
+
+            if (!hasBotComment) {
+              const body = [
+                '### :white_check_mark: Template Validation Passed',
+                '',
+                'All required fields are present. A maintainer will review and add the `ok-to-build` label to trigger the build.',
+              ].join('\n');
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: body,
+              });
+            }
