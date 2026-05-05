@@ -11,6 +11,7 @@ license="MIT"
 homepage="https://bun.sh"
 nostrip=yes
 nopie=yes
+noshlibprovides=yes
 
 _baseurl="https://github.com/oven-sh/bun/releases/download/bun-v${version}"
 case "$XBPS_TARGET_MACHINE" in
