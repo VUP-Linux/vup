@@ -116,7 +116,7 @@ jobs:
           cp void-packages/build-logs/*.log logs-out/
 
       - name: Upload Binpkgs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: binpkgs-${{ matrix.category }}-${{ matrix.arch }}
           path: dist-out
@@ -124,7 +124,7 @@ jobs:
           retention-days: 1
 
       - name: Upload Build Logs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-logs-${{ matrix.category }}-${{ matrix.arch }}
           path: logs-out
