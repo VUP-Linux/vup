@@ -131,41 +131,45 @@ def main():
     if changes == "ALL":
         build_all = True
     else:
-        # Smoke mode: only CI workflow files changed -> build one canary per category
-        non_workflow_changes = [f for f in changes if not f.startswith(".github/workflows/")]
-        if changes and not non_workflow_changes:
-            smoke_only = True
-        else:
-            for f in non_workflow_changes:
-                # Check for global changes that legitimately need a full rebuild
-                if f.startswith("common/") or f.startswith("vup/common/"):
-                    build_all = True
-                    break
+        for f in changes:
+            if f.startswith(".github/workflows/") or f.startswith("vup/scripts/"):
+                smoke_only = True
 
-                # Check for category changes
-                # Expected path: vup/srcpkgs/<category>/<pkg>/...
-                if f.startswith("vup/srcpkgs/"):
-                    parts = f.split("/")
-                    if len(parts) > 2 and parts[2] in all_cats:
-                        cat = parts[2]
-                        target_cats.add(cat)
+            # Check for global changes that legitimately need a full rebuild
+            if f.startswith("common/") or f.startswith("vup/common/"):
+                build_all = True
+                break
 
-                        if cat not in cat_pkgs:
-                            cat_pkgs[cat] = set()
+            # Check for category changes
+            # Expected path: vup/srcpkgs/<category>/<pkg>/...
+            if f.startswith("vup/srcpkgs/"):
+                parts = f.split("/")
+                if len(parts) > 2 and parts[2] in all_cats:
+                    cat = parts[2]
+                    target_cats.add(cat)
 
-                        if len(parts) > 3:
-                            cat_pkgs[cat].add(parts[3])
+                    if cat not in cat_pkgs:
+                        cat_pkgs[cat] = set()
+
+                    if len(parts) > 3:
+                        cat_pkgs[cat].add(parts[3])
+
+    if build_all:
+        smoke_only = False
 
     if smoke_only:
         overrides = load_canary_overrides()
-        target_list = sorted(list(set(all_cats)))
-        for cat in target_list:
+        for cat in all_cats:
+            target_cats.add(cat)
             cat_path = os.path.join("vup/srcpkgs", cat)
             canary = overrides.get(cat) or pick_canary(cat_path)
             if canary:
-                cat_pkgs[cat] = {canary}
+                if cat not in cat_pkgs:
+                    cat_pkgs[cat] = set()
+                cat_pkgs[cat].add(canary)
                 print(f"[smoke] {cat}: canary={canary}")
-    elif build_all:
+
+    if build_all:
         target_list = sorted(list(set(all_cats)))
     else:
         target_list = sorted(list(target_cats))
