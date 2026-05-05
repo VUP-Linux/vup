@@ -21,7 +21,7 @@ jobs:
       should_run: ${{ steps.set-matrix.outputs.should_run }}
     steps:
       - name: Checkout (PR code for diff)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
@@ -63,14 +63,14 @@ jobs:
 
     steps:
       - name: Checkout VUP
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           path: vup
           fetch-depth: 0
 
       - name: Checkout void-packages (Build System)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: void-linux/void-packages
           path: void-packages
