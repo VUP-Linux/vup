@@ -14,7 +14,7 @@ permissions:
 jobs:
   report-status:
     runs-on: ubuntu-latest
-    if: ${{ contains(fromJson('["pull_request", "pull_request_target"]'), github.event.workflow_run.event) }}
+    if: ${{ contains(fromJson('["pull_request", "pull_request_target"]'), github.event.workflow_run.event) && github.event.workflow_run.conclusion != 'skipped' }}
     steps:
       - name: Generate App Token
         id: app-token
