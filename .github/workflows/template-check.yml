@@ -57,7 +57,9 @@ jobs:
             const errors = fs.readFileSync('/tmp/validation-errors.txt', 'utf8');
             const prNumber = context.payload.pull_request.number;
 
+            const marker = '<!-- template-check -->';
             const body = [
+              marker,
               '### :x: Template Validation Failed',
               '',
               'Your template has issues that must be fixed before this PR can be built:',
@@ -67,10 +69,8 @@ jobs:
               '```',
               '',
               'Fix the errors above, push your changes, and the check will re-run automatically.',
-              'Once templates pass validation, a maintainer will add the `ok-to-build` label to trigger the build.',
             ].join('\n');
 
-            // Delete previous bot comments to avoid noise
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -78,7 +78,7 @@ jobs:
             });
 
             for (const comment of comments) {
-              if (comment.user.type === 'Bot' && comment.body.includes('Template Validation Failed')) {
+              if (comment.user.type === 'Bot' && comment.body.includes(marker)) {
                 await github.rest.issues.deleteComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
@@ -105,49 +105,45 @@ jobs:
             const fs = require('fs');
             const output = fs.readFileSync('/tmp/validation-output.txt', 'utf8');
             const prNumber = context.payload.pull_request.number;
+            const marker = '<!-- template-check -->';
 
-            // Check if there are warnings
             const hasWarnings = output.includes('WARNING:');
 
-            if (hasWarnings) {
-              const body = [
-                '### :warning: Template Validation Passed (with warnings)',
-                '',
-                '```',
-                output.trim(),
-                '```',
-              ].join('\n');
+            const body = hasWarnings
+              ? [
+                  marker,
+                  '### :warning: Template Validation Passed (with warnings)',
+                  '',
+                  '```',
+                  output.trim(),
+                  '```',
+                ].join('\n')
+              : [
+                  marker,
+                  '### :white_check_mark: Template Validation Passed',
+                  '',
+                  'All required fields are present.',
+                ].join('\n');
 
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body: body,
-              });
-            }
-
-            // Add ok-to-test comment for first-time validations
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: prNumber,
             });
 
-            const hasBotComment = comments.some(c =>
-              c.user.type === 'Bot' && c.body.includes('ok-to-build')
-            );
-
-            if (!hasBotComment) {
-              const body = [
-                '### :white_check_mark: Template Validation Passed',
-                '',
-                'All required fields are present. A maintainer will review and add the `ok-to-build` label to trigger the build.',
-              ].join('\n');
-
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body: body,
-              });
+            for (const comment of comments) {
+              if (comment.user.type === 'Bot' && comment.body.includes(marker)) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment.id,
+                });
+              }
             }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: body,
+            });
