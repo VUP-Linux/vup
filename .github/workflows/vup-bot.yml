@@ -80,8 +80,15 @@ jobs:
               body: commentBody
             });
 
-            if (commentBody.includes('✅ VUP Build Passed') || commentBody.includes('VUP Build Passed')) {
-              console.log("Adding build-passed label");
+      - name: Manage Labels
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = parseInt('${{ steps.pr.outputs.number }}', 10);
+            const buildResult = '${{ steps.analyze.outputs.result }}';
+
+            if (buildResult === 'success') {
               try {
                 await github.rest.issues.addLabels({
                   owner: context.repo.owner,
@@ -90,11 +97,10 @@ jobs:
                   labels: ['build-passed']
                 });
               } catch (e) {
-                console.log("Could not add label: " + e);
+                core.warning(`Could not add build-passed label: ${e}`);
               }
             }
 
-            // Remove the ok-to-build label so it can be re-added to re-trigger
             try {
               await github.rest.issues.removeLabel({
                 owner: context.repo.owner,
@@ -103,5 +109,5 @@ jobs:
                 name: 'ok-to-build'
               });
             } catch (e) {
-              console.log("ok-to-build label not present (already removed or never added): " + e);
+              core.info('ok-to-build label not present (already removed or never added)');
             }
