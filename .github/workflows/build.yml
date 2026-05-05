@@ -48,7 +48,8 @@ jobs:
       image: ghcr.io/vup-linux/vup-builder:latest
       options: --privileged
     strategy:
-      matrix: ${{ fromJson(needs.check-changes.outputs.matrix) }}
+      matrix:
+        include: ${{ fromJson(needs.check-changes.outputs.matrix).include }}
       fail-fast: false
     concurrency:
       group: vup-build-${{ matrix.category }}-${{ matrix.arch }}
@@ -137,7 +138,8 @@ jobs:
     permissions:
       contents: write
     strategy:
-      matrix: ${{ fromJson(needs.check-changes.outputs.matrix) }}
+      matrix:
+        include: ${{ fromJson(needs.check-changes.outputs.matrix).include }}
       fail-fast: false
     concurrency:
       group: vup-release-${{ matrix.category }}-${{ matrix.arch }}
