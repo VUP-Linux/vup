@@ -11,6 +11,7 @@ license="MIT"
 homepage="https://deno.land"
 nostrip=yes
 nopie=yes
+noshlibprovides=yes
 
 _baseurl="https://github.com/denoland/deno/releases/download/v${version}"
 
