@@ -36,9 +36,27 @@ jobs:
             ];
 
             const valid = patterns.some(p => p.test(title));
+            const marker = '<!-- pr-title-check -->';
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            for (const comment of comments) {
+              if (comment.user.type === 'Bot' && comment.body.includes(marker)) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment.id,
+                });
+              }
+            }
 
             if (!valid) {
               const msg = [
+                marker,
                 `:warning: PR title does not follow conventions.`,
                 '',
                 '**New package:** `feat: add <pkgname>` or `feat: add <pkgname> <version>`',
