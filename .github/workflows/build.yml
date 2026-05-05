@@ -25,7 +25,7 @@ jobs:
       should_run: ${{ steps.set-matrix.outputs.should_run }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -56,13 +56,13 @@ jobs:
       cancel-in-progress: true
     steps:
       - name: Checkout VUP
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: vup
           fetch-depth: 0
 
       - name: Checkout void-packages
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: void-linux/void-packages
           path: void-packages
@@ -150,7 +150,7 @@ jobs:
         uses: docker/setup-qemu-action@v3
 
       - name: Checkout VUP
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: vup
 
@@ -241,7 +241,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download Reports
         uses: actions/download-artifact@v4
@@ -272,7 +272,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout VUP
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Generate Global Index
         run: |
