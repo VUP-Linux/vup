@@ -1,0 +1,43 @@
+# Template file for 'gittop'
+pkgname=gittop
+version=0.5.0
+revision=1
+archs="x86_64 x86_64-musl aarch64 aarch64-musl"
+create_wrksrc=yes
+short_desc="Lightweight desktop client for GitHub notifications"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="AGPL-3.0-only"
+homepage="https://github.com/AmarBego/GitTop"
+nostrip=yes
+noshlibprovides=yes
+
+_baseurl="https://github.com/AmarBego/GitTop/releases/download/v${version}"
+case "$XBPS_TARGET_MACHINE" in
+	x86_64)
+		distfiles="${_baseurl}/gittop-${version}-linux-gnu-x86_64.tar.gz"
+		checksum=cf635b3b4a194d54022081137988b170d2683f02507470fdc8f4ee386728d094
+		_arch_dir="gittop-${version}-linux-gnu-x86_64"
+		;;
+	x86_64-musl)
+		distfiles="${_baseurl}/gittop-${version}-linux-musl-x86_64.tar.gz"
+		checksum=546f4c4a04f4be68f4848a2b4dd316b17f56feabb749d46d2f89a8d1f5a94e87
+		_arch_dir="gittop-${version}-linux-musl-x86_64"
+		;;
+	aarch64)
+		distfiles="${_baseurl}/gittop-${version}-linux-gnu-aarch64.tar.gz"
+		checksum=e8bddf7cff766b8fe4b87811c18efcf40c3bea2fe0fd418f618ee6f067cc017f
+		_arch_dir="gittop-${version}-linux-gnu-aarch64"
+		;;
+	aarch64-musl)
+		distfiles="${_baseurl}/gittop-${version}-linux-musl-aarch64.tar.gz"
+		checksum=d5841fbb11ad7c63b52d13d69ffd994e5b0398d1e801b655c2ade842c6772234
+		_arch_dir="gittop-${version}-linux-musl-aarch64"
+		;;
+esac
+
+do_install() {
+	vbin ${_arch_dir}/gittop
+	vinstall ${_arch_dir}/gittop.desktop 644 usr/share/applications
+	vinstall ${_arch_dir}/gittop.png 644 usr/share/pixmaps
+	vlicense ${_arch_dir}/LICENSE.md
+}
