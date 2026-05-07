@@ -49,6 +49,31 @@ def has_vuru():
     return shutil.which("vuru") is not None
 
 
+def needs_alt_host(arch):
+    """
+    xbps-src can't build a cross-toolchain for a same-CPU different-libc target
+    (e.g. building x86_64-musl from an x86_64 glibc host fails with
+    'Can't build crosstoolchain to itself'). Those targets must be built as
+    a different *host* (xbps-src -A <host>) inside a libc-specific masterdir,
+    not as a cross-target via -a. Returns True when -A should be used.
+    """
+    if arch == NATIVE_ARCH:
+        return False
+    base, sep, _libc = arch.partition("-")
+    return bool(sep) and base == NATIVE_ARCH
+
+
+def ensure_alt_masterdir(arch):
+    """Bootstrap masterdir-<arch> if it doesn't exist yet."""
+    masterdir = f"masterdir-{arch}"
+    if os.path.isdir(masterdir) and os.path.exists(os.path.join(masterdir, ".xbps_chroot_init")):
+        return True
+    print(f"[bootstrap] Creating masterdir-{arch}...")
+    return subprocess.call(
+        ["./xbps-src", "-A", arch, "binary-bootstrap"]
+    ) == 0
+
+
 def main():
     category = os.environ.get("CATEGORY")
     if not category:
@@ -116,10 +141,27 @@ def main():
         shutil.copytree(pkg_src, pkg_dest)
 
         print(f"[{pkg}] Building for {arch}...")
-        
-        # Use vuru src if available - it handles VUP dependency resolution
-        # by downloading deps to hostdir/binpkgs before running xbps-src
-        if has_vuru():
+
+        if needs_alt_host(arch):
+            # Same-CPU different-libc: native build via -A <arch> in its own
+            # masterdir (e.g. masterdir-x86_64-musl), not cross-build via -a.
+            # vuru's wrapper doesn't accept -A, so we drive xbps-src directly.
+            # VUP dep resolution is skipped here — currently only matters for
+            # prebuilt-binary packages, which don't have VUP deps.
+            if not ensure_alt_masterdir(arch):
+                print(f"[{pkg}] FAILED to bootstrap masterdir-{arch}")
+                result_entry["status"] = "failure"
+                result_entry["end_time"] = time.time()
+                result_entry["duration"] = result_entry["end_time"] - result_entry["start_time"]
+                result_entry["error_log"] = f"Could not bootstrap masterdir-{arch}"
+                if os.path.exists(pkg_dest):
+                    shutil.rmtree(pkg_dest)
+                results.append(result_entry)
+                continue
+            build_cmd = ["./xbps-src", "-A", arch, "pkg", pkg]
+        elif has_vuru():
+            # Use vuru src if available - it handles VUP dependency resolution
+            # by downloading deps to hostdir/binpkgs before running xbps-src
             if arch == NATIVE_ARCH:
                 build_cmd = ["vuru", "src", "pkg", pkg]
             else:
@@ -130,7 +172,7 @@ def main():
                 build_cmd = ["./xbps-src", "pkg", pkg]
             else:
                 build_cmd = ["./xbps-src", "-a", arch, "pkg", pkg]
-        
+
         success = run_command(build_cmd, log_file=log_file)
         
         result_entry["end_time"] = time.time()
