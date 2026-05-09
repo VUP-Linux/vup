@@ -48,12 +48,13 @@ do_install() {
 	vcopy "${_app_dir}/*" opt/zed
 
 	# Desktop file - modify to use absolute paths and add StartupWMClass
-	cp "${_app_dir}/share/applications/zed.desktop" zed.desktop
-	vsed -i zed.desktop \
+	_desktop_file="dev.zed.Zed.desktop"
+	cp "${_app_dir}/share/applications/${_desktop_file}" "${_desktop_file}"
+	vsed -i "${_desktop_file}" \
 		-e "s#^Exec=zed#Exec=/usr/bin/zed#g" \
 		-e "s#^TryExec=zed#TryExec=/usr/bin/zed#g" \
 		-e "/^StartupNotify=true/a StartupWMClass=dev.zed.Zed"
-	vinstall zed.desktop 644 usr/share/applications
+	vinstall "${_desktop_file}" 644 usr/share/applications
 
 	# Icons
 	vcopy "${_app_dir}/share/icons" usr/share
