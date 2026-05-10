@@ -1,6 +1,6 @@
 # Template file for 'gittop'
 pkgname=gittop
-version=0.5.2
+version=0.5.3
 revision=1
 archs="x86_64 x86_64-musl aarch64 aarch64-musl"
 create_wrksrc=yes
@@ -15,22 +15,22 @@ _baseurl="https://github.com/AmarBego/GitTop/releases/download/v${version}"
 case "$XBPS_TARGET_MACHINE" in
 	x86_64)
 		distfiles="${_baseurl}/gittop-${version}-linux-gnu-x86_64.tar.gz"
-		checksum=79813785ca2d713e931614a8d605c06a5de0764a883c55efeb2bf5ca003e6401
+		checksum=ee4e9c89f9a48262f1e6b0f09ea74bb59d6288c831ecbdb944c4ea30aaa69cda
 		_arch_dir="gittop-${version}-linux-gnu-x86_64"
 		;;
 	x86_64-musl)
 		distfiles="${_baseurl}/gittop-${version}-linux-musl-x86_64.tar.gz"
-		checksum=46d83f9679c5371d76ad565cc3dee89766c1c746028693ca9fd1c0caf13fc1e9
+		checksum=2a618d5931e0f026c0c9bd1fd29bc434a46055a560d60f251657c7cf76565a1b
 		_arch_dir="gittop-${version}-linux-musl-x86_64"
 		;;
 	aarch64)
 		distfiles="${_baseurl}/gittop-${version}-linux-gnu-aarch64.tar.gz"
-		checksum=6188a099153a59dd8bf34363157df6a363c7d5b85aafa8f3c53f977979e30aed
+		checksum=c325126dd539b158f7b6f1f43752fb99b9d702b3e56e9b05d9c4dc56f5b4f1a2
 		_arch_dir="gittop-${version}-linux-gnu-aarch64"
 		;;
 	aarch64-musl)
 		distfiles="${_baseurl}/gittop-${version}-linux-musl-aarch64.tar.gz"
-		checksum=43ae274835b057c8eb4985b28b0d8e01ee493e43b5f3eef2852185abc0f0a917
+		checksum=1da06cd096593a1b25fb19256705fd77351a1f6a558a7c6d254ebb2bbc26dd6b
 		_arch_dir="gittop-${version}-linux-musl-aarch64"
 		;;
 esac
