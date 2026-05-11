@@ -279,7 +279,7 @@ jobs:
           python3 vup/scripts/generate_index.py
 
       - name: Upload Pages Artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: public
 
