@@ -1,8 +1,8 @@
 # Template file for 'visual-studio-code-insiders'
 pkgname=visual-studio-code-insiders
-version=1.121.0.20260519
+version=1.121.0.20260520
 revision=1
-_commit=553c72758b09756d6e374acae34d8a59498b1687
+_commit=f6cfa2ea2403534de03f069bdf160d06451ed282
 archs="x86_64 aarch64 armv7l"
 depends="
  alsa-lib
@@ -59,18 +59,18 @@ _dlbase="https://vscode.download.prss.microsoft.com/dbazure/download/insider/${_
 
 case "$XBPS_TARGET_MACHINE" in
 	x86_64)
-		distfiles+=" ${_dlbase}/code-insider-x64-1779121393.tar.gz"
-		checksum+=" 3f2120e1108a2a01171de27825b1ed696404bd286d42fd358ffaaed3f3e64bea"
+		distfiles+=" ${_dlbase}/code-insider-x64-1779185719.tar.gz"
+		checksum+=" be5d508e6e4ba90f42756b475c651e45b199917ea5e505ecf08b650c876bcd24"
 		_app_dir="VSCode-linux-x64"
 		;;
 	aarch64)
-		distfiles+=" ${_dlbase}/code-insider-arm64-1779121413.tar.gz"
-		checksum+=" 2aee36d08293f8fa3690645f98aec2eb6408fcfda1d3762577c7f7bd2b67206b"
+		distfiles+=" ${_dlbase}/code-insider-arm64-1779185703.tar.gz"
+		checksum+=" 07ce668fe51ace22bfdedd63277c4d32b340d60c9135e1e9a5e12124bd92d7f2"
 		_app_dir="VSCode-linux-arm64"
 		;;
 	armv7l)
-		distfiles+=" ${_dlbase}/code-insider-armhf-1779121419.tar.gz"
-		checksum+=" c1310beb79bf5a2d486f4fb64199485494951dad2acc918d24d8967c04462c11"
+		distfiles+=" ${_dlbase}/code-insider-armhf-1779185719.tar.gz"
+		checksum+=" deddb5bc3e2f07815f4056b22e64ab005a40ad5a9306e0108bdde4df4b70956c"
 		_app_dir="VSCode-linux-armhf"
 		;;
 esac
