@@ -1,8 +1,8 @@
 # Template file for 'visual-studio-code-insiders'
 pkgname=visual-studio-code-insiders
-version=1.122.0.20260522
+version=1.122.0.20260528
 revision=1
-_commit=b51c2a1a37574dec35d0426b2ee9c3538c9774f4
+_commit=7090241a056cb49cfe90f58da9a8cc44df9262a9
 archs="x86_64 aarch64 armv7l"
 depends="
  alsa-lib
@@ -45,6 +45,25 @@ nostrip=yes
 noshlibprovides=yes
 create_wrksrc=yes
 
+case "$XBPS_TARGET_MACHINE" in
+	x86_64)
+		skiprdeps="/opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-x64/copilot
+		 /opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-arm64/copilot
+		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/arm64/lxc-exec"
+		;;
+	aarch64)
+		skiprdeps="/opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-x64/copilot
+		 /opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-arm64/copilot
+		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/x64/lxc-exec"
+		;;
+	armv7l)
+		skiprdeps="/opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-x64/copilot
+		 /opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-arm64/copilot
+		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/arm64/lxc-exec
+		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/x64/lxc-exec"
+		;;
+esac
+
 _baseurl="https://raw.githubusercontent.com/microsoft/vscode/main/resources/linux"
 distfiles="${_baseurl}/code.desktop>code-insiders.desktop.in
  ${_baseurl}/code-url-handler.desktop>code-insiders-url-handler.desktop.in
@@ -59,18 +78,18 @@ _dlbase="https://vscode.download.prss.microsoft.com/dbazure/download/insider/${_
 
 case "$XBPS_TARGET_MACHINE" in
 	x86_64)
-		distfiles+=" ${_dlbase}/code-insider-x64-1779340885.tar.gz"
-		checksum+=" 49a0011c0f216444b4226930c27b24a7ee106df267d7703e3fe7865bc65cebd5"
+		distfiles+=" ${_dlbase}/code-insider-x64-1779873908.tar.gz"
+		checksum+=" e79159b47cd6508ab776dfbb0ff06c3b780122c3f278fbb199413114b105fa27"
 		_app_dir="VSCode-linux-x64"
 		;;
 	aarch64)
-		distfiles+=" ${_dlbase}/code-insider-arm64-1779340874.tar.gz"
-		checksum+=" 8df946399449c12d0ce5fcb1996385fc13398b5d5eacc49248685baa65323236"
+		distfiles+=" ${_dlbase}/code-insider-arm64-1779873884.tar.gz"
+		checksum+=" 4e738d47c0e1185ba03edffa64a05078cd145cb631a4530f5d83acf76e682e74"
 		_app_dir="VSCode-linux-arm64"
 		;;
 	armv7l)
-		distfiles+=" ${_dlbase}/code-insider-armhf-1779340887.tar.gz"
-		checksum+=" eb94802e5a730628459ccd3b885783286d5bb696586d7dc57787f4a87bcfeceb"
+		distfiles+=" ${_dlbase}/code-insider-armhf-1779873900.tar.gz"
+		checksum+=" d0bdfe0485d1628e3db84130a7c344f8a52ee4e632a3ac6c99889e319ff670ed"
 		_app_dir="VSCode-linux-armhf"
 		;;
 esac
