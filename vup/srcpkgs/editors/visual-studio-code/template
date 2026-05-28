@@ -47,10 +47,12 @@ create_wrksrc=yes
 case "$XBPS_TARGET_MACHINE" in
 	x86_64)
 		skiprdeps="/opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-x64/copilot
+		 /opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-arm64/copilot
 		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/arm64/lxc-exec"
 		;;
 	aarch64)
-		skiprdeps="/opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-arm64/copilot
+		skiprdeps="/opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-x64/copilot
+		 /opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-arm64/copilot
 		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/x64/lxc-exec"
 		;;
 	armv7l)
