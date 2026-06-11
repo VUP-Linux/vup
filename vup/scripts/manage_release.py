@@ -10,7 +10,7 @@ import re
 import subprocess
 import sys
 from functools import cmp_to_key
-from typing import Optional, Union
+from typing import Literal, overload
 
 # Configuration from environment
 REPO: str = os.environ.get("GITHUB_REPOSITORY", "")
@@ -20,9 +20,15 @@ TAG_NAME: str = f"{CATEGORY}-{ARCH}-current"
 DIST_DIR: str = "dist"
 
 
-def run_command(
-    cmd: list[str], capture_output: bool = False
-) -> Optional[Union[str, bool]]:
+@overload
+def run_command(cmd: list[str], capture_output: Literal[True]) -> str | None: ...
+
+
+@overload
+def run_command(cmd: list[str], capture_output: Literal[False] = False) -> bool | None: ...
+
+
+def run_command(cmd: list[str], capture_output: bool = False) -> str | bool | None:
     """Run a command, returning output string if capture_output, True on success, None on failure."""
     try:
         if capture_output:

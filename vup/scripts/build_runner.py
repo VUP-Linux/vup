@@ -31,7 +31,9 @@ def run_command(cmd, log_file=None):
                     text=True
                 )
                 
-                for line in process.stdout:
+                stdout = process.stdout
+                assert stdout is not None
+                for line in stdout:
                     sys.stdout.write(line)
                     f.write(line)
                 
