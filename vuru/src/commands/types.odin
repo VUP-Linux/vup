@@ -1,5 +1,7 @@
 package commands
 
+import "core:mem"
+
 // Global configuration passed to commands
 Config :: struct {
 	// Global settings
@@ -26,6 +28,9 @@ Config :: struct {
 	show_files:         bool, // -f, show files
 	show_deps:          bool, // -x, show deps
 	ownedby:            bool, // query: find file owner
+
+	// Allocator for owned strings
+	allocator:          mem.Allocator,
 }
 
 // Command interface (struct of procedures/metadata)

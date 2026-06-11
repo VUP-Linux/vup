@@ -1,6 +1,6 @@
 # Template file for 'visual-studio-code'
 pkgname=visual-studio-code
-version=1.108.1
+version=1.124.0
 revision=1
 archs="x86_64 aarch64 armv7l"
 depends="
@@ -48,22 +48,18 @@ case "$XBPS_TARGET_MACHINE" in
 	x86_64)
 		skiprdeps="/opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-x64/copilot
 		 /opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-arm64/copilot
-		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/arm64/lxc-exec
-		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/arm64/linux-test-proxy"
+		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/arm64/lxc-exec"
 		;;
 	aarch64)
 		skiprdeps="/opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-x64/copilot
 		 /opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-arm64/copilot
-		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/x64/lxc-exec
-		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/x64/linux-test-proxy"
+		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/x64/lxc-exec"
 		;;
 	armv7l)
 		skiprdeps="/opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-x64/copilot
 		 /opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-arm64/copilot
 		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/arm64/lxc-exec
-		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/arm64/linux-test-proxy
-		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/x64/lxc-exec
-		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/x64/linux-test-proxy"
+		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/x64/lxc-exec"
 		;;
 esac
 
@@ -80,17 +76,17 @@ skip_extraction="code.desktop.in code-url-handler.desktop.in code-workspace.xml.
 case "$XBPS_TARGET_MACHINE" in
 	x86_64)
 		distfiles+=" https://update.code.visualstudio.com/${version}/linux-x64/stable>code_x64_${version}.tar.gz"
-		checksum+=" a98b61899962a03e9f582c833df83b61fa393ea087cdc7a793c3638286cb5bb7"
+		checksum+=" 79488ea5224271d0de4a4dcd46fe1fc4ddd14ab1b86b1181e94e738790c46577"
 		_app_dir="VSCode-linux-x64"
 		;;
 	aarch64)
 		distfiles+=" https://update.code.visualstudio.com/${version}/linux-arm64/stable>code_arm64_${version}.tar.gz"
-		checksum+=" ec3051c307509b4ea7cb144c477c0e1fee03aa59cfbd718bfeb31dabb8e9c53c"
+		checksum+=" 289fcb31f00723a01e87144b95af650718c5143d344e61cc0c0e63ca5d3c18be"
 		_app_dir="VSCode-linux-arm64"
 		;;
 	armv7l)
 		distfiles+=" https://update.code.visualstudio.com/${version}/linux-armhf/stable>code_armhf_${version}.tar.gz"
-		checksum+=" 550e3f01ee2a79960214025c4e1f21f0158cd79bbc40401fc89a64171fb55dcf"
+		checksum+=" 723667e36b50fc2971ff35905644fa716f5772eb5f2faf8539b652d370a172c7"
 		_app_dir="VSCode-linux-armhf"
 		;;
 esac

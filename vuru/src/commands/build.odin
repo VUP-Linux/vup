@@ -19,7 +19,6 @@ build_run :: proc(args: []string, config: ^Config) -> int {
 		errors.log_error("Failed to load package index")
 		return 1
 	}
-	defer index.index_free(&idx)
 
 	cfg, cfg_ok := builder.default_build_config()
 	if !cfg_ok {

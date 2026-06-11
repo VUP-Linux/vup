@@ -3,7 +3,6 @@ package template
 import utils "../../utils"
 
 import "core:mem"
-import "core:os"
 import "core:strings"
 
 // Parsed template information from xbps-src template file
@@ -83,7 +82,8 @@ template_free :: proc(t: ^Template) {
 
 // Parse a template file from disk
 template_parse_file :: proc(path: string, allocator := context.allocator) -> (Template, bool) {
-	content, ok := utils.read_file(path, allocator)
+	// Read with temp allocator - template_parse will clone what it needs
+	content, ok := utils.read_file(path, context.temp_allocator)
 	if !ok {
 		return {}, false
 	}
@@ -98,34 +98,18 @@ template_parse :: proc(content: string, allocator := context.allocator) -> (Temp
 		raw_content = strings.clone(content, allocator),
 	}
 
-	// Process line by line
-	lines := content
-	for line in strings.split_lines_iterator(&lines) {
-		// Skip comments and empty lines
-		trimmed := strings.trim_space(line)
-		if len(trimmed) == 0 || trimmed[0] == '#' {
-			continue
-		}
-
-		// Look for variable assignments: name=value or name="value"
-		eq_idx := strings.index(trimmed, "=")
-		if eq_idx <= 0 {
-			continue
-		}
-
-		name := trimmed[:eq_idx]
-		value_raw := trimmed[eq_idx + 1:]
-
-		// Strip quotes if present
-		value := strip_quotes(value_raw)
-
+	// First pass: extract multi-line values and single-line values
+	vars := parse_shell_variables(content, context.temp_allocator)
+	
+	// Process parsed variables
+	for name, value in vars {
 		switch name {
 		case "pkgname":
 			t.pkgname = strings.clone(value, allocator)
 		case "version":
 			t.version = strings.clone(value, allocator)
 		case "revision":
-			t.revision = parse_int(value)
+			t.revision = utils.parse_int(value)
 		case "short_desc":
 			t.short_desc = strings.clone(value, allocator)
 		case "maintainer":
@@ -137,15 +121,15 @@ template_parse :: proc(content: string, allocator := context.allocator) -> (Temp
 		case "build_style":
 			t.build_style = strings.clone(value, allocator)
 		case "archs":
-			t.archs = split_and_clone(value, allocator)
+			t.archs = utils.split_and_clone(value, allocator)
 		case "depends":
-			t.depends = split_and_clone(value, allocator)
+			t.depends = utils.split_and_clone(value, allocator)
 		case "makedepends":
-			t.makedepends = split_and_clone(value, allocator)
+			t.makedepends = utils.split_and_clone(value, allocator)
 		case "hostmakedepends":
-			t.hostmakedeps = split_and_clone(value, allocator)
+			t.hostmakedeps = utils.split_and_clone(value, allocator)
 		case "checkdepends":
-			t.checkdepends = split_and_clone(value, allocator)
+			t.checkdepends = utils.split_and_clone(value, allocator)
 		case "restricted":
 			t.restricted = value == "yes"
 		case "nostrip":
@@ -166,11 +150,90 @@ template_parse :: proc(content: string, allocator := context.allocator) -> (Temp
 	return t, true
 }
 
+// Parse shell-style variable assignments, handling multi-line quoted values
+@(private)
+parse_shell_variables :: proc(content: string, allocator := context.allocator) -> map[string]string {
+	vars := make(map[string]string, allocator = allocator)
+	
+	lines := strings.split_lines(content, context.temp_allocator)
+	i := 0
+	
+	for i < len(lines) {
+		line := strings.trim_space(lines[i])
+		
+		// Skip comments and empty lines
+		if len(line) == 0 || line[0] == '#' {
+			i += 1
+			continue
+		}
+		
+		// Look for variable assignment
+		eq_idx := strings.index(line, "=")
+		if eq_idx <= 0 {
+			i += 1
+			continue
+		}
+		
+		name := line[:eq_idx]
+		value_start := line[eq_idx + 1:]
+		
+		// Check if this is a multi-line quoted value
+		if len(value_start) > 0 && value_start[0] == '"' {
+			// Check if closing quote is on same line
+			if len(value_start) > 1 && strings.index(value_start[1:], "\"") >= 0 {
+				// Single line quoted value
+				vars[strings.clone(name, allocator)] = strings.clone(utils.strip_quotes(value_start), allocator)
+			} else {
+				// Multi-line value - collect until closing quote
+				builder := strings.builder_make(context.temp_allocator)
+				
+				// Add content after opening quote (skip the quote itself)
+				if len(value_start) > 1 {
+					strings.write_string(&builder, value_start[1:])
+				}
+				
+				i += 1
+				for i < len(lines) {
+					next_line := lines[i]
+					
+					// Check if this line has the closing quote
+					if quote_idx := strings.index(next_line, "\""); quote_idx >= 0 {
+						// Add content before closing quote
+						strings.write_string(&builder, " ")
+						strings.write_string(&builder, strings.trim_space(next_line[:quote_idx]))
+						break
+					} else {
+						// Add entire line (trimmed)
+						trimmed := strings.trim_space(next_line)
+						if len(trimmed) > 0 {
+							strings.write_string(&builder, " ")
+							strings.write_string(&builder, trimmed)
+						}
+					}
+					i += 1
+				}
+				
+				vars[strings.clone(name, allocator)] = strings.clone(strings.trim_space(strings.to_string(builder)), allocator)
+			}
+		} else if len(value_start) > 0 && value_start[0] == '\'' {
+			// Single-quoted value (always single line in shell)
+			vars[strings.clone(name, allocator)] = strings.clone(utils.strip_quotes(value_start), allocator)
+		} else {
+			// Unquoted value
+			vars[strings.clone(name, allocator)] = strings.clone(value_start, allocator)
+		}
+		
+		i += 1
+	}
+	
+	return vars
+}
+
 // Get full version string (version_revision)
 template_full_version :: proc(t: ^Template, allocator := context.allocator) -> string {
 	if t.revision > 0 {
 		return strings.concatenate(
-			{t.version, "_", int_to_string(t.revision, context.temp_allocator)},
+			{t.version, "_", utils.int_to_string(t.revision, context.temp_allocator)},
 			allocator,
 		)
 	}
@@ -206,62 +269,4 @@ template_all_deps :: proc(t: ^Template, allocator := context.allocator) -> []str
 	}
 
 	return result[:]
-}
-
-// --- Helper functions ---
-
-strip_quotes :: proc(s: string) -> string {
-	if len(s) < 2 {
-		return s
-	}
-
-	if (s[0] == '"' && s[len(s) - 1] == '"') || (s[0] == '\'' && s[len(s) - 1] == '\'') {
-		return s[1:len(s) - 1]
-	}
-	return s
-}
-
-split_and_clone :: proc(s: string, allocator: mem.Allocator) -> []string {
-	if len(s) == 0 {
-		return nil
-	}
-
-	parts := strings.fields(s, context.temp_allocator)
-	result := make([]string, len(parts), allocator)
-
-	for p, i in parts {
-		result[i] = strings.clone(p, allocator)
-	}
-
-	return result
-}
-
-parse_int :: proc(s: string) -> int {
-	result := 0
-	for c in s {
-		if c >= '0' && c <= '9' {
-			result = result * 10 + int(c - '0')
-		} else {
-			break
-		}
-	}
-	return result
-}
-
-int_to_string :: proc(n: int, allocator := context.allocator) -> string {
-	if n == 0 {
-		return strings.clone("0", allocator)
-	}
-
-	buf: [20]u8
-	i := len(buf)
-	v := n
-
-	for v > 0 {
-		i -= 1
-		buf[i] = u8('0' + (v % 10))
-		v /= 10
-	}
-
-	return strings.clone(string(buf[i:]), allocator)
 }

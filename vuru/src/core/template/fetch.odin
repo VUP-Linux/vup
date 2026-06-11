@@ -1,6 +1,7 @@
 package template
 
 import utils "../../utils"
+import config "../config"
 import errors "../errors"
 
 import "core:fmt"
@@ -26,7 +27,7 @@ fetch_template :: proc(
 
 	url := fmt.tprintf("%s/%s/%s/template", TEMPLATE_URL_BASE, category, pkg_name)
 
-	tmpdir := utils.get_tmpdir()
+	tmpdir := config.get_tmpdir()
 	tmp_path := fmt.tprintf("%s/vuru_tmpl_%s_%d", tmpdir, pkg_name, linux.getpid())
 	defer os.remove(tmp_path)
 

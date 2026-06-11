@@ -1,0 +1,33 @@
+# Template file for 'zls'
+pkgname=zls
+version=0.15.1
+revision=1
+archs="x86_64 aarch64 armv7l"
+create_wrksrc=yes
+short_desc="Zig language server"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="MIT"
+homepage="https://github.com/zigtools/zls"
+nostrip=yes
+nopie=yes
+
+_baseurl="https://github.com/zigtools/zls/releases/download/${version}"
+
+case "$XBPS_TARGET_MACHINE" in
+	x86_64)
+		distfiles="${_baseurl}/zls-x86_64-linux.tar.xz"
+		checksum=3bb38f522cb23213e8c075ac6b170273fe49b4274b8c12b034cc496407400067
+		;;
+	aarch64)
+		distfiles="${_baseurl}/zls-aarch64-linux.tar.xz"
+		checksum=a2daa860a0e0cd1410491ff9703c6aaca96defd833b88af6a9811d6ff04fc13b
+		;;
+	armv7l*)
+		distfiles="${_baseurl}/zls-arm-linux.tar.xz"
+		checksum=4c57284eb605e51ed895e30a07c40579473f56390338af2caa35ce25a2264c8c
+		;;
+esac
+
+do_install() {
+	vbin zls
+}

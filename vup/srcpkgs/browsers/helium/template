@@ -1,0 +1,71 @@
+# Template file for 'helium'
+pkgname=helium
+version=0.13.1.1
+revision=1
+archs="x86_64 aarch64"
+depends="
+ alsa-lib
+ at-spi2-core
+ cairo
+ cups
+ dbus
+ expat
+ glib
+ gtk+3
+ libX11
+ libXcomposite
+ libXdamage
+ libXext
+ libXfixes
+ libXrandr
+ libdrm
+ libxcb
+ libxkbcommon
+ mesa
+ nspr
+ nss
+ pango
+ xdg-utils
+"
+short_desc="Privacy-first Chromium-based browser with unbiased ad-blocking"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="GPL-3.0-or-later"
+homepage="https://helium.computer"
+changelog="https://raw.githubusercontent.com/imputnet/helium/main/CHANGELOG.md"
+nopie=yes
+nostrip=yes
+noshlibprovides=yes
+
+_baseurl="https://github.com/imputnet/helium-linux/releases/download/${version}"
+
+case "$XBPS_TARGET_MACHINE" in
+	x86_64)
+		_arch_suffix=x86_64
+		checksum=3175792d59279b18583eae7e5ba3b6418cf76de9b0d67c4bb38908fa94b7320b
+		;;
+	aarch64)
+		_arch_suffix=arm64
+		checksum=4aaec869ef77fedf7cbb22f20e046d117fbb9fe1dce0cb2c66a83d9f96f3342f
+		;;
+esac
+
+distfiles="${_baseurl}/helium-${version}-${_arch_suffix}_linux.tar.xz"
+
+do_install() {
+	vmkdir opt/helium
+	vcopy "*" opt/helium
+
+	# Create a launcher that invokes the upstream wrapper in /opt/helium
+	cat > helium.sh <<-'EOF'
+	#!/bin/sh
+	exec /opt/helium/helium-wrapper "$@"
+	EOF
+	vbin helium.sh helium
+
+	# Desktop file from upstream
+	vinstall ${DESTDIR}/opt/helium/helium.desktop 644 usr/share/applications
+
+	# Icon
+	vinstall ${DESTDIR}/opt/helium/product_logo_256.png 644 usr/share/icons/hicolor/256x256/apps helium.png
+	vinstall ${DESTDIR}/opt/helium/product_logo_256.png 644 usr/share/pixmaps helium.png
+}

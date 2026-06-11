@@ -2,7 +2,7 @@ name: VUP Bot
 
 on:
   workflow_run:
-    workflows: ["PR Check"]
+    workflows: ["PR Build"]
     types:
       - completed
 
@@ -14,136 +14,100 @@ permissions:
 jobs:
   report-status:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.event == 'pull_request' }}
+    if: ${{ contains(fromJson('["pull_request", "pull_request_target"]'), github.event.workflow_run.event) && github.event.workflow_run.conclusion != 'skipped' }}
     steps:
       - name: Generate App Token
         id: app-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.VUP_BOT_APP_ID }}
           private-key: ${{ secrets.VUP_BOT_PRIVATE_KEY }}
 
+      - name: Checkout VUP (for scripts)
+        uses: actions/checkout@v6
+
       - name: Download Build Reports
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: pr-report-*
           merge-multiple: true
           path: reports
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      
+
+      - name: Download PR Metadata
+        uses: actions/download-artifact@v8
+        with:
+          name: pr-meta
+          path: pr-meta
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve PR Number
+        id: pr
+        run: |
+          if [ -f pr-meta/pr_number.txt ]; then
+            num=$(cat pr-meta/pr_number.txt | tr -d '[:space:]')
+          fi
+          if [ -z "$num" ]; then
+            echo "No PR number found in artifact." >&2
+            exit 1
+          fi
+          echo "number=$num" >> "$GITHUB_OUTPUT"
+
       - name: Analyze Results
         id: analyze
         run: |
-          # Consolidate reports
-          cat <<'EOF' > analyze.py
-          import os, json, glob
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
+          python3 vup/scripts/analyze_pr_report.py \
+            --reports-dir reports \
+            --run-url "$RUN_URL" \
+            --output comment.md
 
-          reports = glob.glob("reports/*.json")
-          summary = []
-          failures = 0
-          
-          print("Scanning reports...")
-          
-          for r in reports:
-              try:
-                  with open(r, "r") as f:
-                      data = json.load(f)
-                      summary.extend(data)
-                      for res in data:
-                          if res["status"] == "failure":
-                              failures += 1
-              except Exception as e:
-                  print(f"Error reading {r}: {e}")
-
-          # Generate Markdown Comment
-          md = ""
-          run_url = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
-          
-          if failures == 0:
-              md += "### ✅ VUP Build Passed\n\n"
-              md += f"Built {len(summary)} packages successfully. [View Logs]({run_url})\n"
-          else:
-              md += f"### ❌ {failures} VUP Builds Failed\n\n"
-              md += f"[View Full Logs]({run_url})\n\n"
-          
-
-          if len(summary) > 0:
-              md += "| Package | Status |\n"
-              md += "|---------|--------|\n"
-              for res in summary:
-                  icon = "✅" if res["status"] == "success" else "❌"
-                  pkg_name = res.get("package", "unknown")
-                  status = res.get("status", "unknown")
-                  md += f"| {pkg_name} | {icon} {status} |\n"
-              
-              # Add failure logs below
-              failures_list = [r for r in summary if r["status"] == "failure"]
-              if failures_list:
-                  md += "\n<br>\n\n### 🔍 Failure Details\n"
-                  for res in failures_list:
-                       pkg = res.get("package")
-                       log = res.get("log", "No log available")
-                       # Escape HTML
-                       log = log.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                       md += f"\n<details><summary><strong>{pkg}</strong> Build Log</summary>\n\n<pre>{log}</pre>\n</details>\n"
-          else:
-              md += "No packages were modified or built in this run."
-
-          with open("comment.md", "w") as f:
-              f.write(md)
-          
-          # Set outcome for step
-          if failures > 0:
-              with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
-                  print("result=failure", file=fh)
-          else:
-              with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
-                  print("result=success", file=fh)
-          EOF
-          
-          python3 analyze.py
-          
       - name: Comment on PR
-        uses: actions/github-script@v6
+        uses: actions/github-script@v9
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
             const fs = require('fs');
             const commentBody = fs.readFileSync('comment.md', 'utf8');
-            
-            // Get PR number from the workflow run context
-            const workflow_run = context.payload.workflow_run;
-            const prs = workflow_run.pull_requests;
-            
-            if (prs.length > 0) {
-              const prNumber = prs[0].number;
-              
-              // Post Comment
-              await github.rest.issues.createComment({
+            const prNumber = parseInt('${{ steps.pr.outputs.number }}', 10);
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: commentBody
+            });
+
+      - name: Manage Labels
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = parseInt('${{ steps.pr.outputs.number }}', 10);
+            const buildResult = '${{ steps.analyze.outputs.result }}';
+
+            if (buildResult === 'success') {
+              try {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  labels: ['build-passed']
+                });
+              } catch (e) {
+                core.warning(`Could not add build-passed label: ${e}`);
+              }
+            }
+
+            try {
+              await github.rest.issues.removeLabel({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: prNumber,
-                body: commentBody
+                name: 'ok-to-build'
               });
-              
-              // Add Labels
-              // Check the output of the analysis step? Or just read from failures count in python?
-              // Simple heuristic: if body contains "✅ VUP Build Passed", add label
-              
-              if (commentBody.includes("✅ VUP Build Passed")) {
-                 console.log("Adding build-passed label");
-                 try {
-                     await github.rest.issues.addLabels({
-                       owner: context.repo.owner,
-                       repo: context.repo.repo,
-                       issue_number: prNumber,
-                       labels: ['build-passed']
-                     });
-                 } catch (e) {
-                     console.log("Could not add label (maybe it exists or permissions): " + e);
-                 }
-              }
-            } else {
-              console.log("No PR found associated with this workflow run.");
+            } catch (e) {
+              core.info('ok-to-build label not present (already removed or never added)');
             }

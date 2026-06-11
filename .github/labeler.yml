@@ -1,20 +1,55 @@
-# .github/labeler.yml
-utilities:
+# Auto-label PRs based on changed files.
+# Generated from vup/srcpkgs/* directory names.
+browsers:
   - changed-files:
-    - any-glob-to-any-file: 'vup/srcpkgs/utilities/**/*'
+    - any-glob-to-any-file: 'vup/srcpkgs/browsers/**/*'
+
+communication:
+  - changed-files:
+    - any-glob-to-any-file: 'vup/srcpkgs/communication/**/*'
 
 editors:
   - changed-files:
     - any-glob-to-any-file: 'vup/srcpkgs/editors/**/*'
 
-chat:
+education:
   - changed-files:
-    - any-glob-to-any-file: 'vup/srcpkgs/chat/**/*'
+    - any-glob-to-any-file: 'vup/srcpkgs/education/**/*'
+
+emulators:
+  - changed-files:
+    - any-glob-to-any-file: 'vup/srcpkgs/emulators/**/*'
+
+language-runtime-managers:
+  - changed-files:
+    - any-glob-to-any-file: 'vup/srcpkgs/language-runtime-managers/**/*'
+
+language-servers:
+  - changed-files:
+    - any-glob-to-any-file: 'vup/srcpkgs/language-servers/**/*'
+
+languages:
+  - changed-files:
+    - any-glob-to-any-file: 'vup/srcpkgs/languages/**/*'
+
+networking:
+  - changed-files:
+    - any-glob-to-any-file: 'vup/srcpkgs/networking/**/*'
+
+productivity:
+  - changed-files:
+    - any-glob-to-any-file: 'vup/srcpkgs/productivity/**/*'
 
 core:
   - changed-files:
     - any-glob-to-any-file:
-      - 'DEV.md'
+      - 'PATCHES.md'
       - 'README.md'
       - 'vup/.github/**/*'
       - 'vup/scripts/**/*'
+      - 'vup/common/**/*'
+      - 'vup/xbps-src'
+
+vuru:
+  - changed-files:
+    - any-glob-to-any-file: 'vuru/**/*'

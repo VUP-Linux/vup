@@ -8,6 +8,7 @@ import errors "../../core/errors"
 import index "../../core/index"
 import template "../../core/template"
 import utils "../../utils"
+import config "../config"
 
 // xbps-src wrapper that intercepts builds and installs VUP dependencies first
 // Usage: vuru src <xbps-src-command> [args...]
@@ -81,71 +82,6 @@ get_binpkgs_dir :: proc(xbps_src_path: string, allocator := context.allocator) -
 	return strings.clone("hostdir/binpkgs", allocator)
 }
 
-// Download VUP package to hostdir/binpkgs for xbps-src to find
-download_vup_pkg_to_binpkgs :: proc(
-	idx: ^index.Index,
-	pkg_name: string,
-	binpkgs_dir: string,
-) -> (
-	bool,
-	errors.Error,
-) {
-	pkg, ok := index.index_get_package(idx, pkg_name)
-	if !ok {
-		return false, errors.make_error(.Package_Not_Found, pkg_name)
-	}
-
-	// Get architecture
-	arch, arch_ok := utils.get_arch()
-	defer delete(arch)
-	if !arch_ok {
-		return false, errors.make_error(.Arch_Detection_Failed)
-	}
-
-	// Get repo URL for this arch
-	repo_url, url_ok := pkg.repo_urls[arch]
-	if !url_ok {
-		return false, errors.make_error(
-			.Arch_Not_Supported,
-			fmt.tprintf("%s for %s", pkg_name, arch),
-		)
-	}
-
-	// Build the .xbps filename (pkgname-version.arch.xbps)
-	// e.g. vlang-0.4.11_1.x86_64.xbps
-	xbps_filename := fmt.tprintf("%s-%s.%s.xbps", pkg_name, pkg.version, arch)
-
-	// Full URL to the .xbps file
-	full_url := fmt.tprintf("%s/%s", repo_url, xbps_filename)
-
-	// Destination path
-	dest_path := utils.path_join(binpkgs_dir, xbps_filename, allocator = context.temp_allocator)
-
-	// Check if already exists
-	if os.exists(dest_path) {
-		errors.log_info("%s already in binpkgs", pkg_name)
-		return true, {}
-	}
-
-	// Create binpkgs dir if needed
-	if !utils.mkdir_p(binpkgs_dir) {
-		return false, errors.make_error(.Cache_Dir_Failed, binpkgs_dir)
-	}
-
-	// Download the package
-	errors.log_info("Downloading %s to hostdir/binpkgs...", pkg_name)
-
-	// Use curl to download (-L to follow redirects)
-	curl_args := []string{"curl", "-fsSL", "-o", dest_path, full_url}
-	if utils.run_command(curl_args) != 0 {
-		return false, errors.make_error(
-			.Download_Failed,
-			fmt.tprintf("%s from %s", pkg_name, full_url),
-		)
-	}
-
-	return true, {}
-}
 
 // Update the local repo index after adding packages
 update_binpkgs_index :: proc(binpkgs_dir: string) -> (bool, errors.Error) {
@@ -193,7 +129,7 @@ find_package_template :: proc(srcpkgs_dir: string, pkg_name: string) -> string {
 	// Since we use temp_allocator, it will be freed at end of frame/scope.
 
 	for fi in file_infos {
-		if fi.is_dir {
+		if fi.type == .Directory {
 			// Check srcpkgs/<category>/<pkgname>/template
 			cat_path := utils.path_join(
 				srcpkgs_dir,
@@ -232,7 +168,7 @@ cleanup_vup_deps :: proc(binpkgs_dir: string, installed_pkgs: []string) {
 		}
 	}
 
-	if arch, ok := utils.get_arch(); ok {
+	if arch, ok := config.get_arch(); ok {
 		repodata := fmt.tprintf("%s/%s-repodata", binpkgs_dir, arch)
 		if os.exists(repodata) {
 			os.remove(repodata)
@@ -257,8 +193,8 @@ download_vup_pkg_to_binpkgs_and_get_filename :: proc(
 	}
 
 	// Get architecture
-	arch, arch_ok := utils.get_arch()
-	defer delete(arch)
+	arch, arch_ok := config.get_arch()
+
 	if !arch_ok {
 		return false, errors.make_error(.Arch_Detection_Failed), ""
 	}
@@ -333,11 +269,11 @@ install_vup_deps_for_pkg :: proc(
 		errors.log_warning("Could not parse template for %s", pkg_name)
 		return true, {}, installed_files // Continue anyway, let xbps-src handle the error
 	}
-	defer template.template_free(&tmpl)
+
 
 	// Collect all dependencies using a map to deduplicate
 	all_deps: map[string]bool
-	defer delete(all_deps)
+
 
 	for dep in tmpl.depends {
 		all_deps[dep] = true
@@ -356,7 +292,7 @@ install_vup_deps_for_pkg :: proc(
 
 	// Find VUP dependencies
 	vup_deps: [dynamic]string
-	defer delete(vup_deps)
+
 
 	for dep in all_deps {
 		// Check if it's in VUP index
@@ -412,11 +348,47 @@ install_vup_deps_for_pkg :: proc(
 	return true, {}, installed_files
 }
 
+// Install a built package on the host system using xbps-install, pulling from
+// every subdirectory under hostdir/binpkgs as a possible repository.
+host_install_pkg :: proc(pkg_name: string, binpkgs_dir: string) -> (bool, errors.Error) {
+	if !os.exists(binpkgs_dir) {
+		return false, errors.make_error(.Command_Failed, fmt.tprintf("missing %s", binpkgs_dir))
+	}
+
+	d, err := os.open(binpkgs_dir)
+	if err != os.ERROR_NONE {
+		return false, errors.make_error(.Command_Failed, fmt.tprintf("cannot read %s", binpkgs_dir))
+	}
+	defer os.close(d)
+
+	file_infos, _ := os.read_dir(d, -1, context.temp_allocator)
+
+	cmd: [dynamic]string
+	append(&cmd, "sudo", "xbps-install")
+
+	// hostdir/binpkgs itself (some templates drop packages here) plus every subdir.
+	append(&cmd, fmt.tprintf("--repository=%s", binpkgs_dir))
+	for fi in file_infos {
+		if fi.type == .Directory {
+			sub_path := utils.path_join(binpkgs_dir, fi.name, allocator = context.temp_allocator)
+			append(&cmd, fmt.tprintf("--repository=%s", sub_path))
+		}
+	}
+
+	append(&cmd, pkg_name)
+
+	errors.log_info("Installing %s on host system...", pkg_name)
+	if utils.run_command(cmd[:]) != 0 {
+		return false, errors.make_error(.Command_Failed, fmt.tprintf("xbps-install %s", pkg_name))
+	}
+	return true, {}
+}
+
 // Run xbps-src with the given arguments
 run_xbps_src :: proc(xbps_src_path: string, args: []string) -> bool {
 	// Build the command as string array
 	cmd_args: [dynamic]string
-	defer delete(cmd_args)
+
 
 	append(&cmd_args, xbps_src_path)
 
@@ -563,6 +535,14 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 	cmd := cmd_args[0]
 	remaining_args := cmd_args[1:] if len(cmd_args) > 1 else []string{}
 
+	// `vuru src install <pkg>` builds the binary package and then installs it on
+	// the host system from hostdir/binpkgs. We rewrite the inner xbps-src call to
+	// `pkg` and remember to run xbps-install afterwards.
+	host_install := cmd == "install"
+	if host_install {
+		cmd = "pkg"
+	}
+
 	// Find xbps-src
 	xbps_src_path, found := find_xbps_src()
 	if !found {
@@ -571,7 +551,7 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 
 	// Track installed packages for cleanup
 	installed_pkgs: [dynamic]string
-	defer delete(installed_pkgs)
+
 
 	// Schedule cleanup of installed dependencies at the end of the program
 	defer {
@@ -598,7 +578,7 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 		if !idx_ok {
 			errors.log_warning("Could not load VUP index, continuing without VUP dep resolution")
 		} else {
-			defer index.index_free(&idx)
+
 
 			ok, err, deps := install_vup_deps_for_pkg(pkg_name, xbps_src_path, &idx)
 
@@ -606,7 +586,7 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 			for d in deps {
 				append(&installed_pkgs, d)
 			}
-			delete(deps) // We copied them, free the temporary list
+
 
 			if !ok {
 				return false, err
@@ -616,14 +596,18 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 
 	// Build the full xbps-src args, including -a if specified
 	xbps_args: [dynamic]string
-	defer delete(xbps_args)
+
 
 	if cross_target != "" {
 		append(&xbps_args, "-a")
 		append(&xbps_args, cross_target)
 	}
-	for arg in cmd_args {
-		append(&xbps_args, arg)
+	for arg, i in cmd_args {
+		if i == 0 && host_install {
+			append(&xbps_args, "pkg")
+		} else {
+			append(&xbps_args, arg)
+		}
 	}
 
 	// Run the actual xbps-src command
@@ -631,6 +615,21 @@ xbps_src_main :: proc(args: []string, config: ^Config) -> (bool, errors.Error) {
 	errors.log_info("Running: xbps-src %s", joined_args)
 	if !run_xbps_src(xbps_src_path, xbps_args[:]) {
 		return false, errors.make_error(.Command_Failed, fmt.tprintf("xbps-src %s", joined_args))
+	}
+
+	if host_install {
+		pkg_name := extract_pkg_name(cmd, remaining_args)
+		if pkg_name == "" {
+			return false, errors.make_error(
+				.Missing_Argument,
+				"package name for 'install' command",
+			)
+		}
+		binpkgs := get_binpkgs_dir(xbps_src_path, context.temp_allocator)
+		ok, err := host_install_pkg(pkg_name, binpkgs)
+		if !ok {
+			return false, err
+		}
 	}
 	return true, {}
 }
@@ -650,7 +649,7 @@ xbps_src_usage :: proc() {
 	fmt.println("  configure <pkgname>  Configure <pkgname>")
 	fmt.println("  build <pkgname>      Build <pkgname>")
 	fmt.println("  check <pkgname>      Run tests for <pkgname>")
-	fmt.println("  install <pkgname>    Install <pkgname> into destdir")
+	fmt.println("  install <pkgname>    Build <pkgname> and install it on the host system")
 	fmt.println("  clean <pkgname>      Clean up <pkgname> build directory")
 	fmt.println("  show <pkgname>       Show info about <pkgname>")
 	fmt.println("  ... and all other xbps-src commands")

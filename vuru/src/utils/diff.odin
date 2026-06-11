@@ -1,5 +1,6 @@
 package utils
 
+import config "../core/config"
 import errors "../core/errors"
 import "core:fmt"
 import "core:math/rand"
@@ -21,7 +22,7 @@ rand_string :: proc(length: int, allocator := context.allocator) -> string {
 
 // Write content to a temp file
 diff_write_temp_file :: proc(content: string, allocator := context.allocator) -> (string, bool) {
-	tmpdir := get_tmpdir()
+	tmpdir := config.get_tmpdir()
 	rand_suffix := rand_string(6, context.temp_allocator)
 
 	path := fmt.aprintf(

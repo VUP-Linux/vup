@@ -159,4 +159,8 @@ vup/srcpkgs/<category>/<pkgname>/template
 
 ## License
 
-MIT
+**vuru** (`vuru/src/` + `vup/scripts`) is licensed under the MIT License. See [LICENSE](LICENSE).
+
+The **xbps-src build infrastructure** (`vup/common/`, `vup/etc/`) is BSD 2-Clause licensed, derived from [void-packages](https://github.com/void-linux/void-packages). See [vup/common/LICENSE](vup/common/LICENSE).
+
+Package templates in `vup/srcpkgs/` carry their own license declarations via the `license=` field.

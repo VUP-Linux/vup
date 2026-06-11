@@ -34,7 +34,6 @@ search_run :: proc(args: []string, config: ^Config) -> int {
 		errors.log_error("Failed to load package index")
 		return 1
 	}
-	defer index.index_free(&idx)
 
 	for query, i in args {
 		if i > 0 {fmt.println()}

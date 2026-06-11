@@ -15,21 +15,32 @@ def get_changes():
     event = os.environ.get("GITHUB_EVENT_NAME")
     if event == "workflow_dispatch":
         return "ALL"
-    
+
+    if event == "pull_request" or event == "pull_request_target":
+        # PR: diff against the base branch (origin/main)
+        try:
+            subprocess.check_call(["git", "fetch", "origin", "main"])
+            output = subprocess.check_output(
+                ["git", "diff", "--name-only", "origin/main...HEAD"]
+            ).decode()
+            return output.splitlines()
+        except subprocess.CalledProcessError:
+            return "ALL"
+
+    # Push event: diff against BEFORE_SHA
     before = os.environ.get("BEFORE_SHA")
     sha = os.environ.get("GITHUB_SHA")
-    
+
     if not before or before == "0000000000000000000000000000000000000000":
-        # forced push or new branch, diff against HEAD~1
         cmd = ["git", "diff", "--name-only", "HEAD~1", "HEAD"]
     else:
         cmd = ["git", "diff", "--name-only", before, sha]
-        
+
     try:
         output = subprocess.check_output(cmd).decode()
     except subprocess.CalledProcessError:
         return "ALL"
-        
+
     return output.splitlines()
 
 def get_category_archs(category_path, packages=None):
@@ -63,28 +74,72 @@ def get_category_archs(category_path, packages=None):
     
     return sorted(list(archs)) if archs else SUPPORTED_ARCHS
 
+def pick_canary(category_path):
+    """
+    Pick a canary package for smoke-testing CI changes.
+    Prefers a multi-arch package; falls back to first alphabetical.
+    """
+    if not os.path.isdir(category_path):
+        return None
+
+    pkgs = sorted(d for d in os.listdir(category_path)
+                  if os.path.isdir(os.path.join(category_path, d)))
+    if not pkgs:
+        return None
+
+    # First pass: prefer packages with explicit multi-arch support
+    for pkg in pkgs:
+        template_path = os.path.join(category_path, pkg, "template")
+        if not os.path.exists(template_path):
+            continue
+        raw_archs = parse_template_archs(template_path)
+        positive = get_positive_archs(raw_archs)
+        # positive is None when archs= is missing (builds everywhere) — also good
+        if positive is None or len(positive) > 1:
+            return pkg
+
+    return pkgs[0]
+
+
+def load_canary_overrides():
+    """Load explicit canary picks from vup/scripts/canaries.json if present."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "canaries.json")
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Warning: failed to read {path}: {e}")
+        return {}
+
+
 def main():
     changes = get_changes()
     # Dynamically find categories in vup/srcpkgs
     if not os.path.exists("vup/srcpkgs"):
         print("vup/srcpkgs not found")
         sys.exit(0)
-        
+
     all_cats = [d for d in os.listdir("vup/srcpkgs") if os.path.isdir(os.path.join("vup/srcpkgs", d))]
-    
+
     target_cats = set()
     cat_pkgs = {}
     build_all = False
+    smoke_only = False
 
     if changes == "ALL":
         build_all = True
     else:
         for f in changes:
-            # Check for global changes
-            if f.startswith("common/") or f.startswith("vup/common/") or f.startswith(".github/workflows/"):
+            if f.startswith(".github/workflows/") or f.startswith("vup/scripts/"):
+                smoke_only = True
+
+            # Check for global changes that legitimately need a full rebuild
+            if f.startswith("common/") or f.startswith("vup/common/"):
                 build_all = True
                 break
-                
+
             # Check for category changes
             # Expected path: vup/srcpkgs/<category>/<pkg>/...
             if f.startswith("vup/srcpkgs/"):
@@ -92,13 +147,28 @@ def main():
                 if len(parts) > 2 and parts[2] in all_cats:
                     cat = parts[2]
                     target_cats.add(cat)
-                    
+
                     if cat not in cat_pkgs:
                         cat_pkgs[cat] = set()
-                    
+
                     if len(parts) > 3:
                         cat_pkgs[cat].add(parts[3])
-    
+
+    if build_all:
+        smoke_only = False
+
+    if smoke_only:
+        overrides = load_canary_overrides()
+        for cat in all_cats:
+            target_cats.add(cat)
+            cat_path = os.path.join("vup/srcpkgs", cat)
+            canary = overrides.get(cat) or pick_canary(cat_path)
+            if canary:
+                if cat not in cat_pkgs:
+                    cat_pkgs[cat] = set()
+                cat_pkgs[cat].add(canary)
+                print(f"[smoke] {cat}: canary={canary}")
+
     if build_all:
         target_list = sorted(list(set(all_cats)))
     else:
@@ -130,6 +200,13 @@ def main():
             for arch in archs:
                 includes.append({"category": cat, "arch": arch, "packages": pkg_str})
         
+        # For PR checks, only build x86_64 to keep CI fast.
+        # Full multi-arch builds happen on merge (push event).
+        is_pr = os.environ.get("GITHUB_EVENT_NAME") in ("pull_request", "pull_request_target")
+        if is_pr:
+            includes = [i for i in includes if i["arch"] == "x86_64"]
+            print(f"PR mode: filtered to x86_64 only ({len(includes)} jobs)")
+
         print(f"Total build jobs: {len(includes)}")
         matrix_json = json.dumps({"include": includes})
         if output_file:

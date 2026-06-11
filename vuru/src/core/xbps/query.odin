@@ -4,7 +4,7 @@ import "core:mem"
 import "core:strings"
 
 // Type alias for command runner functions
-Run_Command_Output :: proc(args: []string, allocator: mem.Allocator) -> (string, bool)
+
 
 // Query operations using xbps-query
 
@@ -12,9 +12,12 @@ Run_Command_Output :: proc(args: []string, allocator: mem.Allocator) -> (string,
 // Returns empty string if not installed
 get_installed_version :: proc(
 	pkg_name: string,
-	run_cmd: Run_Command_Output,
+	run_cmd: Command_Runner_Output,
 	allocator := context.allocator,
-) -> (string, bool) {
+) -> (
+	string,
+	bool,
+) {
 	output, ok := run_cmd({"xbps-query", pkg_name}, context.temp_allocator)
 	if !ok {
 		return "", false
@@ -36,9 +39,12 @@ get_installed_version :: proc(
 
 // List all installed packages as (name, version) pairs
 list_installed :: proc(
-	run_cmd: Run_Command_Output,
+	run_cmd: Command_Runner_Output,
 	allocator := context.allocator,
-) -> ([][2]string, bool) {
+) -> (
+	[][2]string,
+	bool,
+) {
 	output, ok := run_cmd({"xbps-query", "-l"}, context.temp_allocator)
 	if !ok {
 		return nil, false
@@ -55,7 +61,10 @@ list_installed :: proc(
 
 		name, version, parse_ok := parse_pkgver(parts[1])
 		if parse_ok {
-			append(&result, [2]string{strings.clone(name, allocator), strings.clone(version, allocator)})
+			append(
+				&result,
+				[2]string{strings.clone(name, allocator), strings.clone(version, allocator)},
+			)
 		}
 	}
 

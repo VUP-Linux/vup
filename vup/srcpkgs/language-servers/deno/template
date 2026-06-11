@@ -1,0 +1,36 @@
+# Template file for 'deno'
+pkgname=deno
+version=2.7.14
+revision=1
+archs="x86_64 aarch64"
+hostmakedepends="unzip"
+create_wrksrc=yes
+short_desc="Secure JavaScript and TypeScript runtime"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="MIT"
+homepage="https://deno.land"
+nostrip=yes
+nopie=yes
+noshlibprovides=yes
+
+_baseurl="https://github.com/denoland/deno/releases/download/v${version}"
+
+case "$XBPS_TARGET_MACHINE" in
+	x86_64)
+		distfiles="${_baseurl}/deno-x86_64-unknown-linux-gnu.zip"
+		checksum=3287efef53606966469cb6a02781327be22b908959397f976e2996dc1b64ae0f
+		;;
+	aarch64)
+		distfiles="${_baseurl}/deno-aarch64-unknown-linux-gnu.zip"
+		checksum=b815c919452b5993a7c22df018a88c2f706eea6b5e0aa7802b2b0709edde01e8
+		;;
+esac
+
+do_extract() {
+	mkdir -p ${wrksrc}
+	unzip -q -o ${XBPS_SRCDISTDIR}/${pkgname}-${version}/${distfiles##*/} -d ${wrksrc}
+}
+
+do_install() {
+	vbin deno
+}

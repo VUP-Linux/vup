@@ -2,7 +2,7 @@ name: Build and Release
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
 
 permissions:
@@ -25,10 +25,10 @@ jobs:
       should_run: ${{ steps.set-matrix.outputs.should_run }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      
+
       - name: Determine Systems to Build
         id: set-matrix
         env:
@@ -48,27 +48,28 @@ jobs:
       image: ghcr.io/vup-linux/vup-builder:latest
       options: --privileged
     strategy:
-      matrix: ${{ fromJson(needs.check-changes.outputs.matrix) }}
+      matrix:
+        include: ${{ fromJson(needs.check-changes.outputs.matrix).include }}
       fail-fast: false
     concurrency:
       group: vup-build-${{ matrix.category }}-${{ matrix.arch }}
       cancel-in-progress: true
     steps:
       - name: Checkout VUP
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: vup
           fetch-depth: 0
 
       - name: Checkout void-packages
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: void-linux/void-packages
           path: void-packages
 
       - name: Cache xbps-src bootstrap & ccache
         id: cache-xbps
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: |
             void-packages/masterdir-*
@@ -82,6 +83,8 @@ jobs:
         run: |
           cd void-packages
           cp ../vup/vup/xbps-src .
+          mkdir -p srcpkgs/core/xbps-triggers
+          cp -r ../vup/vup/srcpkgs/core/xbps-triggers/* srcpkgs/core/xbps-triggers/
           chmod +x xbps-src
           echo "XBPS_ALLOW_RESTRICTED=yes" >> etc/conf
           echo "XBPS_CCACHE=yes" >> etc/conf
@@ -113,7 +116,7 @@ jobs:
           cp void-packages/build-logs/*.log logs-out/
 
       - name: Upload Binpkgs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: binpkgs-${{ matrix.category }}-${{ matrix.arch }}
           path: dist-out
@@ -121,7 +124,7 @@ jobs:
           retention-days: 1
 
       - name: Upload Build Logs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-logs-${{ matrix.category }}-${{ matrix.arch }}
           path: logs-out
@@ -135,18 +138,19 @@ jobs:
     permissions:
       contents: write
     strategy:
-      matrix: ${{ fromJson(needs.check-changes.outputs.matrix) }}
+      matrix:
+        include: ${{ fromJson(needs.check-changes.outputs.matrix).include }}
       fail-fast: false
     concurrency:
       group: vup-release-${{ matrix.category }}-${{ matrix.arch }}
       cancel-in-progress: false
-    
+
     steps:
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      
+        uses: docker/setup-qemu-action@v4
+
       - name: Checkout VUP
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: vup
 
@@ -164,7 +168,7 @@ jobs:
           python3 ../vup/vup/scripts/manage_release.py download || true
 
       - name: Download New Binpkgs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: binpkgs-${{ matrix.category }}-${{ matrix.arch }}
           path: work/dist
@@ -189,10 +193,10 @@ jobs:
             armv7l)  PLATFORM="linux/arm/v7" ;;
             *)       PLATFORM="linux/amd64" ;;
           esac
-          
+
           # Write key if present
           [ -n "$XBPS_PRIVATE_KEY" ] && echo "$XBPS_PRIVATE_KEY" > work/privkey.pem
-          
+
           docker run --rm --platform "$PLATFORM" \
             -v "$PWD/work/dist:/dist" \
             ${XBPS_PRIVATE_KEY:+-v "$PWD/work/privkey.pem:/privkey.pem:ro"} \
@@ -207,7 +211,7 @@ jobs:
               [ -f /privkey.pem ] && xbps-rindex --sign --privkey /privkey.pem --signedby "VUP Builder" .
               ls -la *-repodata* 2>/dev/null || echo "No repodata!"
             '
-          
+
           rm -f work/privkey.pem
 
       - name: Clean Remote Assets
@@ -223,7 +227,7 @@ jobs:
       - name: Upload Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ matrix.category }}-${{ matrix.arch }}-current
           files: work/dist/*
@@ -237,20 +241,20 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download Reports
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: build-logs-*
           path: reports
           merge-multiple: true
-      
+
       - name: Generate Summary
         id: summary
         run: |
-           echo "# Build Summary" >> $GITHUB_STEP_SUMMARY
-           python3 vup/scripts/generate_summary.py reports >> $GITHUB_STEP_SUMMARY
+          echo "# Build Summary" >> $GITHUB_STEP_SUMMARY
+          python3 vup/scripts/generate_summary.py reports >> $GITHUB_STEP_SUMMARY
 
   deploy-index:
     needs: [check-changes, release]
@@ -268,17 +272,38 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout VUP
-        uses: actions/checkout@v4
-      
+        uses: actions/checkout@v6
+
       - name: Generate Global Index
         run: |
           python3 vup/scripts/generate_index.py
 
       - name: Upload Pages Artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: public
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
+
+  notify-web:
+    needs: deploy-index
+    if: needs.deploy-index.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger vup-web sync
+        env:
+          VUP_WEBHOOK_SECRET: ${{ secrets.VUP_WEBHOOK_SECRET }}
+        run: |
+          if [ -z "$VUP_WEBHOOK_SECRET" ]; then
+            echo "VUP_WEBHOOK_SECRET not set; skipping notify."
+            exit 0
+          fi
+          # Give GH Pages CDN a moment to publish the new index.json
+          sleep 30
+          curl -fsSL --retry 5 --retry-delay 15 --max-time 600 \
+            -X POST https://voiduserpackages.org/api/sync \
+            -H "Content-Type: application/json" \
+            -H "X-Webhook-Secret: $VUP_WEBHOOK_SECRET" \
+            -d '{"action":"sync"}'

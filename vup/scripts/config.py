@@ -3,6 +3,7 @@
 Shared configuration for VUP build scripts.
 Edit these values to customize supported architectures and other settings.
 """
+
 import re
 
 # Supported architectures for building
@@ -27,9 +28,9 @@ def parse_template_archs(template_path):
     Returns a list of supported architectures, or None if not specified (means all archs).
     """
     try:
-        with open(template_path, 'r') as f:
+        with open(template_path, "r") as f:
             content = f.read()
-        
+
         # Match archs="..." or archs='...'
         match = re.search(r'^archs=["\']([^"\']+)["\']', content, re.MULTILINE)
         if match:
@@ -37,7 +38,7 @@ def parse_template_archs(template_path):
             return archs_str.split()
     except Exception as e:
         print(f"Warning: Could not parse template {template_path}: {e}")
-    
+
     return None  # No archs specified = builds for all
 
 
@@ -48,17 +49,17 @@ def arch_supported(archs_list, target_arch):
     """
     if archs_list is None:
         return True  # No restriction
-    
+
     # Check for noarch
     if "noarch" in archs_list:
         return True
-    
+
     # Check for negations
-    negated = [a[1:] for a in archs_list if a.startswith('~')]
+    negated = [a[1:] for a in archs_list if a.startswith("~")]
     if negated:
         # If there are negations, arch is supported unless explicitly negated
         return target_arch not in negated
-    
+
     # Positive list - arch must be in it
     return target_arch in archs_list
 
@@ -70,15 +71,15 @@ def get_positive_archs(archs_list):
     """
     if archs_list is None:
         return None
-    
+
     # Filter out negated and noarch
-    positive = [a for a in archs_list if not a.startswith('~') and a != 'noarch']
-    
+    positive = [a for a in archs_list if not a.startswith("~") and a != "noarch"]
+
     if positive:
         return positive
-    
+
     # Only negations or noarch - means all supported minus negated
     if "noarch" in archs_list:
         return None  # noarch means all
-    
+
     return None  # Only negations, treat as "all supported"

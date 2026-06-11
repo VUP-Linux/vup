@@ -1,0 +1,83 @@
+# Template file for 'zed'
+pkgname=zed
+version=1.5.5
+revision=1
+archs="x86_64 aarch64"
+create_wrksrc=yes
+hostmakedepends="tar"
+depends="
+ alsa-lib
+ curl
+ fontconfig
+ libgcc
+ glibc
+ libxcb
+ libxkbcommon
+ libxkbcommon-x11
+ openssl
+ sqlite
+ vulkan-loader
+ wayland
+ zlib
+ zstd
+"
+short_desc="A high-performance, multiplayer code editor from the creators of Atom and Tree-sitter"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="GPL-3.0-or-later OR AGPL-3.0-or-later OR Apache-2.0"
+homepage="https://zed.dev"
+nopie=yes
+nostrip=yes
+noshlibprovides=yes
+
+case "${XBPS_TARGET_MACHINE}" in
+	x86_64)
+		distfiles="https://github.com/zed-industries/zed/releases/download/v${version}/zed-linux-x86_64.tar.gz"
+		checksum="884c096c91ed0ef2d3d606357a20231abc7e3c3ae347b4374895373a34d3d264"
+		;;
+	aarch64)
+		distfiles="https://github.com/zed-industries/zed/releases/download/v${version}/zed-linux-aarch64.tar.gz"
+		checksum="4f03d66dd284b3624f5616eda0eb6b47adf0da0ec8f71905461869ef0326f634"
+		;;
+esac
+
+_app_dir="zed.app"
+
+do_install() {
+	# Install to /opt/zed
+	vmkdir opt/zed
+	vcopy "${_app_dir}/*" opt/zed
+
+	# Desktop file - modify to use absolute paths and add StartupWMClass
+	_desktop_file="dev.zed.Zed.desktop"
+	cp "${_app_dir}/share/applications/${_desktop_file}" "${_desktop_file}"
+	vsed -i "${_desktop_file}" \
+		-e "s#^Exec=zed#Exec=/usr/bin/zed#g" \
+		-e "s#^TryExec=zed#TryExec=/usr/bin/zed#g" \
+		-e "/^StartupNotify=true/a StartupWMClass=dev.zed.Zed"
+	vinstall "${_desktop_file}" 644 usr/share/applications
+
+	# Icons
+	vcopy "${_app_dir}/share/icons" usr/share
+	vinstall "${_app_dir}/share/icons/hicolor/512x512/apps/zed.png" 644 usr/share/pixmaps zed.png
+
+	# Helper script with flags config support
+	cat > zed.sh <<EOF
+#!/bin/bash
+XDG_CONFIG_HOME=\${XDG_CONFIG_HOME:-~/.config}
+
+# Allow users to override command-line options
+if [[ -f \$XDG_CONFIG_HOME/zed-flags.conf ]]; then
+   ZED_USER_FLAGS="\$(sed 's/#.*//' \$XDG_CONFIG_HOME/zed-flags.conf | tr '\n' ' ')"
+fi
+
+# Launch
+exec /opt/zed/libexec/zed-editor "\$@" \$ZED_USER_FLAGS
+EOF
+	vbin zed.sh zed
+
+	# Also create symlink for 'zeditor' command (common alternative name)
+	ln -sf zed ${DESTDIR}/usr/bin/zeditor
+
+	# License
+	vlicense "${_app_dir}/licenses.md"
+}

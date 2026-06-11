@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:os"
 import "core:strings"
 
+import config "../core/config"
 import errors "../core/errors"
 import index "../core/index"
 import template "../core/template"
@@ -33,8 +34,14 @@ update_run :: proc(args: []string, config: ^Config) -> int {
 		errors.log_error("Failed to load package index")
 		return 1
 	}
-	defer index.index_free(&idx)
 
+	// Update official Void packages first
+	ret := xbps.upgrade_all_official(config.yes, utils.run_command)
+	if ret != 0 {
+		return ret
+	}
+
+	// Then update VUP packages
 	return xbps_upgrade_all(&idx, config.yes)
 }
 
@@ -46,11 +53,6 @@ version_gt :: proc(v1: string, v2: string) -> bool {
 // Get the currently installed version of a package
 get_installed_version :: proc(pkg_name: string, allocator := context.allocator) -> (string, bool) {
 	return xbps.get_installed_version(pkg_name, utils.run_command_output, allocator)
-}
-
-// Run xbps-install for upgrade
-run_xbps_upgrade :: proc(repo_url: string, pkg_name: string, yes: bool) -> int {
-	return xbps.upgrade_from_repo(repo_url, pkg_name, yes, utils.run_command)
 }
 
 // Parse installed package line from xbps-query -l
@@ -149,16 +151,10 @@ xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
 		errors.log_error("Failed to run xbps-query")
 		return -1
 	}
-	defer delete(output)
+
 
 	upgrades: [dynamic]Upgrade_Info
-	defer {
-		for u in upgrades {
-			delete(u.new_template)
-			delete(u.cached_template)
-		}
-		delete(upgrades)
-	}
+
 
 	// Phase 1: Collect packages needing upgrade
 	lines := output
@@ -178,9 +174,9 @@ xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
 		}
 
 		// Get architecture-specific repo URL
-		arch, arch_ok := utils.get_arch()
+		arch, arch_ok := config.get_arch()
 		if !arch_ok {continue}
-		defer delete(arch)
+
 
 		repo_url, url_ok := pkg.repo_urls[arch]
 		if !url_ok {continue}
@@ -213,6 +209,7 @@ xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
 	fmt.println()
 
 	// Phase 2: Fetch templates (unless --yes)
+	confirmed := yes
 	if !yes {
 		errors.log_info("Fetching templates for review...")
 
@@ -233,26 +230,57 @@ xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
 			errors.log_info("Upgrade cancelled by user")
 			return 0
 		}
+		confirmed = true
 	}
 
 	// Phase 4: Perform upgrades
 	upgraded := 0
 	err_count := 0
 
-	for u in upgrades {
-		errors.log_info("Upgrading %s...", u.name)
+	// Group upgrades by repo URL for batch execution
+	Upgrade_Group :: struct {
+		repo_url: string,
+		upgrades: [dynamic]^Upgrade_Info,
+	}
+	groups := make([dynamic]Upgrade_Group, context.temp_allocator)
 
-		if run_xbps_upgrade(u.repo_url, u.name, yes) != 0 {
-			errors.log_error("Failed to upgrade %s", u.name)
+	for &u in upgrades {
+		found := false
+		for &group in groups {
+			if group.repo_url == u.repo_url {
+				append(&group.upgrades, &u)
+				found = true
+				break
+			}
+		}
+		if !found {
+			append(&groups, Upgrade_Group{
+				repo_url = u.repo_url,
+				upgrades = make([dynamic]^Upgrade_Info, context.temp_allocator),
+			})
+			append(&groups[len(groups) - 1].upgrades, &u)
+		}
+	}
+
+	for group in groups {
+		pkg_names := make([dynamic]string, context.temp_allocator)
+		for u in group.upgrades {
+			append(&pkg_names, u.name)
+		}
+
+		errors.log_info("Upgrading %d package(s) from VUP...", len(pkg_names))
+
+		if xbps.upgrade_packages_from_repo(group.repo_url, pkg_names[:], confirmed, utils.run_command) != 0 {
+			errors.log_error("Failed to upgrade %d package(s)", len(pkg_names))
 			err_count += 1
 		} else {
-			// Verify upgrade happened
-			new_ver, ver_ok := get_installed_version(u.name, context.temp_allocator)
-			if ver_ok && new_ver != u.installed_ver {
-				upgraded += 1
-				// Update template cache
-				if len(u.new_template) > 0 {
-					template.cache_save_template(u.name, u.new_template)
+			for u in group.upgrades {
+				new_ver, ver_ok := get_installed_version(u.name, context.temp_allocator)
+				if ver_ok && new_ver != u.installed_ver {
+					upgraded += 1
+					if len(u.new_template) > 0 {
+						template.cache_save_template(u.name, u.new_template)
+					}
 				}
 			}
 		}

@@ -1,0 +1,34 @@
+# Template file for 'nvm'
+pkgname=nvm
+version=0.40.3
+revision=1
+archs="x86_64 aarch64"
+depends="bash"
+short_desc="Node Version Manager - Simple bash script to manage multiple active node.js versions"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="MIT"
+homepage="https://github.com/nvm-sh/nvm"
+distfiles="https://github.com/nvm-sh/nvm/archive/refs/tags/v${version}.tar.gz"
+checksum=5f4d6aaa04a177dc93c985e31dbc411ab6b8c6e1e21d8015dbc1372625fcd1d0
+
+do_install() {
+	vmkdir usr/share/nvm
+	vcopy nvm.sh usr/share/nvm
+	vcopy bash_completion usr/share/nvm
+	vcopy nvm-exec usr/share/nvm
+	vcopy install.sh usr/share/nvm
+	
+	vlicense LICENSE.md
+	vdoc README.md
+
+	# Create a profile.d script to source nvm
+	cat > nvm.sh <<EOF
+#!/bin/bash
+export NVM_DIR="\$HOME/.nvm"
+[ -s "/usr/share/nvm/nvm.sh" ] && . "/usr/share/nvm/nvm.sh"
+[ -s "/usr/share/nvm/bash_completion" ] && . "/usr/share/nvm/bash_completion"
+EOF
+	
+	vmkdir etc/profile.d
+	vinstall nvm.sh 755 etc/profile.d
+}

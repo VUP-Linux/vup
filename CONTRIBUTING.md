@@ -19,7 +19,7 @@ vuru/                                     # package manager (Odin)
 3. Create your template at `vup/srcpkgs/<category>/<pkgname>/template`.
    Follow standard [Void packaging conventions](https://github.com/void-linux/void-packages/blob/master/Manual.md).
 
-4. Open a PR. CI will check if it builds (a bot will comment incase of issues with logs), after it is merged CI will build your package automatically.
+4. Open a PR. CI will automatically validate your template for required fields. If it passes, a maintainer will add the `ok-to-build` label to trigger a build. A bot will comment with results.
 
 That's it. Once merged, the package shows up in the VUP index.
 
@@ -65,3 +65,58 @@ VUP runs entirely on GitHub infrastructure:
 ## Updating Packages
 
 Bump the version or revision in the template and push. CI handles the rest.
+
+## Local Validation
+
+Run this before opening a PR to catch template issues early:
+
+```bash
+make check
+```
+
+This validates all templates for required fields (`pkgname`, `version`, `revision`, `license`, `homepage`, `distfiles`, `short_desc`, `maintainer`).
+
+To build a package locally using Docker (same environment as CI):
+
+```bash
+docker run --rm --privileged -v $PWD:/vup \
+  ghcr.io/vup-linux/vup-builder:latest sh -c '
+    cd /vup/vup/srcpkgs/<category>/<pkgname> && xbps-src pkg <pkgname>'
+```
+
+## PR Title Convention
+
+- **New package:** `feat: add <pkgname>` or `feat: add <pkgname> <version>`
+- **Update:** `<pkgname>: update to <version>`
+- **Fixes/chores/docs:** `fix:`, `chore:`, `docs:`, `ci:`
+
+A CI check will remind you if the title doesn't match.
+
+## xbps-src Patches
+
+If you're modifying `xbps-src` itself or the build infrastructure (`vup/common/`, `vup/xbps-src`), see [PATCHES.md](PATCHES.md) for a record of changes made to the upstream void-packages codebase.
+
+## Contributing to vuru
+
+**vuru** is the package manager for VUP, written in Odin. It lives in `vuru/`.
+
+### Building
+
+```bash
+cd vuru
+make          # release build
+make debug    # debug build
+```
+
+### Installing
+
+```bash
+sudo make install
+```
+
+### Release Flow
+
+1. Push a version tag (`vX.Y.Z`) — this triggers the `vuru-release.yml` workflow
+2. CI creates a source tarball and attaches it to a GitHub Release
+3. CI opens a PR to update `vup/srcpkgs/core/vuru/template` with the new version and checksum
+4. Merge that PR and the build workflow publishes the updated package
