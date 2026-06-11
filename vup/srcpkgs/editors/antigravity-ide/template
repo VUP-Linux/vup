@@ -1,0 +1,121 @@
+# Template file for 'antigravity-ide'
+pkgname=antigravity-ide
+version=2.0.4
+revision=1
+archs="x86_64 aarch64"
+create_wrksrc=yes
+hostmakedepends="tar"
+depends="
+ alsa-lib
+ at-spi2-core
+ cairo
+ cups
+ dbus
+ expat
+ glib
+ gtk+3
+ libX11
+ libXcomposite
+ libXdamage
+ libXext
+ libXfixes
+ libXrandr
+ libXScrnSaver
+ libdrm
+ libsecret
+ libxcb
+ libxkbcommon
+ libxkbfile
+ libxshmfence
+ lsof
+ mesa
+ nspr
+ nss
+ pango
+ shared-mime-info
+ xdg-utils
+"
+short_desc="Antigravity IDE from Google"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="custom:Google-Antigravity"
+homepage="https://antigravity.google/"
+restricted=yes
+nopie=yes
+nostrip=yes
+noshlibprovides=yes
+
+_build=6381998290370560
+_baseurl="https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/stable/${version}-${_build}"
+_app_dir="Antigravity IDE"
+
+case "$XBPS_TARGET_MACHINE" in
+	x86_64)
+		distfiles="${_baseurl}/linux-x64/Antigravity%20IDE.tar.gz>${pkgname}-${version}-x64.tar.gz"
+		checksum=66337d45f2472ce5e89f394e77aec74909aa1be0bb33c9f73299a95f458e6770
+		;;
+	aarch64)
+		distfiles="${_baseurl}/linux-arm/Antigravity%20IDE.tar.gz>${pkgname}-${version}-arm64.tar.gz"
+		checksum=30435204d14cdcd479b37fd9ae077425d7ab7bb90f99af2bc41638205e02fb37
+		;;
+esac
+
+do_install() {
+	# Extract and install app
+	vmkdir opt/${pkgname}
+	cp -a --no-preserve=ownership "${_app_dir}/." "${DESTDIR}/opt/${pkgname}"
+	chmod 755 "${DESTDIR}/opt/${pkgname}/chrome-sandbox"
+
+	# Helper script with flags config support and workarounds for known issues
+	cat > antigravity-ide.sh <<EOF
+#!/bin/bash
+XDG_CONFIG_HOME=\${XDG_CONFIG_HOME:-~/.config}
+
+# Disable core dumps to prevent disk space issues (upstream bug causes crash loops)
+ulimit -c 0
+
+# Allow users to override command-line options
+if [[ -f \$XDG_CONFIG_HOME/antigravity-ide-flags.conf ]]; then
+   ANTIGRAVITY_IDE_USER_FLAGS="\$(sed 's/#.*//' \$XDG_CONFIG_HOME/antigravity-ide-flags.conf | tr '\n' ' ')"
+fi
+
+# Wayland native support
+if [[ \$XDG_SESSION_TYPE == "wayland" ]]; then
+   WAYLAND_FLAGS="--ozone-platform=wayland"
+fi
+
+# Flags to help with service worker and sandbox issues
+STABILITY_FLAGS="--disable-gpu-sandbox --no-sandbox"
+
+exec /opt/${pkgname}/bin/antigravity-ide "\$@" \$WAYLAND_FLAGS \$STABILITY_FLAGS \$ANTIGRAVITY_IDE_USER_FLAGS
+EOF
+	vbin antigravity-ide.sh antigravity-ide
+
+	# Desktop file
+	cat > antigravity-ide.desktop <<EOF
+[Desktop Entry]
+Name=Antigravity IDE
+Comment=Antigravity IDE from Google
+GenericName=Text Editor
+Exec=antigravity-ide %F
+Icon=antigravity-ide
+Type=Application
+StartupNotify=true
+StartupWMClass=antigravity-ide
+Categories=Development;IDE;TextEditor;
+MimeType=text/plain;inode/directory;
+EOF
+	vinstall antigravity-ide.desktop 644 usr/share/applications
+
+	# Icon
+	vinstall "${DESTDIR}/opt/${pkgname}/resources/app/resources/linux/code.png" 644 \
+		usr/share/pixmaps antigravity-ide.png
+
+	# Shell completions
+	vcompletion "${DESTDIR}/opt/${pkgname}/resources/completions/bash/antigravity-ide" bash
+	vcompletion "${DESTDIR}/opt/${pkgname}/resources/completions/zsh/_antigravity-ide" zsh antigravity-ide
+
+	# License
+	vlicense "${DESTDIR}/opt/${pkgname}/resources/app/LICENSE.txt"
+	vlicense "${DESTDIR}/opt/${pkgname}/LICENSES.chromium.html"
+	vlicense "${DESTDIR}/opt/${pkgname}/resources/app/ThirdPartyNotices.txt"
+}
