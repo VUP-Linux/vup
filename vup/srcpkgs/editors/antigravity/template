@@ -1,7 +1,7 @@
 # Template file for 'antigravity'
 pkgname=antigravity
 version=2.0.11
-revision=1
+revision=2
 archs="x86_64 aarch64"
 create_wrksrc=yes
 hostmakedepends="tar"
@@ -98,12 +98,25 @@ Name=Antigravity
 Comment=Agentic development hub from Google
 GenericName=Development Tool
 Exec=antigravity %U
+Icon=antigravity
 Type=Application
 StartupNotify=true
 StartupWMClass=Antigravity
 Categories=Development;
 EOF
 	vinstall antigravity.desktop 644 usr/share/applications
+
+	# The Hub icon is packed inside Electron's ASAR archive.
+	_app_asar="${DESTDIR}/opt/${pkgname}/resources/app.asar"
+	_header_size="$(od -An -tu4 -j 12 -N 4 "${_app_asar}" | tr -d ' ')"
+	dd if="${_app_asar}" of=asar-header.json bs=1 skip=16 \
+		count="${_header_size}" status=none
+	_icon_size="$(sed -n 's/.*"icon.png":{"size":\([0-9][0-9]*\),.*/\1/p' asar-header.json)"
+	_icon_offset="$(sed -n 's/.*"icon.png":{.*"offset":"\([0-9][0-9]*\)".*/\1/p' asar-header.json)"
+	dd if="${_app_asar}" of=antigravity.png bs=1 \
+		skip="$((16 + _header_size + _icon_offset))" \
+		count="${_icon_size}" status=none
+	vinstall antigravity.png 644 usr/share/pixmaps antigravity.png
 
 	# License
 	vlicense "${DESTDIR}/opt/${pkgname}/LICENSE.electron.txt"
