@@ -44,6 +44,29 @@ nostrip=yes
 noshlibprovides=yes
 create_wrksrc=yes
 
+case "$XBPS_TARGET_MACHINE" in
+	x86_64)
+		skiprdeps="/opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-x64/copilot
+		 /opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-arm64/copilot
+		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/arm64/lxc-exec
+		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/arm64/linux-test-proxy"
+		;;
+	aarch64)
+		skiprdeps="/opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-x64/copilot
+		 /opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-arm64/copilot
+		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/x64/lxc-exec
+		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/x64/linux-test-proxy"
+		;;
+	armv7l)
+		skiprdeps="/opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-x64/copilot
+		 /opt/${pkgname}/resources/app/node_modules/@github/copilot-linuxmusl-arm64/copilot
+		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/arm64/lxc-exec
+		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/arm64/linux-test-proxy
+		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/x64/lxc-exec
+		 /opt/${pkgname}/resources/app/node_modules/@microsoft/mxc-sdk/bin/x64/linux-test-proxy"
+		;;
+esac
+
 _baseurl="https://raw.githubusercontent.com/microsoft/vscode/main/resources/linux"
 distfiles="${_baseurl}/code.desktop>code.desktop.in
  ${_baseurl}/code-url-handler.desktop>code-url-handler.desktop.in
