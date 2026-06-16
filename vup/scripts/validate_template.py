@@ -64,11 +64,11 @@ def parse_template(path):
 
 
 def check_noshlibprovides(fields, raw_content, path):
-    """Warn if the template looks like an Electron/prebuilt app without noshlibprovides."""
+    """Warn if the template looks like a bundled binary app without noshlibprovides."""
     pkgname = fields.get("pkgname", "")
     short_desc = fields.get("short_desc", "").lower()
-    homepage = fields.get("homepage", "").lower()
     distfiles = fields.get("distfiles", "").lower()
+    hostmakedepends = fields.get("hostmakedepends", "").lower()
 
     # If it has build_style or do_build(), it's compiled from source — no warning needed
     if fields.get("build_style", ""):
@@ -76,12 +76,31 @@ def check_noshlibprovides(fields, raw_content, path):
     if "do_build()" in raw_content:
         return None
 
-    # Heuristics for prebuilt/electron apps
+    # Python source distributions commonly have no do_build() and still are not
+    # bundled binary apps.
+    python_source_indicators = [
+        "files.pythonhosted.org/packages/source/" in distfiles,
+        "pypi.org/packages/source/" in distfiles,
+        "python3-setuptools" in hostmakedepends,
+        "python3-pep517" in hostmakedepends,
+        "python3-flit_core" in hostmakedepends,
+        "python3-hatchling" in hostmakedepends,
+        "python3 -m pip install" in raw_content,
+    ]
+    if any(python_source_indicators):
+        return None
+
+    app_keywords = ("browser", "editor", "ide", "electron")
+    binary_archive_patterns = [
+        r"\.(appimage|deb|rpm)(?:[>\s\"']|$)",
+        r"(?:^|[-_/])(linux|unknown-linux|pc-linux|linux-gnu|linux-musl)(?:[-_/]|$)",
+        r"(?:^|[-_/])(x86_64|amd64|aarch64|arm64|x64)(?:[-_/\.]|$)",
+    ]
+
+    # Heuristics for prebuilt/electron apps and arch-specific binary archives.
     prebuilt_indicators = [
-        ".tar.gz" in distfiles or ".zip" in distfiles,
-        "browser" in short_desc or "browser" in pkgname,
-        "editor" in short_desc or "ide" in short_desc,
-        "electron" in pkgname or "electron" in short_desc,
+        any(word in short_desc or word in pkgname for word in app_keywords),
+        any(re.search(pattern, distfiles) for pattern in binary_archive_patterns),
     ]
 
     if any(prebuilt_indicators):

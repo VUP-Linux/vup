@@ -2,19 +2,18 @@ name: VUP Bot
 
 on:
   workflow_run:
-    workflows: ["PR Build"]
+    workflows: ["PR Build", "Template Check", "PR Title Check"]
     types:
       - completed
 
 permissions:
-  pull-requests: write
   contents: read
   actions: read
 
 jobs:
   report-status:
     runs-on: ubuntu-latest
-    if: ${{ contains(fromJson('["pull_request", "pull_request_target"]'), github.event.workflow_run.event) && github.event.workflow_run.conclusion != 'skipped' }}
+    if: ${{ github.event.workflow_run.name == 'PR Build' && contains(fromJson('["pull_request", "pull_request_target"]'), github.event.workflow_run.event) && github.event.workflow_run.conclusion != 'skipped' }}
     steps:
       - name: Generate App Token
         id: app-token
@@ -83,7 +82,7 @@ jobs:
       - name: Manage Labels
         uses: actions/github-script@v9
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ steps.app-token.outputs.token }}
           script: |
             const prNumber = parseInt('${{ steps.pr.outputs.number }}', 10);
             const buildResult = '${{ steps.analyze.outputs.result }}';
@@ -110,4 +109,146 @@ jobs:
               });
             } catch (e) {
               core.info('ok-to-build label not present (already removed or never added)');
+            }
+
+  report-pr-check:
+    runs-on: ubuntu-latest
+    if: ${{ contains(fromJson('["Template Check", "PR Title Check"]'), github.event.workflow_run.name) && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion != 'skipped' }}
+    steps:
+      - name: Generate App Token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.VUP_BOT_APP_ID }}
+          private-key: ${{ secrets.VUP_BOT_PRIVATE_KEY }}
+
+      - name: Download PR Check Report
+        id: download-report
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: pr-check-report
+          path: pr-check-report
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update PR Check Comment
+        if: steps.download-report.outcome == 'success'
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const fs = require('fs');
+
+            const workflowName = context.payload.workflow_run.name;
+            const marker = workflowName === 'Template Check'
+              ? '<!-- template-check -->'
+              : '<!-- pr-title-check -->';
+
+            const prNumber = Number(fs.readFileSync('pr-check-report/pr_number.txt', 'utf8').trim());
+            const status = fs.readFileSync('pr-check-report/status.txt', 'utf8').trim();
+            const detailsPath = 'pr-check-report/details.txt';
+            const details = fs.existsSync(detailsPath)
+              ? fs.readFileSync(detailsPath, 'utf8').trim()
+              : '';
+
+            function escapeHtml(value) {
+              return value
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+            }
+
+            function escapeInlineCode(value) {
+              return value.replace(/`/g, '\\`');
+            }
+
+            function preformatted(value) {
+              return `<pre>${escapeHtml(value)}</pre>`;
+            }
+
+            let shouldComment = false;
+            let commentBody = '';
+
+            if (workflowName === 'Template Check') {
+              if (status === 'failure') {
+                shouldComment = true;
+                commentBody = [
+                  '### :x: Template Validation Failed',
+                  '',
+                  'Your template has issues that must be fixed before this PR can be built:',
+                  '',
+                  preformatted(details),
+                  '',
+                  'Fix the errors above, push your changes, and the check will re-run automatically.',
+                ].join('\n');
+              } else if (status === 'warning') {
+                shouldComment = true;
+                commentBody = [
+                  '### :warning: Template Validation Passed (with warnings)',
+                  '',
+                  preformatted(details),
+                ].join('\n');
+              }
+            } else if (status === 'failure') {
+              shouldComment = true;
+              commentBody = [
+                ':warning: PR title does not follow conventions.',
+                '',
+                '**New package:** `feat: add <pkgname>` or `feat: add <pkgname> <version>`',
+                '**Update:** `<pkgname>: update to <version>`',
+                '**Other:** `fix:`, `chore:`, `docs:`, `ci:`, `refactor:`, `test:`',
+                '',
+                `Current title: \`${escapeInlineCode(details)}\``,
+              ].join('\n');
+            }
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const previous = comments.find(comment =>
+              comment.user.type === 'Bot' && comment.body?.includes(marker)
+            );
+
+            if (!shouldComment || !commentBody) {
+              if (previous) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: previous.id,
+                });
+              }
+              return;
+            }
+
+            // Artifact details come from a pull_request workflow. Avoid pings
+            // and markers being echoed back through the bot comment.
+            commentBody = commentBody
+              .replace(/<!--\s*(template-check|pr-title-check)\s*-->/g, '')
+              .replace(/@/g, '@<!-- -->')
+              .trim();
+
+            const maxCommentLength = 60000;
+            if (commentBody.length > maxCommentLength) {
+              commentBody = `${commentBody.slice(0, maxCommentLength)}\n\n... output truncated.`;
+            }
+
+            const body = `${marker}\n${commentBody}`;
+            if (previous) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: previous.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
             }

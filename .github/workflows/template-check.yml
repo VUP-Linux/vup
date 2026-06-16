@@ -12,14 +12,23 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout PR
         uses: actions/checkout@v6
         with:
+          path: pr
+          fetch-depth: 0
+
+      - name: Checkout Base Scripts
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
           fetch-depth: 0
 
       - name: Validate Templates
         id: validate
         run: |
+          cd pr
           git fetch origin main
           CHANGED=$(git diff --name-only origin/main...HEAD -- 'vup/srcpkgs/*/*/template')
 
@@ -34,7 +43,7 @@ jobs:
           echo "$CHANGED"
 
           # Capture both stdout and exit code
-          OUTPUT=$(python3 vup/scripts/validate_template.py $CHANGED 2>&1) && RC=$? || RC=$?
+          OUTPUT=$(python3 ../base/vup/scripts/validate_template.py $CHANGED 2>&1) && RC=$? || RC=$?
           echo "$OUTPUT"
 
           if [ $RC -ne 0 ]; then
@@ -55,6 +64,7 @@ jobs:
           script: |
             const fs = require('fs');
             const errors = fs.readFileSync('/tmp/validation-errors.txt', 'utf8');
+            const prNumber = context.payload.pull_request.number;
 
             const body = [
               '### :x: Template Validation Failed',
@@ -67,6 +77,12 @@ jobs:
               '',
               'Fix the errors above, push your changes, and the check will re-run automatically.',
             ].join('\n');
+
+            const reportDir = 'pr-check-report';
+            fs.mkdirSync(reportDir, { recursive: true });
+            fs.writeFileSync(`${reportDir}/pr_number.txt`, `${prNumber}\n`);
+            fs.writeFileSync(`${reportDir}/status.txt`, 'failure\n');
+            fs.writeFileSync(`${reportDir}/details.txt`, `${errors.trim()}\n`);
 
             await core.summary
               .addRaw(body)
@@ -82,6 +98,7 @@ jobs:
           script: |
             const fs = require('fs');
             const output = fs.readFileSync('/tmp/validation-output.txt', 'utf8');
+            const prNumber = context.payload.pull_request.number;
 
             const hasWarnings = output.includes('WARNING:');
 
@@ -99,6 +116,20 @@ jobs:
                   'All required fields are present.',
                 ].join('\n');
 
+            const reportDir = 'pr-check-report';
+            fs.mkdirSync(reportDir, { recursive: true });
+            fs.writeFileSync(`${reportDir}/pr_number.txt`, `${prNumber}\n`);
+            fs.writeFileSync(`${reportDir}/status.txt`, hasWarnings ? 'warning\n' : 'success\n');
+            fs.writeFileSync(`${reportDir}/details.txt`, `${output.trim()}\n`);
+
             await core.summary
               .addRaw(body)
               .write();
+
+      - name: Upload PR Check Report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr-check-report
+          path: pr-check-report/*
+          if-no-files-found: ignore
