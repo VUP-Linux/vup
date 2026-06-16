@@ -6,8 +6,7 @@ on:
     paths:
       - 'vup/srcpkgs/**/*'
 
-permissions:
-  pull-requests: write
+permissions: {}
 
 jobs:
   check-title:
@@ -19,7 +18,6 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const title = context.payload.pull_request.title;
-            const prNumber = context.payload.pull_request.number;
 
             // Allowed formats:
             //   feat: add <pkgname> [<version>]
@@ -36,27 +34,9 @@ jobs:
             ];
 
             const valid = patterns.some(p => p.test(title));
-            const marker = '<!-- pr-title-check -->';
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-            });
-
-            for (const comment of comments) {
-              if (comment.user.type === 'Bot' && comment.body.includes(marker)) {
-                await github.rest.issues.deleteComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  comment_id: comment.id,
-                });
-              }
-            }
 
             if (!valid) {
               const msg = [
-                marker,
                 `:warning: PR title does not follow conventions.`,
                 '',
                 '**New package:** `feat: add <pkgname>` or `feat: add <pkgname> <version>`',
@@ -66,14 +46,11 @@ jobs:
                 `Current title: \`${title}\``,
               ].join('\n');
 
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body: msg
-              });
+              await core.summary
+                .addRaw(msg)
+                .write();
 
-              core.setFailed('PR title does not follow conventions. See comment for format.');
+              core.setFailed('PR title does not follow conventions. See job summary for format.');
             } else {
               console.log(`PR title "${title}" is valid.`);
             }

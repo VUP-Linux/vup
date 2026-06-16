@@ -147,7 +147,10 @@ jobs:
 
     steps:
       - name: Set up QEMU
+        if: matrix.arch != 'x86_64'
         uses: docker/setup-qemu-action@v4
+        with:
+          cache-image: false
 
       - name: Checkout VUP
         uses: actions/checkout@v6
