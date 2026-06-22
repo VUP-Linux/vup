@@ -13,13 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: pr
           fetch-depth: 0
 
       - name: Checkout Base Scripts
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           path: base
