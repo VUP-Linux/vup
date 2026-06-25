@@ -1,6 +1,6 @@
 # Template file for 'visual-studio-code-insiders'
 pkgname=visual-studio-code-insiders
-version=1.127.0.20260624
+version=1.127.0.20260625
 revision=1
 _commit=2858f2c0200dc2f4f87aca248c69daaf85f3ce69
 archs="x86_64 aarch64 armv7l"
@@ -87,13 +87,13 @@ case "$XBPS_TARGET_MACHINE" in
 		_app_dir="VSCode-linux-x64"
 		;;
 	aarch64)
-		distfiles+=" ${_dlbase}/code-insider-arm64-1782234721.tar.gz"
-		checksum+=" 42822c5fda8b92000b51ac1ff828f968a175b9e7cd1cc3f9edad14c2f38a7797"
+		distfiles+=" ${_dlbase}/code-insider-arm64-1782321052.tar.gz"
+		checksum+=" 45a708c9ec723765dcb1ddf1992687403bb7567e3d53eb10a77364033ce7cd4a"
 		_app_dir="VSCode-linux-arm64"
 		;;
 	armv7l)
-		distfiles+=" ${_dlbase}/code-insider-armhf-1782234696.tar.gz"
-		checksum+=" c5bd15d8a205192089974114805979c1c8c021880bfce76b9a45ddd2d1033276"
+		distfiles+=" ${_dlbase}/code-insider-armhf-1782321002.tar.gz"
+		checksum+=" 3d31cc5efc58c509fa12d56e86d595fcc30c69099ede933f946cf7c285b2d9d1"
 		_app_dir="VSCode-linux-armhf"
 		;;
 esac
