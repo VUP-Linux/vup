@@ -1,6 +1,6 @@
 # Template file for 'visual-studio-code-insiders'
 pkgname=visual-studio-code-insiders
-version=1.129.0.20260711
+version=1.129.0.20260712
 revision=1
 _commit=e8a3eada3426fa6848c7494ebe2291702fef4a61
 archs="x86_64 aarch64 armv7l"
