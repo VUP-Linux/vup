@@ -1,6 +1,6 @@
 # Template file for 'helium'
 pkgname=helium
-version=0.14.7.1
+version=0.14.8.2
 revision=1
 archs="x86_64 aarch64"
 depends="
@@ -41,11 +41,11 @@ _baseurl="https://github.com/imputnet/helium-linux/releases/download/${version}"
 case "$XBPS_TARGET_MACHINE" in
 	x86_64)
 		_arch_suffix=x86_64
-		checksum=5bba7e0c4c7ce69e7ab22fa134028554ce2af2b8796992d2f8136651316ba221
+		checksum=dd7530070f6c49080f8d3557de8046c0af4f41780de49fa4b5d2027b2ebbc001
 		;;
 	aarch64)
 		_arch_suffix=arm64
-		checksum=cf87a340f8f841ea3718bf85f8814342de1584b4ee1c6af82d66a65011f7d38d
+		checksum=ce5cfab20ba13478f440e297f0f5b670905b308427415e55644eccb1bee1bdfd
 		;;
 esac
 
