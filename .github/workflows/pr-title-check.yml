@@ -30,7 +30,8 @@ jobs:
             //   ci: <description>
 
             const patterns = [
-              /^(feat|add):\s+add\s+\S+/i,          // New package
+              /^(feat|add|auto):\s+add\s+\S+/i,          // New package
+              
               /^\S+:\s+update\s+to\s+\S+/i,         // Update package
               /^(fix|chore|docs|ci|refactor|test):\s+/i,  // Standard conventional commits
             ];
