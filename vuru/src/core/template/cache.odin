@@ -4,8 +4,6 @@ import "../../utils"
 import config "../config"
 
 import errors "../errors"
-import "core:os"
-import "core:strings"
 
 // Retrieve a cached package template
 cache_get_template :: proc(pkg_name: string, allocator := context.allocator) -> (string, bool) {

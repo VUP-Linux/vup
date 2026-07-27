@@ -2,6 +2,12 @@
 
 This document tracks modifications made to the upstream void-packages (xbps-src) codebase.
 
+## Upstream snapshot
+
+`vup/common/`, `vup/etc/`, and `vup/xbps-src` were last refreshed from
+void-linux/void-packages commit `77bf0c2844dfdcd425eb56387e7b90f6206a294d`
+on 2026-07-27. The VUP-specific changes documented below were then reapplied.
+
 ## common.sh - Category-aware template resolution
 
 **File:** `vup/common/xbps-src/shutils/common.sh`

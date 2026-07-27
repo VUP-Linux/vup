@@ -3,7 +3,6 @@ package commands
 import builder "../core/builder"
 import errors "../core/errors"
 import index "../core/index"
-import utils "../utils"
 import "core:fmt"
 
 // Build command implementation
@@ -29,8 +28,8 @@ build_run :: proc(args: []string, config: ^Config) -> int {
 	exit_code := 0
 
 	for pkg_name in args {
-		pkg, ok := index.index_get_package(&idx, pkg_name)
-		if !ok {
+		pkg, found := index.index_get_package(&idx, pkg_name)
+		if !found {
 			errors.log_error("Package '%s' not found in VUP index", pkg_name)
 			exit_code = 1
 			continue

@@ -23,7 +23,8 @@ This is the third iteration of vuru, rewritten in Odin for:
 
 ## Building
 
-Make sure you have Odin installed. Then run:
+Make sure you have Odin installed. Vuru is currently checked against
+`dev-2026-07a`. Then run:
 
 ```bash
 make
