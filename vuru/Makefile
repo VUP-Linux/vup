@@ -1,11 +1,12 @@
 # Makefile for vuru (Odin version)
 
 ODIN = odin
-ODIN_FLAGS = -o:speed -reloc-mode:pic
+ODIN_FLAGS = -o:speed
 DEBUG_FLAGS = -debug -o:none
 
-# Linker flags (combined into single -extra-linker-flags for Odin)
-LINKER_FLAGS = -pie
+# Odin 2026.07+ enables PIE and full RELRO on Linux by default.
+# Extra linker flags are only needed when selecting a cross-linker.
+LINKER_FLAGS =
 
 # Cross-compilation support for xbps-src
 # XBPS_TARGET_MACHINE is set by xbps-src when cross-compiling
@@ -21,7 +22,9 @@ ifdef XBPS_TARGET_MACHINE
   endif
 endif
 
-ODIN_FLAGS += -extra-linker-flags="$(LINKER_FLAGS)"
+ifneq ($(strip $(LINKER_FLAGS)),)
+  ODIN_FLAGS += -extra-linker-flags="$(LINKER_FLAGS)"
+endif
 
 PREFIX ?= /usr/local
 DESTDIR ?=
@@ -50,7 +53,7 @@ debug: $(SRCS)
 	$(ODIN) build $(SRC_DIR) -out:$(TARGET) $(DEBUG_FLAGS) $(COLLECTIONS)
 
 check: $(SRCS)
-	$(ODIN) check $(SRC_DIR) $(COLLECTIONS)
+	$(ODIN) check $(SRC_DIR) -vet $(COLLECTIONS)
 
 run: $(TARGET)
 	./$(TARGET) $(ARGS)

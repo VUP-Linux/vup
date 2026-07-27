@@ -1,12 +1,10 @@
 package commands
 
 import "core:fmt"
-import "core:strings"
 
 import errors "../core/errors"
 import index "../core/index"
 import resolve "../core/resolve"
-import template "../core/template"
 import xbps "../core/xbps"
 import utils "../utils"
 
@@ -107,8 +105,6 @@ query_info :: proc(args: []string, config: ^Config) -> int {
 				pkg_name,
 				context.temp_allocator,
 			)
-			if tmpl_ok {
-			}
 
 			// Use template description if index doesn't have it
 			desc := pkg.short_desc

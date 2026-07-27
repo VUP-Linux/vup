@@ -1,6 +1,5 @@
 package xbps
 
-import "core:mem"
 import "core:strings"
 
 // Type alias for command runner functions

@@ -141,7 +141,7 @@ install_local_package :: proc(cfg: ^Build_Config, pkg_name: string, yes: bool) -
 	// Find the built package in hostdir/binpkgs
 	binpkgs := utils.path_join(cfg.vup_dir, "hostdir/binpkgs", allocator = context.temp_allocator)
 
-	arch, ok := config.get_arch()
+	_, ok := config.get_arch()
 	if !ok {
 		return false
 	}

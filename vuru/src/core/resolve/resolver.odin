@@ -28,9 +28,9 @@ get_installed_version :: proc(name: string) -> (version: string, ok: bool) {
 		if strings.has_prefix(line, "pkgver:") {
 			value := strings.trim_space(line[7:])
 			// Use xbps-uhelper for correct parsing of packages with dashes in names
-			_, version, parse_ok := xbps.parse_pkgver(value)
+			_, parsed_version, parse_ok := xbps.parse_pkgver(value)
 			if parse_ok {
-				return version, true
+				return parsed_version, true
 			}
 		}
 	}
@@ -50,9 +50,9 @@ is_in_official_repos :: proc(name: string) -> (version: string, ok: bool) {
 		if strings.has_prefix(line, "pkgver:") {
 			value := strings.trim_space(line[7:])
 			// Use xbps-uhelper for correct parsing of packages with dashes in names
-			_, version, parse_ok := xbps.parse_pkgver(value)
+			_, parsed_version, parse_ok := xbps.parse_pkgver(value)
 			if parse_ok {
-				return version, true
+				return parsed_version, true
 			}
 		}
 	}

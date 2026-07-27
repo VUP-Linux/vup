@@ -1,6 +1,6 @@
 # Template file for 'odin'
 pkgname=odin
-version=2026.05
+version=2026.07a
 revision=1
 _tag="dev-${version//./-}"
 archs="x86_64"
@@ -13,8 +13,11 @@ maintainer="AmarBego <begovicamar@proton.me>"
 license="BSD-3-Clause"
 homepage="https://odin-lang.org/"
 nostrip=yes
+# Keep Odin's bundled AArch64 raylib available for cross-target builds without
+# making the native x86_64 package depend on the AArch64 dynamic loader.
+skiprdeps="/usr/lib/odin/vendor/raylib/linux-arm64/libraylib.so.600"
 distfiles="https://github.com/odin-lang/Odin/archive/refs/tags/${_tag}.tar.gz"
-checksum=e2c3273728a2c09b581cdf416d850b2388a8f4e66a4357bc737addfd0fa95b75
+checksum=8f4f02fd9a3426b441cd0dfbe0aca1b95fd93c95d86940fcb4417ef6044c83cd
 wrksrc="Odin-${_tag}"
 
 do_build() {

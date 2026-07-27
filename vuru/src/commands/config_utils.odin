@@ -1,7 +1,5 @@
 package commands
 
-import "core:mem"
-
 // Free owned resources in Config
 config_free :: proc(c: ^Config) {
 	if c.allocator.procedure == nil {

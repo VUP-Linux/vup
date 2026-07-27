@@ -6,7 +6,6 @@ import "core:strings"
 import errors "../core/errors"
 import index "../core/index"
 import resolve "../core/resolve"
-import template "../core/template"
 import utils "../utils"
 
 // Info command implementation
@@ -25,7 +24,7 @@ info_run :: proc(args: []string, config: ^Config) -> int {
 
 	for pkg_name in args {
 		// Check VUP first
-		if pkg, ok := index.index_get_package(&idx, pkg_name); ok {
+		if pkg, found := index.index_get_package(&idx, pkg_name); found {
 			fmt.println()
 			fmt.printf("Package: %s\n", pkg_name)
 			fmt.printf("Version: %s\n", pkg.version)
