@@ -1,6 +1,6 @@
 # Template file for 'vuru'
 pkgname=vuru
-version=0.6.0
+version=0.6.1
 revision=1
 archs="x86_64 aarch64"
 build_style=gnu-makefile
@@ -12,4 +12,4 @@ maintainer="AmarBego <begovicamar@proton.me>"
 license="MIT"
 homepage="https://github.com/VUP-Linux/vup"
 distfiles="https://github.com/VUP-Linux/vup/releases/download/v${version}/vuru-${version}.tar.gz"
-checksum="16dcbf0e04375632c4f14ce332ada540ac74ed7105c5da0f2fa8bb30dff987d3"
+checksum="ca57121295ce525910cf489a58f721daa1ac6f3ed141f9c87971979e9a165b53"
