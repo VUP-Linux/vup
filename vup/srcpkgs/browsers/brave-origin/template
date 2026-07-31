@@ -1,0 +1,134 @@
+# Template file for 'brave-origin'
+pkgname=brave-origin
+version=1.93.129
+revision=1
+archs="x86_64 aarch64"
+create_wrksrc=yes
+depends="
+ alsa-lib
+ at-spi2-core
+ cairo
+ cups
+ dbus
+ expat
+ glib
+ gtk+3
+ libX11
+ libXcomposite
+ libXdamage
+ libXext
+ libXfixes
+ libXrandr
+ libXScrnSaver
+ libdrm
+ libxcb
+ libxkbcommon
+ mesa
+ nspr
+ nss
+ pango
+ xdg-utils
+"
+short_desc="Minimalist web browser from the makers of Brave"
+maintainer="AmarBego <begovicamar@proton.me>"
+license="MPL-2.0, BSD-3-Clause, custom:chromium"
+homepage="https://brave.com/origin/download"
+# Binary repackage
+restricted=yes
+nopie=yes
+nostrip=yes
+noshlibprovides=yes
+
+_baseurl="https://github.com/brave/brave-browser/releases/download/v${version}"
+
+case "$XBPS_TARGET_MACHINE" in
+	x86_64)
+		_arch_class=linux-amd64
+		checksum=ad79b97d17838682f2495ae2d4ca25ec4708fb4fb1f112aa42715946156975c2
+		;;
+	aarch64)
+		_arch_class=linux-arm64
+		checksum=a76c136473d63f2526dcfaef5d3ed89c786b7ae33aacf7684ca3602f9c50f99e
+		;;
+esac
+
+distfiles="${_baseurl}/brave-origin-${version}-${_arch_class}.zip"
+
+hostmakedepends="unzip"
+
+do_extract() {
+	mkdir -p "$wrksrc"
+	unzip -q "${XBPS_SRCDISTDIR}/${pkgname}-${version}/brave-origin-${version}-${_arch_class}.zip" -d "$wrksrc"
+}
+
+do_install() {
+	# Install the upstream bundle in its own prefix so it can coexist with Brave.
+	vmkdir opt/brave-origin
+	vcopy "*" opt/brave-origin
+
+	# Allow the Chromium suid sandbox.
+	chmod 4755 "${DESTDIR}/opt/brave-origin/chrome-sandbox"
+
+	# Create a launcher with per-user flags and native Wayland support.
+	cat > brave-origin.sh <<'EOF'
+#!/bin/bash
+XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-${HOME}/.config}"
+CONF_FILE="${XDG_CONFIG_HOME}/brave-origin-flags.conf"
+
+if [[ -f "${CONF_FILE}" ]]; then
+	mapfile -t CONF_LIST < "${CONF_FILE}"
+fi
+
+for CONF_LINE in "${CONF_LIST[@]}"; do
+	if [[ ! "${CONF_LINE}" =~ ^[[:space:]]*(#|$) ]]; then
+		BRAVE_ORIGIN_USER_FLAGS+=("${CONF_LINE}")
+	fi
+done
+
+if [[ "${XDG_SESSION_TYPE}" == wayland ]]; then
+	WAYLAND_FLAGS=(--ozone-platform=wayland --enable-features=WaylandWindowDecorations)
+fi
+
+exec /opt/brave-origin/brave-origin "${WAYLAND_FLAGS[@]}" \
+	"${BRAVE_ORIGIN_USER_FLAGS[@]}" "$@"
+EOF
+	vbin brave-origin.sh brave-origin
+
+	# Desktop file
+	cat > brave-origin.desktop <<'EOF'
+[Desktop Entry]
+Version=1.0
+Name=Brave Origin
+Comment=Minimalist web browser from the makers of Brave
+GenericName=Web Browser
+Exec=brave-origin %U
+Icon=brave-origin
+Type=Application
+Terminal=false
+StartupNotify=true
+StartupWMClass=brave-origin
+Categories=Network;WebBrowser;
+MimeType=application/pdf;application/rdf+xml;application/rss+xml;application/xhtml+xml;application/xml;image/gif;image/jpeg;image/png;image/webp;text/html;text/xml;x-scheme-handler/http;x-scheme-handler/https;
+Actions=new-window;new-private-window;
+
+[Desktop Action new-window]
+Name=New Window
+Exec=brave-origin
+
+[Desktop Action new-private-window]
+Name=New Private Window
+Exec=brave-origin --incognito
+EOF
+	vinstall brave-origin.desktop 644 usr/share/applications
+
+	# Icons
+	for size in 16 24 32 48 64 128 256; do
+		vinstall "${DESTDIR}/opt/brave-origin/product_logo_${size}.png" 644 \
+			"usr/share/icons/hicolor/${size}x${size}/apps" brave-origin.png
+	done
+	vinstall "${DESTDIR}/opt/brave-origin/product_logo_128.png" 644 \
+		usr/share/pixmaps brave-origin.png
+
+	# License
+	vlicense "${DESTDIR}/opt/brave-origin/LICENSE"
+}
