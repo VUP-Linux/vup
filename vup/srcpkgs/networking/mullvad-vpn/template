@@ -1,6 +1,6 @@
 # Template file for 'mullvad-vpn'
 pkgname=mullvad-vpn
-version=2026.3
+version=2026.4
 revision=1
 archs="x86_64 aarch64"
 create_wrksrc=yes
@@ -22,11 +22,11 @@ _baseurl="https://github.com/mullvad/mullvadvpn-app/releases/download/${version}
 case "$XBPS_TARGET_MACHINE" in
 	x86_64)
 		distfiles="${_baseurl}/MullvadVPN-${version}_amd64.deb"
-		checksum=38c6ee73ae80870688560922a28525b6d0dacc62c2e410938863d7038e931aca
+		checksum=f1d758079e1dc90fff0c8d48256599b717e1de9879682c861a6776851c59453b
 		;;
 	aarch64)
 		distfiles="${_baseurl}/MullvadVPN-${version}_arm64.deb"
-		checksum=a44cdbdb50923e7fd97e5cd91934892391f3dd0f8444520b83cabb57cf403754
+		checksum=39d897f425f77c3fe49902cf2f3d58a02c812d482a22f95dfc069526f58e1d09
 		;;
 esac
 
