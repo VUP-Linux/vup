@@ -1,6 +1,6 @@
 # Template file for 'ferdium'
 pkgname=ferdium
-version=7.1.2
+version=7.2.1
 revision=1
 archs="x86_64 aarch64"
 create_wrksrc=yes
@@ -52,11 +52,11 @@ _baseurl="https://github.com/ferdium/ferdium-app/releases/download/v${version}"
 case "$XBPS_TARGET_MACHINE" in
 	x86_64)
 		distfiles="${_baseurl}/Ferdium-linux-${version}-amd64.deb"
-		checksum=38340a16305adab889636e9a3da01f2f3b82c8b624079a184b1204dbc9cc9b06
+		checksum=a3518a164235199b0edf3e1e7f5d0d3d3d9118ce1ff175191368f438fe21e08a
 		;;
 	aarch64)
 		distfiles="${_baseurl}/Ferdium-linux-${version}-arm64.deb"
-		checksum=0981e84f0e8953253ade24ddf6d01b7d65676f8f16719806b63b61aa79400fc2
+		checksum=dda299c24bc10c15c5090ffa02c48663b4a5cc746017b553b450adf2133618e8
 		;;
 esac
 
