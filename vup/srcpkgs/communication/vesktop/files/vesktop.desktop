@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=Vesktop
+Generic Name=Internet Messenger
+Comment=Client for Discord with improved Linux support
+Version=1.6.7
+Icon=vesktop
+Exec=/usr/bin/vesktop %U
+StartupWMClass=vesktop
+Terminal=false
+Type=Application
+Categories=Network;
+Keywords=discord;vencord;vesktop;chat;electron
+MimeType=x-scheme-handler/discord
