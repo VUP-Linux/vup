@@ -21,6 +21,14 @@ vuru/                                     # package manager (Odin)
 
 4. Open a PR. CI will automatically validate your template for required fields. If it passes, a maintainer will add the `ok-to-build` label to trigger a build. A bot will comment with results.
 
+The PR build checks the exact commit that was labeled, on a fresh GitHub-hosted
+runner with cache access disabled and no publishing or signing credentials.
+GitHub may also require a maintainer to approve the fork workflow run. Each new
+push clears `ok-to-build` and `build-passed`; a maintainer must label the new
+commit again. Compilation failures fail the check. The bot reports the commit
+and links to the build logs and downloadable reports; PR binaries are never
+published by this workflow.
+
 That's it. Once merged, the package shows up in the VUP index.
 
 ## Template Notes

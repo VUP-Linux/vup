@@ -17,13 +17,17 @@ def get_changes():
         return "ALL"
 
     if event == "pull_request" or event == "pull_request_target":
-        # PR: diff against the base branch (origin/main)
+        # Use the event's base commit so a later push to main cannot change the
+        # packages selected for an already approved PR build.
         try:
-            subprocess.check_call(["git", "fetch", "origin", "main"])
+            base = os.environ.get("PR_BASE_SHA")
+            if not base:
+                subprocess.check_call(["git", "fetch", "origin", "main"])
+                base = "origin/main"
             output = subprocess.check_output(
-                ["git", "diff", "--name-only", "origin/main...HEAD"]
+                ["git", "diff", "--name-only", "-z", "--diff-filter=ACMRT", f"{base}...HEAD"]
             ).decode()
-            return output.splitlines()
+            return [path for path in output.split("\0") if path]
         except subprocess.CalledProcessError:
             return "ALL"
 
@@ -211,7 +215,7 @@ def main():
         matrix_json = json.dumps({"include": includes})
         if output_file:
             with open(output_file, "a") as gh:
-                gh.write("should_run=true\n")
+                gh.write(f"should_run={'true' if includes else 'false'}\n")
                 gh.write(f"matrix={matrix_json}\n")
 
 if __name__ == "__main__":

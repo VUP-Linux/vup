@@ -1,119 +1,79 @@
 name: VUP Bot
 
 on:
+  pull_request_target:
+    types: [synchronize]
   workflow_run:
     workflows: ["PR Build", "Template Check", "PR Title Check"]
     types:
       - completed
 
+cache-mode: none
+
 permissions:
   contents: read
   actions: read
+  pull-requests: read
 
 jobs:
-  report-status:
+  # This trusted event only invalidates labels; it never checks out PR code.
+  reset-build-labels:
+    if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.name == 'PR Build' && contains(fromJson('["pull_request", "pull_request_target"]'), github.event.workflow_run.event) && github.event.workflow_run.conclusion != 'skipped' }}
+    permissions:
+      pull-requests: write
     steps:
-      - name: Generate App Token
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ secrets.VUP_BOT_APP_ID }}
-          private-key: ${{ secrets.VUP_BOT_PRIVATE_KEY }}
-
-      - name: Checkout VUP (for scripts)
-        uses: actions/checkout@v7
-
-      - name: Download Build Reports
-        uses: actions/download-artifact@v8
-        with:
-          pattern: pr-report-*
-          merge-multiple: true
-          path: reports
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Download PR Metadata
-        uses: actions/download-artifact@v8
-        with:
-          name: pr-meta
-          path: pr-meta
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Resolve PR Number
-        id: pr
-        run: |
-          if [ -f pr-meta/pr_number.txt ]; then
-            num=$(cat pr-meta/pr_number.txt | tr -d '[:space:]')
-          fi
-          if [ -z "$num" ]; then
-            echo "No PR number found in artifact." >&2
-            exit 1
-          fi
-          echo "number=$num" >> "$GITHUB_OUTPUT"
-
-      - name: Analyze Results
-        id: analyze
-        run: |
-          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
-          python3 vup/scripts/analyze_pr_report.py \
-            --reports-dir reports \
-            --run-url "$RUN_URL" \
-            --output comment.md
-
-      - name: Comment on PR
+      - name: Require a new build for the updated commit
         uses: actions/github-script@v9
         with:
-          github-token: ${{ steps.app-token.outputs.token }}
           script: |
-            const fs = require('fs');
-            const commentBody = fs.readFileSync('comment.md', 'utf8');
-            const prNumber = parseInt('${{ steps.pr.outputs.number }}', 10);
-
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-              body: commentBody
+            const pr = context.payload.pull_request;
+            const { data: current } = await github.rest.pulls.get({
+              ...context.repo, pull_number: pr.number,
             });
-
-      - name: Manage Labels
-        uses: actions/github-script@v9
-        with:
-          github-token: ${{ steps.app-token.outputs.token }}
-          script: |
-            const prNumber = parseInt('${{ steps.pr.outputs.number }}', 10);
-            const buildResult = '${{ steps.analyze.outputs.result }}';
-
-            if (buildResult === 'success') {
+            if (current.head.sha !== pr.head.sha) return;
+            for (const name of ['ok-to-build', 'build-passed']) {
               try {
-                await github.rest.issues.addLabels({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: prNumber,
-                  labels: ['build-passed']
+                await github.rest.issues.removeLabel({
+                  ...context.repo, issue_number: pr.number, name,
                 });
-              } catch (e) {
-                core.warning(`Could not add build-passed label: ${e}`);
+              } catch (error) {
+                if (error.status !== 404) throw error;
               }
             }
 
-            try {
-              await github.rest.issues.removeLabel({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                name: 'ok-to-build'
-              });
-            } catch (e) {
-              core.info('ok-to-build label not present (already removed or never added)');
-            }
+  report-status:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name == 'PR Build' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion != 'skipped' }}
+    steps:
+      - name: Checkout trusted reporting scripts
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Generate App Token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.VUP_BOT_APP_ID }}
+          private-key: ${{ secrets.VUP_BOT_PRIVATE_KEY }}
+          permission-pull-requests: write
+
+      # No build artifacts are downloaded or executed in this privileged job.
+      - name: Report compilation result
+        uses: actions/github-script@v9
+        env:
+          ACTIONS_READ_TOKEN: ${{ github.token }}
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const { reportBuild } = require('./.github/scripts/pr-report.cjs');
+            const reader = new github.constructor({ auth: process.env.ACTIONS_READ_TOKEN });
+            await reportBuild({ github, reader, context, core });
 
   report-pr-check:
     runs-on: ubuntu-latest
-    if: ${{ contains(fromJson('["Template Check", "PR Title Check"]'), github.event.workflow_run.name) && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion != 'skipped' }}
+    if: ${{ github.event_name == 'workflow_run' && contains(fromJson('["Template Check", "PR Title Check"]'), github.event.workflow_run.name) && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion != 'skipped' }}
     steps:
       - name: Generate App Token
         id: app-token
@@ -121,6 +81,12 @@ jobs:
         with:
           app-id: ${{ secrets.VUP_BOT_APP_ID }}
           private-key: ${{ secrets.VUP_BOT_PRIVATE_KEY }}
+          permission-pull-requests: write
+
+      - name: Checkout trusted reporting scripts
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Download PR Check Report
         id: download-report
@@ -128,13 +94,15 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: pr-check-report
-          path: pr-check-report
+          path: ${{ runner.temp }}/pr-check-report
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update PR Check Comment
         if: steps.download-report.outcome == 'success'
         uses: actions/github-script@v9
+        env:
+          ACTIONS_READ_TOKEN: ${{ github.token }}
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
@@ -145,9 +113,18 @@ jobs:
               ? '<!-- template-check -->'
               : '<!-- pr-title-check -->';
 
-            const prNumber = Number(fs.readFileSync('pr-check-report/pr_number.txt', 'utf8').trim());
-            const status = fs.readFileSync('pr-check-report/status.txt', 'utf8').trim();
-            const detailsPath = 'pr-check-report/details.txt';
+            const { resolvePullRequest } = require('./.github/scripts/pr-report.cjs');
+            const reader = new github.constructor({ auth: process.env.ACTIONS_READ_TOKEN });
+            const resolved = await resolvePullRequest({ github: reader, context, core });
+            if (!resolved) return;
+            const prNumber = resolved.pr.number;
+            const path = require('path');
+            const reportDir = path.join(process.env.RUNNER_TEMP, 'pr-check-report');
+            const status = fs.readFileSync(path.join(reportDir, 'status.txt'), 'utf8').trim();
+            if (!['success', 'warning', 'failure'].includes(status)) {
+              throw new Error('Invalid PR check status');
+            }
+            const detailsPath = path.join(reportDir, 'details.txt');
             const details = fs.existsSync(detailsPath)
               ? fs.readFileSync(detailsPath, 'utf8').trim()
               : '';

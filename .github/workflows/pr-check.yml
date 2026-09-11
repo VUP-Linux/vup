@@ -1,8 +1,13 @@
 name: PR Build
+run-name: 'PR Build #${{ github.event.pull_request.number }} (${{ github.event.label.name }})'
 
 on:
-  pull_request_target:
+  pull_request:
     types: [labeled]
+
+# Package recipes execute arbitrary code. Give these disposable jobs no cache
+# access, secrets, publishing permissions, or persistent checkout credentials.
+cache-mode: none
 
 env:
   XBPS_ALLOW_RESTRICTED: yes
@@ -10,12 +15,12 @@ env:
 
 permissions:
   contents: read
-  packages: read
 
 jobs:
   check-changes:
     if: github.event.label.name == 'ok-to-build'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       should_run: ${{ steps.set-matrix.outputs.should_run }}
@@ -25,40 +30,37 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-
-      - name: Record PR Number
-        run: |
-          mkdir -p pr-meta
-          echo "${{ github.event.pull_request.number }}" > pr-meta/pr_number.txt
-
-      - name: Upload PR Metadata
-        uses: actions/upload-artifact@v7
-        with:
-          name: pr-meta
-          path: pr-meta/pr_number.txt
+          persist-credentials: false
 
       - name: Determine Systems to Build
         id: set-matrix
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           git config --global --add safe.directory "$PWD"
           python3 vup/scripts/check_changes.py
 
   verify-build:
+    name: Build packages (${{ matrix.category }} / ${{ matrix.arch }})
     needs: check-changes
     if: needs.check-changes.outputs.should_run == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     permissions:
       contents: read
-      packages: read
+    defaults:
+      run:
+        shell: bash
     container:
       image: ghcr.io/vup-linux/vup-builder:latest
       options: --privileged
     strategy:
       matrix: ${{ fromJson(needs.check-changes.outputs.matrix) }}
       fail-fast: false
+      max-parallel: 4
 
     concurrency:
-      group: pr-vup-${{ matrix.category }}-${{ github.event.pull_request.head.ref }}
+      group: pr-vup-${{ github.event.pull_request.number }}-${{ matrix.category }}-${{ matrix.arch }}
       cancel-in-progress: true
 
     steps:
@@ -68,23 +70,14 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           path: vup
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Checkout void-packages (Build System)
         uses: actions/checkout@v7
         with:
           repository: void-linux/void-packages
           path: void-packages
-
-      - name: Cache xbps-src bootstrap
-        id: cache-bootstrap
-        uses: actions/cache@v6
-        with:
-          path: |
-            void-packages/masterdir-*
-            void-packages/hostdir/repocache
-          key: xbps-bootstrap-${{ runner.os }}-${{ hashFiles('void-packages/srcpkgs/base-chroot/template') }}
-          restore-keys: |
-            xbps-bootstrap-${{ runner.os }}-
+          persist-credentials: false
 
       - name: Setup xbps-src
         run: |
@@ -96,28 +89,38 @@ jobs:
           echo "XBPS_ALLOW_RESTRICTED=yes" >> etc/conf
 
       - name: Binary Bootstrap
-        if: steps.cache-bootstrap.outputs.cache-hit != 'true'
         run: |
           cd void-packages
           ./xbps-src binary-bootstrap
 
       - name: Build Modified Packages
+        env:
+          CATEGORY: ${{ matrix.category }}
+          PACKAGES: ${{ matrix.packages }}
         run: |
           cd void-packages
-          cat_path="../vup/vup/srcpkgs/${{ matrix.category }}"
+          [[ "$CATEGORY" =~ ^[A-Za-z0-9][A-Za-z0-9+_.-]*$ ]] || exit 1
+          cat_path="../vup/vup/srcpkgs/$CATEGORY"
 
-          if [ "${{ matrix.packages }}" = "ALL" ]; then
-            PKGS=$(ls "$cat_path" 2>/dev/null || echo "")
+          if [ "$PACKAGES" = "ALL" ]; then
+            shopt -s nullglob
+            PKGS=()
+            for pkgpath in "$cat_path"/*; do
+              [ -d "$pkgpath" ] && PKGS+=("${pkgpath##*/}")
+            done
           else
-            PKGS="${{ matrix.packages }}"
+            read -r -a PKGS <<< "$PACKAGES"
           fi
 
           mkdir -p ../reports
-          REPORT_FILE="../reports/report-${{ matrix.category }}.json"
+          REPORT_FILE="../reports/report-$CATEGORY.json"
 
           echo "[]" > "$REPORT_FILE"
+          failures=0
+          built=0
 
-          for pkgname in $PKGS; do
+          for pkgname in "${PKGS[@]}"; do
+            [[ "$pkgname" =~ ^[A-Za-z0-9][A-Za-z0-9+_.-]*$ ]] || exit 1
             pkgpath="$cat_path/$pkgname"
             [ ! -d "$pkgpath" ] && continue
 
@@ -131,13 +134,18 @@ jobs:
             else
               echo "Build FAILED: $pkgname"
               status="failure"
+              failures=$((failures + 1))
               cat build.log
             fi
 
             python3 ../vup/vup/scripts/update_report.py "$REPORT_FILE" "$pkgname" "$status" "build.log"
+            built=$((built + 1))
 
             rm -rf "srcpkgs/$pkgname"
           done
+
+          echo "Built $built package(s); $failures failed."
+          [ "$built" -gt 0 ] && [ "$failures" -eq 0 ]
 
       - name: Upload Build Reports
         if: always()
@@ -145,3 +153,5 @@ jobs:
         with:
           name: pr-report-${{ matrix.category }}
           path: reports/*.json
+          retention-days: 7
+          if-no-files-found: warn
