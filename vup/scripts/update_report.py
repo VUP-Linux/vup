@@ -20,9 +20,6 @@ def main():
         except Exception as e:
             log_content = f'Error reading log: {e}'
 
-    if status == 'success':
-        log_content = ''
-
     with open(report_file, 'r+') as f:
         data = json.load(f)
         data.append({'package': pkg, 'status': status, 'log': log_content})

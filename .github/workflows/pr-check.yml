@@ -138,8 +138,8 @@ jobs:
               echo "Build FAILED: $pkgname"
               status="failure"
               failures=$((failures + 1))
-              cat build.log
             fi
+            cat build.log
 
             python3 ../vup/vup/scripts/update_report.py "$REPORT_FILE" "$pkgname" "$status" "build.log"
             built=$((built + 1))

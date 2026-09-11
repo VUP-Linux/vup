@@ -1,7 +1,7 @@
 # Template file for 'ferdium'
 pkgname=ferdium
 version=7.2.3
-revision=1
+revision=2
 archs="x86_64 aarch64"
 create_wrksrc=yes
 depends="
@@ -60,7 +60,7 @@ case "$XBPS_TARGET_MACHINE" in
 		;;
 esac
 
-hostmakedepends="tar"
+hostmakedepends="file tar"
 
 do_install() {
 	# Extract and copy contents (deb is already extracted to $wrksrc by xbps-src)
@@ -69,6 +69,22 @@ do_install() {
 	# Move /opt/Ferdium to destination
 	vmkdir opt
 	vcopy opt/Ferdium opt
+
+	if [ "$XBPS_TARGET_MACHINE" = aarch64 ]; then
+		local _modules="${DESTDIR}/opt/Ferdium/resources/app.asar.unpacked/node_modules"
+		# The upstream ARM64 deb also bundles an unused x86-64 SQLite binding.
+		rm -rf "${_modules}/sqlite3/lib/binding/napi-v6-linux-glibc-x64"
+
+		# v7.2.3 ships an x86-64-only software-passkey addon in its ARM64 deb.
+		# Its loader already treats missing/unloadable addons as unavailable.
+		# Remove the unusable binary, but preserve a future native ARM64 build.
+		local _webauthn="${_modules}/electron-webauthn-linux/dist/native/webauthn-native.node"
+		if [ -f "$_webauthn" ]; then
+			case "$(LC_ALL=C file -b "$_webauthn")" in
+				*"x86-64"*) rm -f "$_webauthn" ;;
+			esac
+		fi
+	fi
 	
 	# Install desktop file and icons provided in the deb
 	# Verify where they are in the deb extracted structure
