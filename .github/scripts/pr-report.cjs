@@ -14,7 +14,7 @@ async function resolvePullRequest({ github, context, core }) {
   });
   if (run.event !== 'pull_request' || run.status !== 'completed' ||
       run.repository.id !== context.payload.repository.id ||
-      run.path !== workflowPaths[run.name] || !workflowPaths[run.name] ||
+      !Object.values(workflowPaths).includes(run.path) ||
       run.run_attempt !== eventRun.run_attempt ||
       !/^[a-f0-9]{40}$/.test(run.head_sha)) {
     core.info('Ignoring an unexpected or superseded workflow run.');
@@ -54,7 +54,7 @@ async function resolvePullRequest({ github, context, core }) {
   const latest = recent.workflow_runs
     .filter(item => item.head_repository.id === run.head_repository.id &&
       item.head_branch === run.head_branch &&
-      (run.name !== 'PR Build' || item.display_title === run.display_title))
+      (run.path !== workflowPaths['PR Build'] || item.display_title === run.display_title))
     .sort((a, b) => b.id - a.id)[0];
   if (!latest || latest.id !== run.id || latest.run_attempt !== run.run_attempt) {
     core.info('A newer workflow run exists for this commit.');
@@ -73,7 +73,7 @@ async function removeLabel(github, repo, number, name) {
 
 async function reportBuild({ github, reader = github, context, core }) {
   const resolved = await resolvePullRequest({ github: reader, context, core });
-  if (!resolved || resolved.run.name !== 'PR Build') return;
+  if (!resolved || resolved.run.path !== workflowPaths['PR Build']) return;
   const { run, pr } = resolved;
   const jobs = await reader.paginate(reader.rest.actions.listJobsForWorkflowRun, {
     ...context.repo, run_id: run.id, filter: 'latest', per_page: 100,

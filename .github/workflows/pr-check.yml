@@ -48,6 +48,8 @@ jobs:
     timeout-minutes: 120
     permissions:
       contents: read
+      # The runner logs in to GHCR with GITHUB_TOKEN before starting this job.
+      packages: read
     defaults:
       run:
         shell: bash
@@ -94,6 +96,7 @@ jobs:
           ./xbps-src binary-bootstrap
 
       - name: Build Modified Packages
+        id: compile
         env:
           CATEGORY: ${{ matrix.category }}
           PACKAGES: ${{ matrix.packages }}
@@ -148,7 +151,7 @@ jobs:
           [ "$built" -gt 0 ] && [ "$failures" -eq 0 ]
 
       - name: Upload Build Reports
-        if: always()
+        if: ${{ always() && (steps.compile.outcome == 'success' || steps.compile.outcome == 'failure') }}
         uses: actions/upload-artifact@v7
         with:
           name: pr-report-${{ matrix.category }}

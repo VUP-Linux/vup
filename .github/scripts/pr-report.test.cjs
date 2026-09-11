@@ -60,7 +60,6 @@ test('fork PR with empty run association resolves from GitHub branch and SHA met
 for (const [name, modify] of [
   ['privileged trigger', f => { f.context.payload.workflow_run.event = 'pull_request_target'; }],
   ['unexpected workflow file', f => { f.state.run.path = '.github/workflows/other.yml'; }],
-  ['unrecognized workflow name', f => { f.state.run.name = 'other'; }],
   ['wrong base repository', f => { f.state.pr.base.repo.id = 99; }],
   ['wrong fork', f => { f.state.pr.head.repo.id = 99; }],
   ['wrong branch in the same fork', f => { f.state.pr.head.ref = 'other'; }],
@@ -94,6 +93,14 @@ test('successful compilation is reported for the exact SHA and consumes approval
   assert.ok(f.state.writes[0].body.includes(f.state.run.head_sha));
   assert.deepEqual(f.state.writes[1].labels, ['build-passed']);
   assert.equal(f.state.writes[2].name, 'ok-to-build');
+});
+
+test('custom run-name does not suppress the compilation report', async () => {
+  const f = fixture();
+  f.state.run.name = 'PR Build #7 (ok-to-build)';
+  f.context.payload.workflow_run.name = f.state.run.name;
+  await reportBuild(f);
+  assert.ok(f.state.writes.some(write => write.method === 'addLabels'));
 });
 
 for (const [name, modify] of [
