@@ -99,11 +99,24 @@ jobs:
         id: compile
         env:
           CATEGORY: ${{ matrix.category }}
+          ARCH: ${{ matrix.arch }}
           PACKAGES: ${{ matrix.packages }}
         run: |
           cd void-packages
           [[ "$CATEGORY" =~ ^[A-Za-z0-9][A-Za-z0-9+_.-]*$ ]] || exit 1
+          [[ "$ARCH" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || exit 1
           cat_path="../vup/vup/srcpkgs/$CATEGORY"
+
+          BUILD_COMMAND=(vuru src)
+          case "$ARCH" in
+            x86_64) ;;
+            x86_64-*)
+              # Same CPU with a different libc needs a separate native root.
+              ./xbps-src -A "$ARCH" binary-bootstrap
+              BUILD_COMMAND=(./xbps-src -A "$ARCH")
+              ;;
+            *) BUILD_COMMAND+=(-a "$ARCH") ;;
+          esac
 
           if [ "$PACKAGES" = "ALL" ]; then
             shopt -s nullglob
@@ -116,7 +129,7 @@ jobs:
           fi
 
           mkdir -p ../reports
-          REPORT_FILE="../reports/report-$CATEGORY.json"
+          REPORT_FILE="../reports/report-$CATEGORY-$ARCH.json"
 
           echo "[]" > "$REPORT_FILE"
           failures=0
@@ -127,12 +140,12 @@ jobs:
             pkgpath="$cat_path/$pkgname"
             [ ! -d "$pkgpath" ] && continue
 
-            echo "Building $pkgname..."
+            echo "Building $pkgname for $ARCH..."
             rm -rf "srcpkgs/$pkgname"
             cp -r "$pkgpath" "srcpkgs/"
 
             status="pending"
-            if vuru src pkg "$pkgname" > build.log 2>&1; then
+            if "${BUILD_COMMAND[@]}" pkg "$pkgname" > build.log 2>&1; then
               status="success"
             else
               echo "Build FAILED: $pkgname"
@@ -154,7 +167,7 @@ jobs:
         if: ${{ always() && (steps.compile.outcome == 'success' || steps.compile.outcome == 'failure') }}
         uses: actions/upload-artifact@v7
         with:
-          name: pr-report-${{ matrix.category }}
+          name: pr-report-${{ matrix.category }}-${{ matrix.arch }}
           path: reports/*.json
           retention-days: 7
           if-no-files-found: warn

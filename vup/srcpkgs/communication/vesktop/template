@@ -1,7 +1,7 @@
 # Template file for 'vesktop'
 pkgname=vesktop
 version=1.6.7
-revision=1
+revision=2
 archs="x86_64 aarch64"
 short_desc="Client for Discord with improved Linux support"
 license="GPL-3.0-or-later"
@@ -14,16 +14,19 @@ checksum="8c0dbd65e85f46797bc89591a92f8677e2565ea51cd96f661f1dd5da74c819d1"
 
 case "$XBPS_TARGET_MACHINE" in
 	x86_64)
+		_electron_arch=x64
 		folder="linux-unpacked"
 	;;
 	aarch64)
+		_electron_arch=arm64
 		folder="linux-arm64-unpacked"
 	;;
 esac
 
 do_build () {
 	pnpm i --frozen-lockfile
-	pnpm package:dir
+	# Node runs on the build host; select the XBPS target explicitly.
+	pnpm package:dir --"${_electron_arch}"
 }
 
 do_install () {

@@ -91,12 +91,10 @@ def main():
     
     if not os.path.exists(vup_src_path):
         print(f"Category path {vup_src_path} does not exist.")
-        # If category is missing but explicitly requested, maybe it was deleted?
-        # Just report nothing built.
-        report = {"category": category, "results": []}
-        with open(f"report-{category}.json", "w") as f:
+        report = {"category": category, "arch": arch, "results": []}
+        with open(f"report-{category}-{arch}.json", "w") as f:
             json.dump(report, f)
-        sys.exit(0)
+        return 1
 
     results = []
     
@@ -225,5 +223,9 @@ def main():
     with open(f"report-{category}-{arch}.json", "w") as f:
         json.dump(report, f, indent=2)
 
+    # Keep the report for diagnostics, but never let a failed/empty build
+    # reach the publishing jobs with a successful process exit status.
+    return 0 if results and all(result["status"] == "success" for result in results) else 1
+
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

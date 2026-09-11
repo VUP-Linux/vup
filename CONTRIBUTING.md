@@ -21,15 +21,21 @@ vuru/                                     # package manager (Odin)
 
 4. Open a PR. CI will automatically validate your template for required fields. If it passes, a maintainer will add the `ok-to-build` label to trigger a build. A bot will comment with results.
 
-The PR build checks the exact commit that was labeled, on a fresh GitHub-hosted
-runner with cache access disabled and no publishing or signing credentials.
+The PR build checks the exact commit that was labeled for every architecture
+selected by the release build, using each template's `archs` (or the defaults in
+`vup/scripts/config.py`). Each job uses a fresh GitHub-hosted runner with cache
+access disabled and no publishing or signing credentials.
 GitHub may also require a maintainer to approve the fork workflow run. Each new
 push clears `ok-to-build` and `build-passed`; a maintainer must label the new
 commit again. Compilation failures fail the check. The bot reports the commit
 and links to the build logs and downloadable reports; PR binaries are never
 published by this workflow.
 
-That's it. Once merged, the package shows up in the VUP index.
+Once merged, a successful release build publishes the package and updates the
+VUP index. If a build fails after merging, submit a follow-up PR fixing the
+template and bump its revision. A merged PR cannot be reopened; merging the fix
+starts a new release build. Compilation failures block publishing for that run;
+build reports and logs remain available for diagnosis.
 
 ## Template Notes
 

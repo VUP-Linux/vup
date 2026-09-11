@@ -6,10 +6,10 @@ import sys
 
 # Import shared config
 try:
-    from config import SUPPORTED_ARCHS, parse_template_archs, get_positive_archs
+    from config import SUPPORTED_ARCHS, parse_template_archs, get_positive_archs, arch_supported
 except ImportError:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from config import SUPPORTED_ARCHS, parse_template_archs, get_positive_archs
+    from config import SUPPORTED_ARCHS, parse_template_archs, get_positive_archs, arch_supported
 
 def get_changes():
     event = os.environ.get("GITHUB_EVENT_NAME")
@@ -194,22 +194,24 @@ def main():
             
             # Determine packages
             if build_all or cat not in cat_pkgs or not cat_pkgs[cat]:
-                pkg_str = "ALL"
-                archs = get_category_archs(cat_path, None)  # All packages
+                packages = sorted(os.listdir(cat_path))
             else:
-                pkg_str = " ".join(sorted(list(cat_pkgs[cat])))
-                archs = get_category_archs(cat_path, cat_pkgs[cat])  # Only changed packages
+                packages = sorted(cat_pkgs[cat])
+            packages = [pkg for pkg in packages
+                        if os.path.isfile(os.path.join(cat_path, pkg, "template"))]
+            if not packages:
+                continue
+            archs = get_category_archs(cat_path, packages)
 
-            print(f"Category '{cat}' needs architectures: {archs} (packages: {pkg_str})")
+            print(f"Category '{cat}' needs architectures: {archs} (packages: {' '.join(packages)})")
             for arch in archs:
-                includes.append({"category": cat, "arch": arch, "packages": pkg_str})
-        
-        # For PR checks, only build x86_64 to keep CI fast.
-        # Full multi-arch builds happen on merge (push event).
-        is_pr = os.environ.get("GITHUB_EVENT_NAME") in ("pull_request", "pull_request_target")
-        if is_pr:
-            includes = [i for i in includes if i["arch"] == "x86_64"]
-            print(f"PR mode: filtered to x86_64 only ({len(includes)} jobs)")
+                # Match release coverage before merge, without asking an ARM
+                # job to build x86-only packages from the same category.
+                arch_packages = [pkg for pkg in packages if arch_supported(
+                    parse_template_archs(os.path.join(cat_path, pkg, "template")), arch)]
+                if arch_packages:
+                    includes.append({"category": cat, "arch": arch,
+                                     "packages": " ".join(arch_packages)})
 
         print(f"Total build jobs: {len(includes)}")
         matrix_json = json.dumps({"include": includes})
