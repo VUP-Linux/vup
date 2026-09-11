@@ -45,7 +45,20 @@ if [ -z "$XBPS_CROSS_PREPARE" ]; then
 fi
 # Install dependencies from binary packages
 if [ "$PKGNAME" != "$XBPS_TARGET_PKG" -o -z "$XBPS_SKIP_DEPS" ]; then
-    install_pkg_deps $PKGNAME $XBPS_TARGET_PKG pkg $XBPS_CROSS_BUILD $XBPS_CROSS_PREPARE || exit $?
+    if [ "$XBPS_VURU_BUILD_LOCAL" = 1 ]; then
+        vuru_install_pkg_deps "$PKGNAME" "$XBPS_TARGET_PKG" pkg "$XBPS_CROSS_BUILD" "$XBPS_CROSS_PREPARE" || {
+            if [ "$PKGNAME" = "$XBPS_VURU_ROOT_PKG" ]; then
+                failed=$(cat "$XBPS_VURU_LOCAL_BUILD_STATE/failed" 2>/dev/null)
+                [ -n "$failed" ] || failed="$PKGNAME"
+                vuru_dependency_stack "$failed"
+                printf '\nVuru build aborted: %s cannot continue because %s failed.\n' \
+                    "$XBPS_VURU_ROOT_PKG" "$failed" >&2
+            fi
+            exit 1
+        }
+    else
+        install_pkg_deps $PKGNAME $XBPS_TARGET_PKG pkg $XBPS_CROSS_BUILD $XBPS_CROSS_PREPARE || exit $?
+    fi
 fi
 
 if [ "$XBPS_CROSS_BUILD" ]; then

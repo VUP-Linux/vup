@@ -183,6 +183,10 @@ chroot_handler() {
             ${XBPS_ALT_REPOSITORY:+XBPS_ALT_REPOSITORY=$XBPS_ALT_REPOSITORY} \
             $XBPS_COMMONDIR/chroot-style/${XBPS_CHROOT_CMD:=uunshare}.sh \
             $XBPS_MASTERDIR $XBPS_DISTDIR "$XBPS_HOSTDIR" "$XBPS_CHROOT_CMD_ARGS" \
+            /usr/bin/env \
+            ${XBPS_VURU_BUILD_LOCAL:+XBPS_VURU_BUILD_LOCAL=$XBPS_VURU_BUILD_LOCAL} \
+            ${XBPS_VURU_LOCAL_BUILD_STATE:+XBPS_VURU_LOCAL_BUILD_STATE=/host/${XBPS_VURU_LOCAL_BUILD_STATE##*/}} \
+            ${XBPS_VURU_ROOT_PKG:+XBPS_VURU_ROOT_PKG=$XBPS_VURU_ROOT_PKG} \
             /void-packages/xbps-src $XBPS_OPTIONS $action $pkg
         rv=$?
     fi

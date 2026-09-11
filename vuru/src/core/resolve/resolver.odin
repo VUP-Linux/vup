@@ -67,11 +67,25 @@ resolve_package :: proc(
 	idx: ^index.Index,
 	arch: string,
 	depth: int,
+	local_build: bool,
 	allocator := context.allocator,
 ) -> (
 	Resolved_Package,
 	bool,
 ) {
+	// xbps-src resolves source/build dependencies inside its build environment.
+	// Select templates even when this architecture has no published binary.
+	if local_build {
+		if pkg, ok := index.index_get_package(idx, name); ok {
+			return Resolved_Package {
+				name = strings.clone(name, allocator),
+				version = strings.clone(pkg.version, allocator),
+				category = strings.clone(pkg.category, allocator),
+				source = .VUP_Build,
+				depth = depth,
+			}, true
+		}
+	}
 	// 1. Check if already installed
 	installed_ver, is_installed := get_installed_version(name)
 
@@ -186,7 +200,7 @@ resolve_deps :: proc(
 		visited[strings.clone(item.name, allocator)] = true
 
 		// Resolve this package
-		pkg, ok := resolve_package(item.name, idx, arch, item.depth, allocator)
+		pkg, ok := resolve_package(item.name, idx, arch, item.depth, include_makedeps, allocator)
 		if !ok {
 			// Not found - add to missing list (clone persists)
 			cloned_name := strings.clone(item.name, allocator)
@@ -215,10 +229,16 @@ resolve_deps :: proc(
 				append(&res.to_install, pkg)
 			}
 
-		case .VUP:
-			append(&res.to_install, pkg)
+		case .VUP, .VUP_Build:
+			if pkg.source == .VUP_Build {
+				// Local builds are represented in the source-build section.
+				append(&res.to_build, pkg)
+			} else {
+				append(&res.to_install, pkg)
+			}
 
-			// Resolve VUP package dependencies from template
+			// Resolve VUP package dependencies from its template. Local mode
+			// expands the graph so the transaction summary includes each build.
 			if tmpl, tmpl_ok := fetch_and_parse_template(pkg.category, item.name, allocator);
 			   tmpl_ok {
 				// Queue runtime dependencies
@@ -234,27 +254,9 @@ resolve_deps :: proc(
 					}
 				}
 
-				// Queue build dependencies if requested
-				if include_makedeps {
-					for dep in tmpl.makedepends {
-						if dep not_in visited {
-							append(
-								&queue,
-								Queue_Item {
-									name = strings.clone(dep, allocator),
-									depth = item.depth + 1,
-								},
-							)
-						}
-					}
-				}
-
-				// Free template after extracting deps
-
+				// Build-only dependencies are resolved by xbps-src inside its
+				// build environment. Runtime dependencies stay visible here.
 			}
-
-		case .VUP_Build:
-			append(&res.to_build, pkg)
 
 		case .Unknown:
 			append(&res.missing, strings.clone(item.name, allocator))

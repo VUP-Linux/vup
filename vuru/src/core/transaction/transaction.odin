@@ -67,7 +67,7 @@ transaction_print :: proc(t: ^Transaction) {
 		fmt.printf("\nInstall from official repos (%d):\n", counts.install_official)
 		for item in t.items {
 			if item.op == .Install_Official {
-				fmt.printf("  %s-%s\n", item.name, item.new_version)
+				fmt.printf("  %s-%s [%s]\n", item.name, item.new_version, item.reason)
 			}
 		}
 	}
@@ -76,7 +76,7 @@ transaction_print :: proc(t: ^Transaction) {
 		fmt.printf("\nInstall from VUP (%d):\n", counts.install_vup)
 		for item in t.items {
 			if item.op == .Install_VUP {
-				fmt.printf("  %s-%s [%s]\n", item.name, item.new_version, item.category)
+				fmt.printf("  %s-%s [%s, %s]\n", item.name, item.new_version, item.category, item.reason)
 			}
 		}
 	}
@@ -85,7 +85,7 @@ transaction_print :: proc(t: ^Transaction) {
 		fmt.printf("\nBuild from source (%d):\n", counts.build)
 		for item in t.items {
 			if item.op == .Build_Install {
-				fmt.printf("  %s-%s\n", item.name, item.new_version)
+				fmt.printf("  %s-%s [%s]\n", item.name, item.new_version, item.reason)
 			}
 		}
 	}
@@ -145,7 +145,9 @@ transaction_execute :: proc(t: ^Transaction, cfg: ^builder.Build_Config, yes: bo
 			append(&remove_pkgs, item.name)
 
 		case .Build_Install:
-			append(&builds, &item)
+			// xbps-src recursively builds source dependencies. They remain in
+			// the summary, but only explicit targets start build/install jobs.
+			if item.reason == "explicit" do append(&builds, &item)
 
 		case .Upgrade:
 		}

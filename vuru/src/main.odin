@@ -7,8 +7,9 @@ import "core:strings"
 
 import commands "commands"
 import errors "core/errors"
+import preferences "core/config"
 
-VERSION :: "0.6.1"
+VERSION :: "0.7.0"
 INDEX_URL :: "https://vup-linux.github.io/vup/index.json"
 
 // Arena size for command execution (4MB should be plenty)
@@ -20,11 +21,6 @@ main :: proc() {
 }
 
 run :: proc() -> int {
-	if len(os.args) < 2 {
-		print_help()
-		return 1
-	}
-
 	// Parse global flags and find command
 	args := os.args[1:]
 	config := commands.Config {
@@ -33,6 +29,7 @@ run :: proc() -> int {
 	}
 	defer commands.config_free(&config)
 
+	prebuilt_mode := false
 	command_name := ""
 	command_args: [dynamic]string
 	defer delete(command_args)
@@ -70,6 +67,10 @@ run :: proc() -> int {
 				config.dry_run = true
 			} else if arg == "-b" || arg == "--build" {
 				config.force_build = true
+			} else if arg == "--local" {
+				config.force_build = true
+			} else if arg == "--prebuilt" || arg == "--package" {
+				prebuilt_mode = true
 			} else if arg == "--vup-only" {
 				config.vup_only = true
 			} else if arg == "-d" || arg == "--desc" {
@@ -144,6 +145,19 @@ run :: proc() -> int {
 			} else {
 				append(&command_args, arg)
 			}
+		}
+	}
+
+	if prebuilt_mode && config.force_build {
+		errors.log_error("--prebuilt/--package cannot be combined with --build/--local")
+		return 1
+	}
+	if command_name != "help" {
+		mode, ok := preferences.load_preferences(!config.yes && !config.dry_run)
+		if !ok do return 1
+		if command_name == "install" || command_name == "i" ||
+		   command_name == "update" || command_name == "upgrade" || command_name == "u" {
+			config.force_build = config.force_build || (!prebuilt_mode && mode == .Local)
 		}
 	}
 
@@ -276,7 +290,8 @@ print_help :: proc() {
 	fmt.println("General options:")
 	fmt.println("  -y, --yes        Skip confirmations")
 	fmt.println("  -n, --dry-run    Show what would be done")
-	fmt.println("  -b, --build      Force build from source")
+	fmt.println("  -b, --build      Build VUP packages locally (alias: --local)")
+	fmt.println("  --prebuilt      Install prebuilt packages (alias: --package)")
 	fmt.println("  -d, --desc       Include descriptions in search")
 	fmt.println("  -v, --verbose    Verbose output")
 	fmt.println("  -r, --rootdir    Alternate root directory")

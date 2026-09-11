@@ -28,7 +28,7 @@ install_run :: proc(args: []string, config: ^Config) -> int {
 	}
 
 	if len(args) == 0 {
-		fmt.println("Usage: vuru install <package> [packages...]")
+		fmt.println("Usage: vuru install [--build | --prebuilt] <package> [packages...]")
 		fmt.println("       vuru install -S       (sync repos)")
 		fmt.println("       vuru install -Su      (full system update)")
 		return 1
@@ -69,16 +69,13 @@ install_run :: proc(args: []string, config: ^Config) -> int {
 		return 1
 	}
 
-	// Dry run - just show what would happen
-	if config.dry_run {
-		resolve.resolution_print(&res)
-		return 0
-	}
-
 	// Create transaction
 	tx := transaction.transaction_from_resolution(&res)
 
 	transaction.transaction_print(&tx)
+
+	// Dry runs use the same transaction summary as real installs.
+	if config.dry_run do return 0
 
 	// Confirm unless -y
 	if !config.yes && !transaction.transaction_confirm(&tx) {
@@ -99,10 +96,15 @@ install_run :: proc(args: []string, config: ^Config) -> int {
 	if has_build {
 		cfg_result, cfg_ok := builder.default_build_config()
 		if !cfg_ok {
-			errors.log_error("VUP repository not found. Run 'vuru clone' first.")
-			return 1
+			if clone_run(nil, config) != 0 do return 1
+			cfg_result, cfg_ok = builder.default_build_config()
+			if !cfg_ok {
+				errors.log_error("Downloaded repository does not contain vup/xbps-src")
+				return 1
+			}
 		}
 		build_cfg = cfg_result
+		if !builder.xbps_src_bootstrap(&build_cfg) do return 1
 	}
 
 	// Execute

@@ -40,7 +40,7 @@ COLLECTIONS = -collection:xbps=$(SRC_DIR)/core/xbps -collection:errors=$(SRC_DIR
 SRCS = $(shell find $(SRC_DIR) -name '*.odin')
 
 
-.PHONY: all clean install uninstall debug run check
+.PHONY: all clean install uninstall debug run check test
 
 all: clean $(TARGET)
 
@@ -54,6 +54,10 @@ debug: $(SRCS)
 
 check: $(SRCS)
 	$(ODIN) check $(SRC_DIR) -vet $(COLLECTIONS)
+
+test: check $(TARGET)
+	python3 tests/install_modes.py $(TARGET)
+	bash tests/local_dependencies.sh
 
 run: $(TARGET)
 	./$(TARGET) $(ARGS)

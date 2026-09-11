@@ -36,13 +36,13 @@ update_run :: proc(args: []string, config: ^Config) -> int {
 	}
 
 	// Update official Void packages first
-	ret := xbps.upgrade_all_official(config.yes, utils.run_command)
+	ret := xbps.upgrade_all_official(config.yes, config.dry_run, utils.run_command)
 	if ret != 0 {
 		return ret
 	}
 
 	// Then update VUP packages
-	return xbps_upgrade_all(&idx, config.yes)
+	return xbps_upgrade_all(&idx, config)
 }
 
 // Compare versions using xbps-uhelper
@@ -143,7 +143,7 @@ show_batch_review :: proc(upgrades: []Upgrade_Info) -> bool {
 }
 
 // Upgrade all VUP packages
-xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
+xbps_upgrade_all :: proc(idx: ^index.Index, cfg: ^Config) -> int {
 	errors.log_info("Checking for VUP package updates...")
 
 	output, ok := utils.run_command_output({"xbps-query", "-l"})
@@ -169,17 +169,20 @@ xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
 		pkg, pkg_ok := index.index_get_package(idx, name)
 		if !pkg_ok {continue}
 
-		if len(pkg.version) == 0 || len(pkg.repo_urls) == 0 || len(pkg.category) == 0 {
+		if len(pkg.version) == 0 || len(pkg.category) == 0 {
 			continue
 		}
 
-		// Get architecture-specific repo URL
-		arch, arch_ok := config.get_arch()
-		if !arch_ok {continue}
-
-
-		repo_url, url_ok := pkg.repo_urls[arch]
-		if !url_ok {continue}
+		repo_url := ""
+		if !cfg.force_build {
+			// Prebuilt updates require an architecture-specific VUP repo URL.
+			if len(pkg.repo_urls) == 0 do continue
+			arch, arch_ok := config.get_arch()
+			if !arch_ok do continue
+			url, url_ok := pkg.repo_urls[arch]
+			if !url_ok do continue
+			repo_url = url
+		}
 
 		if version_gt(pkg.version, installed_ver) {
 			append(
@@ -208,9 +211,20 @@ xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
 	}
 	fmt.println()
 
+	if cfg.force_build {
+		build_targets := make([dynamic]string, context.temp_allocator)
+		for u in upgrades do append(&build_targets, u.name)
+		// Reuse install resolution and transaction handling, while preventing
+		// update mode from recursively dispatching back into this procedure.
+		install_config := cfg^
+		install_config.sync = false
+		install_config.update_system = false
+		return install_run(build_targets[:], &install_config)
+	}
+
 	// Phase 2: Fetch templates (unless --yes)
-	confirmed := yes
-	if !yes {
+	confirmed := cfg.yes || cfg.dry_run
+	if !confirmed {
 		errors.log_info("Fetching templates for review...")
 
 		for &u in upgrades {
@@ -270,7 +284,13 @@ xbps_upgrade_all :: proc(idx: ^index.Index, yes: bool) -> int {
 
 		errors.log_info("Upgrading %d package(s) from VUP...", len(pkg_names))
 
-		if xbps.upgrade_packages_from_repo(group.repo_url, pkg_names[:], confirmed, utils.run_command) != 0 {
+		if xbps.upgrade_packages_from_repo(
+			group.repo_url,
+			pkg_names[:],
+			confirmed,
+			cfg.dry_run,
+			utils.run_command,
+		) != 0 {
 			errors.log_error("Failed to upgrade %d package(s)", len(pkg_names))
 			err_count += 1
 		} else {
