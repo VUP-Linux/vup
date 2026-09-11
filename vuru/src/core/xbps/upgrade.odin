@@ -21,9 +21,11 @@ upgrade_packages_from_repo :: proc(
 	repo_url: string,
 	pkg_names: []string,
 	yes: bool,
+	dry_run: bool,
 	run_cmd: Command_Runner,
 ) -> int {
 	args := build_args_with_yes(yes, "sudo", "xbps-install", "-R", repo_url, "-Su")
+	if dry_run do append(&args, "-n")
 
 
 	for name in pkg_names {
@@ -33,8 +35,9 @@ upgrade_packages_from_repo :: proc(
 }
 
 // Upgrade all packages from official repos
-upgrade_all_official :: proc(yes: bool, run_cmd: Command_Runner) -> int {
+upgrade_all_official :: proc(yes: bool, dry_run: bool, run_cmd: Command_Runner) -> int {
 	args := build_args_with_yes(yes, "sudo", "xbps-install", "-Su")
+	if dry_run do append(&args, "-n")
 
 
 	return run_cmd(args[:])

@@ -33,7 +33,11 @@ default_build_config :: proc(allocator := context.allocator) -> (Build_Config, b
 		"/opt/vup",
 	}
 
-	for path in candidates {
+	for candidate in candidates {
+		path := candidate
+		if os.exists(utils.path_join(candidate, "vup/xbps-src", allocator = context.temp_allocator)) {
+			path = utils.path_join(candidate, "vup", allocator = context.temp_allocator)
+		}
 		xbps_src := utils.path_join(path, "xbps-src", allocator = context.temp_allocator)
 		if os.exists(xbps_src) {
 			return Build_Config {
@@ -78,7 +82,7 @@ vup_clone_or_update :: proc(target_dir: string) -> bool {
 xbps_src_bootstrap :: proc(cfg: ^Build_Config) -> bool {
 	masterdir := utils.path_join(cfg.vup_dir, "masterdir", allocator = context.temp_allocator)
 
-	if os.exists(masterdir) {
+	if os.exists(utils.path_join(masterdir, ".xbps_chroot_init", allocator = context.temp_allocator)) {
 		return true
 	}
 
@@ -112,7 +116,13 @@ build_package :: proc(cfg: ^Build_Config, pkg_name: string, category: string) ->
 		return false
 	}
 
-	errors.log_info("Building %s...", pkg_name)
+	policy := utils.path_join(cfg.vup_dir, "common/xbps-src/shutils/vuru_local_dependencies.sh", allocator = context.temp_allocator)
+	if !os.exists(policy) {
+		errors.log_error("Build tree lacks Vuru local dependency support. Update it with 'vuru clone'.")
+		return false
+	}
+
+	errors.log_info("Building %s and VUP-only dependencies locally...", pkg_name)
 
 	// Run xbps-src pkg <pkgname>
 	// Note: xbps-src expects to be run from its directory
@@ -120,7 +130,14 @@ build_package :: proc(cfg: ^Build_Config, pkg_name: string, category: string) ->
 		{
 			"sh",
 			"-c",
-			fmt.tprintf("cd %s && ./xbps-src pkg %s/%s", cfg.vup_dir, category, pkg_name),
+			`cd "$1" || exit
+export XBPS_VURU_BUILD_LOCAL=1
+export XBPS_VURU_ROOT_PKG="$2"
+XBPS_VURU_LOCAL_BUILD_STATE=$(mktemp -d "$1/hostdir/.vuru-local.XXXXXX") || exit
+export XBPS_VURU_LOCAL_BUILD_STATE
+trap 'rm -rf "$XBPS_VURU_LOCAL_BUILD_STATE"' EXIT
+./xbps-src -f pkg "$2"`,
+			"vuru-build", cfg.vup_dir, fmt.tprintf("%s/%s", category, pkg_name),
 		},
 	)
 
@@ -138,24 +155,10 @@ build_package :: proc(cfg: ^Build_Config, pkg_name: string, category: string) ->
 
 // Install a locally built package
 install_local_package :: proc(cfg: ^Build_Config, pkg_name: string, yes: bool) -> bool {
-	// Find the built package in hostdir/binpkgs
 	binpkgs := utils.path_join(cfg.vup_dir, "hostdir/binpkgs", allocator = context.temp_allocator)
-
-	_, ok := config.get_arch()
-	if !ok {
-		return false
-	}
-
-	// xbps-install from local repository
-	args: [dynamic; 8]string
-	append(&args, "sudo", "xbps-install", "-R", binpkgs)
-
-	if yes {
-		append(&args, "-y")
-	}
-	append(&args, pkg_name)
-
-	return utils.run_command(args[:]) == 0
+	ok, err := host_install_pkg(pkg_name, binpkgs, yes, cfg.vup_dir)
+	if !ok do errors.print_error(err)
+	return ok
 }
 
 // Get the output package path after build

@@ -350,7 +350,7 @@ install_vup_deps_for_pkg :: proc(
 
 // Install a built package on the host system using xbps-install, pulling from
 // every subdirectory under hostdir/binpkgs as a possible repository.
-host_install_pkg :: proc(pkg_name: string, binpkgs_dir: string) -> (bool, errors.Error) {
+host_install_pkg :: proc(pkg_name: string, binpkgs_dir: string, yes := false, local_build_tree := "") -> (bool, errors.Error) {
 	if !os.exists(binpkgs_dir) {
 		return false, errors.make_error(.Command_Failed, fmt.tprintf("missing %s", binpkgs_dir))
 	}
@@ -365,6 +365,26 @@ host_install_pkg :: proc(pkg_name: string, binpkgs_dir: string) -> (bool, errors
 
 	cmd: [dynamic]string
 	append(&cmd, "sudo", "xbps-install")
+	if yes do append(&cmd, "-y")
+
+	if local_build_tree != "" {
+		// Restrict runtime dependencies to local outputs and official Void repos.
+		// Use xbps-uhelper for libc-aware architecture names (including musl).
+		repos, repos_ok := utils.run_command_output({
+			"bash", "-c",
+			`XBPS_DISTDIR="$1"
+source "$1/common/xbps-src/shutils/vuru_local_dependencies.sh" || exit
+vuru_official_repositories "$(xbps-uhelper arch)"`,
+			"vuru-repositories", local_build_tree,
+		}, context.temp_allocator)
+		if !repos_ok || strings.trim_space(repos) == "" {
+			return false, errors.make_error(.Command_Failed, "Cannot determine official Void repositories")
+		}
+		append(&cmd, "-i")
+		for repo in strings.split_lines_iterator(&repos) {
+			if repo != "" do append(&cmd, fmt.tprintf("--repository=%s", repo))
+		}
+	}
 
 	// hostdir/binpkgs itself (some templates drop packages here) plus every subdir.
 	append(&cmd, fmt.tprintf("--repository=%s", binpkgs_dir))
