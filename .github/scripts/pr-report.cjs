@@ -92,7 +92,7 @@ async function reportBuild({ github, reader = github, context, core }) {
   const title = passed ? ':white_check_mark: VUP Build Passed' :
     noBuild ? ':information_source: No packages built' : ':x: VUP Build Failed';
   const detail = passed ? `${builds.length} package build job(s) completed successfully.` :
-    noBuild ? 'No changed packages were selected for an x86_64 build.' :
+    noBuild ? 'No changed packages were selected for a build.' :
       'Compilation or build setup did not complete successfully.';
   const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${run.id}`;
 

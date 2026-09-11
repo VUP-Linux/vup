@@ -103,6 +103,18 @@ test('custom run-name does not suppress the compilation report', async () => {
   assert.ok(f.state.writes.some(write => write.method === 'addLabels'));
 });
 
+test('every architecture must pass before adding build-passed', async () => {
+  for (const conclusion of ['success', 'failure', 'cancelled', 'skipped']) {
+    const f = fixture();
+    f.state.jobs.push({
+      name: 'Build packages (core / aarch64)', conclusion,
+      steps: [{ name: 'Build Modified Packages', conclusion }],
+    });
+    await reportBuild(f);
+    assert.equal(f.state.writes.some(write => write.method === 'addLabels'), conclusion === 'success');
+  }
+});
+
 for (const [name, modify] of [
   ['failed build', f => { f.state.run.conclusion = 'failure'; f.state.jobs[1].conclusion = 'failure'; }],
   ['failed setup despite successful report', f => { f.state.jobs[1].conclusion = 'failure'; }],
