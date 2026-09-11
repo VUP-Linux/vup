@@ -1,8 +1,12 @@
 # VUP – Void User Packages
 
-Community package repository for Void Linux. Prebuilt `.xbps` packages, no compiling required.
+Community package repository for Void Linux, with prebuilt `.xbps` packages and
+optional local builds from VUP templates.
 
 **vuru** is a package manager for VUP, similar to paru/yay for the AUR. Written in [Odin](https://odin-lang.org).
+
+See the [Vuru README](vuru/README.md) for build instructions, configuration,
+install modes, and dependency behavior.
 
 ## Install
 
@@ -10,58 +14,54 @@ Community package repository for Void Linux. Prebuilt `.xbps` packages, no compi
 sudo xbps-install -R https://github.com/VUP-Linux/vup/releases/download/core-x86_64-current -S vuru
 ```
 
+Launch Vuru once as your regular user to choose whether VUP packages should be
+built locally or installed from the prebuilt repositories:
+
+```bash
+vuru
+```
+
+Press `y` to make local builds the default, or press Enter to use prebuilt
+packages. Vuru saves the choice in `~/.config/vuru/config.conf`.
+
 ## Quick Start
 
 ```bash
-vuru search code           # search VUP + official repos
-vuru install vlang         # install a package
-vuru install -Su           # Sync && update
-vuru remove vlang          # Remove vlang
-vuru remove -o             # remove orphan packages
-vuru query odin            # show package details (template)
+vuru search cstow          # search VUP and official repositories
+vuru install cstow         # install using the saved default
+vuru query cstow           # show package information
+vuru remove cstow          # remove a package
+vuru update                # update installed packages
 ```
 
-## Commands
+Run `vuru --help` for the complete command and option list.
 
+## Configuration
+
+Edit `~/.config/vuru/config.conf` to change the default install mode:
+
+```conf
+# true: build VUP packages locally; false: use prebuilt packages
+build_local = true
 ```
-vuru <command> [options] [arguments]
 
-Commands:
-  install  <pkg...>      Install packages (VUP + official)
-  remove   <pkg...>      Remove packages
-  update                 Update all packages
-  build    <pkg...>      Build from source
-  sync                   Sync repository index
-  query    <pkg>         Show package info (or use modes below)
-  fetch    <url...>      Download files from URLs
-  clone                  Clone VUP repo locally
-  src      <cmd> [args]  xbps-src wrapper
-  help                   Show help
+When `XDG_CONFIG_HOME` is set to an absolute path, Vuru uses
+`$XDG_CONFIG_HOME/vuru/config.conf` instead. The setting applies to VUP package
+installs and updates. Official Void system updates always use Void's binary
+repositories.
 
-Query modes:
-  -l, --list       List installed packages
-  -f, --files      Show package files
-  -x, --deps       Show dependencies
-  --ownedby        Find package owning a file
+Use command-line flags to override the saved default for one invocation:
 
-Install/Remove flags:
-  -S, --sync         Sync repos before operation
-  -u, --update       Update mode (system upgrade)
-  -R, --recursive    Recursive remove/deps
-  -o, --orphans      Remove orphan packages
-  -O, --clean-cache  Clean package cache
-
-General options:
-  -y, --yes        Skip confirmations
-  -n, --dry-run    Show what would be done
-  -b, --build      Force build from source
-  -d, --desc       Include descriptions in search
-  -v, --verbose    Verbose output
-  -r, --rootdir    Alternate root directory
-  --vup-only       VUP packages only
-
-Aliases: q=query, s=search, i=install, r=remove, u=update
+```bash
+vuru install cstow --build     # build VUP packages locally
+vuru install cstow --prebuilt  # install published VUP packages
+vuru install cstow --dry-run   # preview the transaction
+vuru update --build            # build available VUP updates locally
+vuru update --prebuilt         # use published packages for VUP updates
 ```
+
+`--build` and `--prebuilt` cannot be combined. `-b` and `--local` are aliases
+for `--build`; `--package` is an alias for `--prebuilt`.
 
 ## Unified Search
 
@@ -82,26 +82,45 @@ zls           0.13.0_1   Zig language server
 
 ## Dependency Resolution
 
-Resolves dependencies across VUP and official repos automatically:
+Resolves dependencies across VUP and official repositories automatically:
 
 ```
-$ vuru install -n antigravity
+$ vuru install v-analyzer --build --dry-run
 
-VUP packages (2):
-  vlang antigravity
-
-Official deps (3):
-  libX11 libGL ...
+Build from source (2):
+  v-analyzer-0.0.4_1 [explicit]
+  vlang-0.5.0_1 [dependency]
 ```
 
 ## Build from Source
 
-Build VUP packages locally:
+Build and install a VUP package locally:
 
 ```bash
-vuru clone              # clone VUP repo to ~/.local/share/vup
-vuru build odin         # build package from source
+vuru install odin --build
 ```
+
+Vuru clones the VUP templates and build infrastructure into
+`~/.local/share/vup` when needed. Run `vuru clone` to update an existing local
+checkout.
+
+### Local build dependency policy
+
+Build mode applies recursively to the entire VUP dependency chain. Dependencies
+available only through VUP are also built locally from their templates, while
+dependencies available from official Void repositories are installed as
+official binaries. VUP binary repositories cannot silently replace those local
+VUP builds.
+
+The transaction summary labels the requested package as `[explicit]` and its
+dependencies as `[dependency]`. If a dependency fails to build, Vuru aborts the
+target and prints the dependency chain leading to the failure.
+
+A template may compile source code or package an upstream-provided binary. Local
+mode follows the template and verifies its declared checksums, so users who want
+to audit the full supply chain should review the target and dependency templates.
+Use `--dry-run` to inspect the planned transaction without cloning, downloading,
+building, or installing packages.
 
 ## xbps-src Wrapper
 

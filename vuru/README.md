@@ -1,25 +1,9 @@
 # vuru
 
-A **paru/yay-like** package manager for VUP (Void User Packages), written in [Odin](https://odin-lang.org).
-
-## Features
-
-- 🔍 **Unified Search** - Search VUP and official Void repos together
-- 📦 **Dependency Resolution** - Automatically resolves and installs dependencies
-- 🏗️ **Build from Source** - Build VUP packages locally via xbps-src
-- 📋 **Template Review** - Review package templates before install (like paru)
-- ⚡ **Transaction Planning** - See exactly what will be installed/built
-- 🔄 **Smart Updates** - Update all VUP packages with one command
-
-## Why Odin?
-
-This is the third iteration of vuru, rewritten in Odin for:
-
-- **Explicit memory management** with custom allocators
-- **Predictable performance** without GC pauses
-- **Better than C** ergonomics (defer, multiple returns, sum types)
-- **Future-proof** for dependency resolution (complex graph algorithms)
-- **Maintainable** by future developers
+Vuru is a package manager for VUP (Void User Packages), written in
+[Odin](https://odin-lang.org). It searches VUP and official Void repositories,
+resolves dependencies, installs prebuilt packages, and builds VUP templates
+locally through `xbps-src`.
 
 ## Building
 
