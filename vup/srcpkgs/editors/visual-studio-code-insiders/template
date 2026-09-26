@@ -1,8 +1,8 @@
 # Template file for 'visual-studio-code-insiders'
 pkgname=visual-studio-code-insiders
-version=1.138.0.20260915
+version=1.140.0.20260926
 revision=1
-_commit=1d01c8df715905edfad1c49935680e8156358021
+_commit=4a6a3612a562c50f54c2bd5211f0ea42915b974e
 archs="x86_64 aarch64 armv7l"
 depends="
  alsa-lib
@@ -72,7 +72,7 @@ _baseurl="https://raw.githubusercontent.com/microsoft/vscode/main/resources/linu
 distfiles="${_baseurl}/code.desktop>code-insiders.desktop.in
  ${_baseurl}/code-url-handler.desktop>code-insiders-url-handler.desktop.in
  ${_baseurl}/code-workspace.xml>code-insiders-workspace.xml.in"
-checksum="2f1782b30c4e040efff655fd9cf477930c5a0c81ddae27749b0cbb922c1d248e
+checksum="2b36d3a8c70fcead5258dd0855be0782305b23a00448f0eef11ee4ea462193a0
  c361efa7e02fcad759ed80d2fbab67877f33219b981578af6fffaf18aeb12d9b
  3af748dd6578a1775e8eb7248ba397b7e11840df2ea6ee234ff76fee3dc306cf"
 
@@ -82,18 +82,18 @@ _dlbase="https://vscode.download.prss.microsoft.com/dbazure/download/insider/${_
 
 case "$XBPS_TARGET_MACHINE" in
 	x86_64)
-		distfiles+=" ${_dlbase}/code-insider-x64-1789422264.tar.gz"
-		checksum+=" b7e5871391d38c01a98926391aa110f668ef4afa8e8737a8bae7c041b2ddd0db"
+		distfiles+=" ${_dlbase}/code-insider-x64-1790334839.tar.gz"
+		checksum+=" 556b4dc1b6a94e5496c9317f609aae6c1dc0e5c1ec5785d161fcf378cb36a5e9"
 		_app_dir="VSCode-linux-x64"
 		;;
 	aarch64)
-		distfiles+=" ${_dlbase}/code-insider-arm64-1789422275.tar.gz"
-		checksum+=" 898ceba7d454592af104c7af709e18ef16b5283aed1605d1f1aaef082fa1bc76"
+		distfiles+=" ${_dlbase}/code-insider-arm64-1790334802.tar.gz"
+		checksum+=" 4dd249f87f6aa7e1a7e1f31b55809f4492985425d8718b078c81ca1acb243386"
 		_app_dir="VSCode-linux-arm64"
 		;;
 	armv7l)
-		distfiles+=" ${_dlbase}/code-insider-armhf-1789422270.tar.gz"
-		checksum+=" 1ae1f2c3161a969fed9eeab49926eb2aadabf18681fb8e00c9e907162a55be4a"
+		distfiles+=" ${_dlbase}/code-insider-armhf-1790334794.tar.gz"
+		checksum+=" 3a650ba078f2b89e4371a0aba72f323472f3d14701ac9384bd14655cab92b681"
 		_app_dir="VSCode-linux-armhf"
 		;;
 esac
