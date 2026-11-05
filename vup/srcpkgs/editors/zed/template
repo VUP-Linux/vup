@@ -1,6 +1,6 @@
 # Template file for 'zed'
 pkgname=zed
-version=1.25.2
+version=1.27.0
 revision=1
 archs="x86_64 aarch64"
 create_wrksrc=yes
@@ -32,11 +32,11 @@ noshlibprovides=yes
 case "${XBPS_TARGET_MACHINE}" in
 	x86_64)
 		distfiles="https://github.com/zed-industries/zed/releases/download/v${version}/zed-linux-x86_64.tar.gz"
-		checksum="b405ebea810c82ff84854631e7b2853ae1f22dd1b7e306cb57726471c6617508"
+		checksum="719f6bf649ea8d87961adbf728e178561bac3f598d72d7949558d1150cfc43dd"
 		;;
 	aarch64)
 		distfiles="https://github.com/zed-industries/zed/releases/download/v${version}/zed-linux-aarch64.tar.gz"
-		checksum="5cc192ea154b273efd9a090b76ec5fe482647cbc9aea27a41fb9b42d8c95d63c"
+		checksum="9e4f8b182f41d4cd434cbbc6d1562329a33ef048d65a39bae0665465d0a638bb"
 		;;
 esac
 
