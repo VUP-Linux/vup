@@ -1,6 +1,6 @@
 # Template file for 'antigravity-ide'
 pkgname=antigravity-ide
-version=2.6.0
+version=2.7.0
 revision=1
 archs="x86_64 aarch64"
 create_wrksrc=yes
@@ -44,18 +44,18 @@ nopie=yes
 nostrip=yes
 noshlibprovides=yes
 
-_build=5526304964083712
+_build=4507555968450560
 _baseurl="https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/stable/${version}-${_build}"
 _app_dir="Antigravity IDE"
 
 case "$XBPS_TARGET_MACHINE" in
 	x86_64)
 		distfiles="${_baseurl}/linux-x64/Antigravity%20IDE.tar.gz>${pkgname}-${version}-x64.tar.gz"
-		checksum=b060a7c7679103b2b619752f8ee7a3088dd241a7d207d4311974b56ea6f94356
+		checksum=9360a86521c3e5498846254b743b1f3203768ebadf65a178bc549395936f7a5d
 		;;
 	aarch64)
 		distfiles="${_baseurl}/linux-arm/Antigravity%20IDE.tar.gz>${pkgname}-${version}-arm64.tar.gz"
-		checksum=4953ccb52bf909582a1711a3dd26d640efb45fe555a17ebeff8bc7e2eaa052de
+		checksum=70c1938815408c3d3a2acfff303e3f627a8b16b7b85dd3d572bca7571c3a5ebb
 		;;
 esac
 
