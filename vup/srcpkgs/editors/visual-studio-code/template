@@ -1,6 +1,6 @@
 # Template file for 'visual-studio-code'
 pkgname=visual-studio-code
-version=1.146.0
+version=1.147.0
 revision=1
 archs="x86_64 aarch64 armv7l"
 depends="
@@ -80,17 +80,17 @@ skip_extraction="code.desktop.in code-url-handler.desktop.in code-workspace.xml.
 case "$XBPS_TARGET_MACHINE" in
 	x86_64)
 		distfiles+=" https://update.code.visualstudio.com/${version}/linux-x64/stable>code_x64_${version}.tar.gz"
-		checksum+=" cbdb7bde3d358c7297cf1d9d6adc16dfb1d0179501fb2c152df48593e39e3600"
+		checksum+=" 6fd8b14600f2a8ddb8b4833d8bf288f3dc4c34b2878d2c6c3fec7e16c81023bc"
 		_app_dir="VSCode-linux-x64"
 		;;
 	aarch64)
 		distfiles+=" https://update.code.visualstudio.com/${version}/linux-arm64/stable>code_arm64_${version}.tar.gz"
-		checksum+=" 99e503307fc9569a09e46dd39a0b41c8d13af7a0701eee3c6ec8255763bf23fc"
+		checksum+=" b137f53a29a1debf9fc30027823556863202f94c10d924dd70f2d2370795412d"
 		_app_dir="VSCode-linux-arm64"
 		;;
 	armv7l)
 		distfiles+=" https://update.code.visualstudio.com/${version}/linux-armhf/stable>code_armhf_${version}.tar.gz"
-		checksum+=" a700c44e6ad698df581e29f0bbe1914651a26cc011c847fb8b46b2cfdc9b555b"
+		checksum+=" c6b1a1fb23fd299aa5cdab441de916e43de94b2fb6ae1c3e48dd5d16e55e3635"
 		_app_dir="VSCode-linux-armhf"
 		;;
 esac
