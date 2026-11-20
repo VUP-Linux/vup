@@ -1,6 +1,6 @@
 # Template file for 'vesktop'
 pkgname=vesktop
-version=1.6.9
+version=1.7.0
 revision=1
 archs="x86_64 aarch64"
 short_desc="Client for Discord with improved Linux support"
@@ -10,7 +10,7 @@ distfiles="https://github.com/Vencord/Vesktop/archive/refs/tags/v${version}.tar.
 maintainer="forkfoundinkitchenn <littlebluubird@proton.me>"
 depends="alsa-lib gtk+3 nss libnotify xdg-utils"
 hostmakedepends="nodejs pnpm git"
-checksum="6523647bbf79faaaebe9da260ba706db44e074b5ac0f5a76d1cfeaaa9d6c4d0e"
+checksum="f3feadb58133a6e4555eee878f7e1ce3128abc93ba5203ace18ceafd1856e4a4"
 noshlibprovides=yes
 
 case "$XBPS_TARGET_MACHINE" in
