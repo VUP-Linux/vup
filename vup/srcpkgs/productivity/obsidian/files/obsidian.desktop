@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Obsidian
+Comment=The free and flexible app for your private thoughts
+Exec=obsidian %U
+Terminal=false
+Type=Application
+Icon=obsidian
+StartupNotify=true
+StartupWMClass=md.obsidian.Obsidian
+MimeType=application/pdf;text/markdown;application/x-obsidian-canvas;application/x-obsidian-base;x-scheme-handler/obsidian;
+Categories=Office;

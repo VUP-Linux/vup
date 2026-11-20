@@ -1,0 +1,86 @@
+# Template file for 'obsidian'
+pkgname=obsidian
+version=1.15.1
+revision=1
+archs="x86_64 aarch64"
+create_wrksrc=yes
+hostmakedepends="tar"
+depends="
+ alsa-lib
+ at-spi2-core
+ cairo
+ cups
+ dbus
+ expat
+ glib
+ gtk+3
+ libnotify
+ libsecret
+ libX11
+ libXcomposite
+ libXdamage
+ libXext
+ libXfixes
+ libXrandr
+ libXScrnSaver
+ libXtst
+ libdrm
+ libuuid
+ libxcb
+ libxkbcommon
+ mesa
+ nspr
+ nss
+ pango
+ shared-mime-info
+ xdg-utils
+"
+short_desc="The free and flexible app for your private thoughts"
+maintainer="nasseralhumaid <nasseralhumaid@pm.me>"
+license="custom:Proprietary"
+homepage="https://obsidian.md/"
+restricted=yes
+nopie=yes
+nostrip=yes
+noshlibprovides=yes
+
+_baseurl="https://github.com/obsidianmd/obsidian-releases/releases/download/v${version}"
+
+case "$XBPS_TARGET_MACHINE" in
+	x86_64)
+		distfiles="${_baseurl}/obsidian-${version}.tar.gz"
+		checksum=09074f0635ecf366307d808d0fec06c01a87a0bcc66da6d34126ceece0eb8519
+		_app_dir="obsidian-${version}"
+		;;
+	aarch64)
+		distfiles="${_baseurl}/obsidian-${version}-arm64.tar.gz"
+		checksum=acc219e57e2630c4936e7655126572b62167ea02c2e66f8c25c948ad072b4e70
+		_app_dir="obsidian-${version}-arm64"
+		;;
+esac
+
+do_install() {
+	vmkdir opt/obsidian
+	cp -a --no-preserve=ownership "${_app_dir}/." "${DESTDIR}/opt/obsidian"
+
+	chmod 4755 "${DESTDIR}/opt/obsidian/chrome-sandbox"
+
+	cat > obsidian.sh <<-'EOF'
+	#!/bin/sh
+	XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
+
+	if [ -f "$XDG_CONFIG_HOME/obsidian-flags.conf" ]; then
+		OBSIDIAN_USER_FLAGS=$(sed 's/#.*//' "$XDG_CONFIG_HOME/obsidian-flags.conf" | tr '\n' ' ')
+	fi
+
+	exec /opt/obsidian/obsidian "$@" $OBSIDIAN_USER_FLAGS
+	EOF
+	vbin obsidian.sh obsidian
+
+	vinstall "${FILESDIR}/obsidian.desktop" 644 usr/share/applications
+	vinstall "${FILESDIR}/obsidian.xml" 644 usr/share/mime/packages
+	vinstall "${_app_dir}/resources/icon.png" 644 usr/share/icons/hicolor/512x512/apps obsidian.png
+	vinstall "${_app_dir}/resources/icon.png" 644 usr/share/pixmaps obsidian.png
+
+	vlicense "${_app_dir}/LICENSE.electron.txt"
+}

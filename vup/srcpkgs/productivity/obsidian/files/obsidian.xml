@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+<mime-type type="application/pdf">
+  <glob pattern="*.pdf"/>
+  <comment>PDF document</comment>
+  <icon name="x-office-document" />
+</mime-type>
+<mime-type type="text/markdown">
+  <glob pattern="*.md"/>
+  <comment>Markdown document</comment>
+  <icon name="x-office-document" />
+</mime-type>
+<mime-type type="application/x-obsidian-canvas">
+  <glob pattern="*.canvas"/>
+  <comment>Obsidian Canvas</comment>
+  <icon name="x-office-document" />
+</mime-type>
+<mime-type type="application/x-obsidian-base">
+  <glob pattern="*.base"/>
+  <comment>Obsidian Base</comment>
+  <icon name="x-office-document" />
+</mime-type>
+</mime-info>
