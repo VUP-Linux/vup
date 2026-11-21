@@ -184,46 +184,30 @@ jobs:
           name: binpkgs-${{ matrix.category }}-${{ matrix.arch }}
           path: work/dist
 
-      - name: Prune Old Packages
+      - name: Index and Sign Packages
         env:
-          CATEGORY: ${{ matrix.category }}
           ARCH: ${{ matrix.arch }}
-        run: |
-          cd work
-          rm -f dist/*-repodata*
-          python3 ../vup/vup/scripts/manage_release.py prune
-
-      - name: Sign and Index
-        env:
           XBPS_PRIVATE_KEY: ${{ secrets.XBPS_PRIVATE_KEY }}
         run: |
           # Map arch to docker platform
-          case "${{ matrix.arch }}" in
+          case "$ARCH" in
             x86_64)  PLATFORM="linux/amd64" ;;
             aarch64) PLATFORM="linux/arm64" ;;
             armv7l)  PLATFORM="linux/arm/v7" ;;
             *)       PLATFORM="linux/amd64" ;;
           esac
 
-          # Write key if present
-          [ -n "$XBPS_PRIVATE_KEY" ] && echo "$XBPS_PRIVATE_KEY" > work/privkey.pem
+          if [ -n "$XBPS_PRIVATE_KEY" ]; then
+            trap 'rm -f work/privkey.pem' EXIT
+            printf '%s\n' "$XBPS_PRIVATE_KEY" > work/privkey.pem
+          fi
 
           docker run --rm --platform "$PLATFORM" \
+            -e XBPS_ARCH="$ARCH" \
             -v "$PWD/work/dist:/dist" \
+            -v "$PWD/vup/vup/scripts/index_release.sh:/index-release.sh:ro" \
             ${XBPS_PRIVATE_KEY:+-v "$PWD/work/privkey.pem:/privkey.pem:ro"} \
-            ghcr.io/void-linux/void-glibc:latest sh -c '
-              cd /dist
-              # Remove old signatures - they will be regenerated
-              rm -f *.sig *.sig2
-              [ -f /privkey.pem ] && for p in *.xbps; do
-                [ -e "$p" ] && xbps-rindex --sign-pkg --privkey /privkey.pem "$p"
-              done
-              xbps-rindex -a *.xbps
-              [ -f /privkey.pem ] && xbps-rindex --sign --privkey /privkey.pem --signedby "VUP Builder" .
-              ls -la *-repodata* 2>/dev/null || echo "No repodata!"
-            '
-
-          rm -f work/privkey.pem
+            ghcr.io/void-linux/void-glibc:latest sh /index-release.sh /dist ${XBPS_PRIVATE_KEY:+/privkey.pem}
 
       - name: Clean Remote Assets
         env:

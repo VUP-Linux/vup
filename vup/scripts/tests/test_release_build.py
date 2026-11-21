@@ -1,7 +1,8 @@
-"""Verify release exit status and report preservation using a fake compiler."""
+"""Verify release builds and XBPS repository indexing."""
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -89,6 +90,44 @@ class ReleaseBuildTests(unittest.TestCase):
         self.assertEqual(self.report('missing'), {
             'category': 'missing', 'arch': 'aarch64', 'results': [],
         })
+
+
+@unittest.skipUnless(
+    all(shutil.which(tool) for tool in ('xbps-create', 'xbps-query', 'xbps-rindex')),
+    'XBPS tools are required',
+)
+class ReleaseIndexTests(unittest.TestCase):
+    def test_index_honors_explicit_reverts(self):
+        old = 'ruffle-2025.04.30_1'
+        stable = 'ruffle-0.8.0_1'
+        arch = 'x86_64'
+        for reverts, expected in (([], old), (['--reverts', '2025.04.30_1'], stable)):
+            with self.subTest(expected=expected), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                payload = root / 'payload'
+                payload.mkdir()
+                (payload / 'data').touch()
+                dist = root / 'dist'
+                dist.mkdir()
+                for pkgver, options in ((old, []), (stable, reverts)):
+                    subprocess.run(
+                        ['xbps-create', '-q', '-A', arch, '-n', pkgver,
+                         '-s', 'Release test package', *options, str(payload)],
+                        cwd=dist, check=True,
+                    )
+
+                env = {**os.environ, 'XBPS_ARCH': arch}
+                subprocess.run(
+                    ['sh', str(ROOT / 'vup/scripts/index_release.sh'), str(dist)],
+                    env=env, check=True,
+                )
+                indexed = subprocess.check_output(
+                    ['xbps-query', '-i', '--repository', str(dist), '-p', 'pkgver', 'ruffle'],
+                    env=env, text=True,
+                ).strip()
+                self.assertEqual(indexed, expected)
+                self.assertEqual([path.name for path in dist.glob('*.xbps')],
+                                 [f'{expected}.{arch}.xbps'])
 
 
 if __name__ == '__main__':
