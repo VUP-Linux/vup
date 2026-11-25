@@ -1,6 +1,6 @@
 # Template file for 'antigravity'
 pkgname=antigravity
-version=2.35.0
+version=2.35.1
 revision=1
 archs="x86_64 aarch64"
 create_wrksrc=yes
@@ -44,18 +44,18 @@ nopie=yes
 nostrip=yes
 noshlibprovides=yes
 
-_build=6394266482769920
+_build=4615540875067392
 _baseurl="https://storage.googleapis.com/antigravity-public/antigravity-hub/${version}-${_build}"
 
 case "$XBPS_TARGET_MACHINE" in
 	x86_64)
 		distfiles="${_baseurl}/linux-x64/Antigravity.tar.gz>${pkgname}-${version}-x64.tar.gz"
-		checksum=b88719cbd5f408c0121ee77d2974011a2748306b2591d346eb488a20bc51ec29
+		checksum=d921039a86fbfa0d06968c973eadffa83572b434a351a771b8ad9f241a493d7e
 		_app_dir="Antigravity-x64"
 		;;
 	aarch64)
 		distfiles="${_baseurl}/linux-arm/Antigravity.tar.gz>${pkgname}-${version}-arm64.tar.gz"
-		checksum=a6f5c210f6c6b30af71c2e30eec028517e77801efacba6717afb8580b9b90d0b
+		checksum=c36a98e6dfe06ed9589df95cbe26a00264131021ab779c7a0f305c808cba8973
 		_app_dir="Antigravity-arm64"
 		;;
 esac
